@@ -29,3 +29,11 @@ export function safeLink(url: string): string | undefined {
     return undefined;
   }
 }
+/** 列表展示用域名；解析失败时回退为原文，完整地址通过 title 提示。 */
+export function domainOf(url: string): string {
+  try {
+    return new URL(url).host;
+  } catch {
+    return url;
+  }
+}

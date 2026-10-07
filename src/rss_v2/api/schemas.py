@@ -89,6 +89,13 @@ class SourceResponse(BaseModel):
     last_success_at: int | None = None
 
 
+class SourceListResponse(BaseModel):
+    """来源列表响应；total 是当前过滤条件下的总数，与 items 的分页窗口无关。"""
+
+    items: list[SourceResponse]
+    total: int
+
+
 class HealthResponse(BaseModel):
     """来源健康检查响应。"""
 

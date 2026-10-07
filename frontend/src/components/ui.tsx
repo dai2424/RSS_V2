@@ -101,3 +101,32 @@ export function ErrorState({
     </div>
   );
 }
+/**
+ * 行内启停开关；checked 只反映服务端状态，切换结果由调用方提交后刷新。
+ * 旁边始终提供文字状态，不单靠开关颜色表达。
+ */
+export function Switch({
+  checked,
+  label,
+  disabled,
+  onToggle,
+}: {
+  checked: boolean;
+  label: string;
+  disabled?: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      className={checked ? "switch switch-on" : "switch"}
+      disabled={disabled}
+      onClick={onToggle}
+    >
+      <span className="switch-knob" />
+    </button>
+  );
+}

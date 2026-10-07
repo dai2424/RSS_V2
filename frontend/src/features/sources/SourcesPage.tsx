@@ -8,11 +8,14 @@ import {
   Input,
   PageHeader,
 } from "../../components/ui";
+import { useSourceActions } from "./useSourceActions";
 import { useSourcesList } from "./useSourcesList";
 import { sourceColumns } from "./sourceColumns";
-import { CategoryForm } from "./CategoryForm";
+import { CategoryDialog } from "./CategoryDialog";
 
-/** 来源列表页面，复用 URL 数据用例、表格字段和分类表单。 */
+const PAGE_SIZE = 25;
+
+/** 来源列表页面：行内启停/测试/采集，筛选与分页保存在 URL。 */
 export function SourcesPage() {
   const {
     params,
@@ -26,10 +29,17 @@ export function SourcesPage() {
     collect,
     setFilter,
   } = useSourcesList();
+  const actions = useSourceActions();
   const categoryNames = new Map(
     (categories.data ?? []).map((item) => [item.id, item.name]),
   );
-  const columns = sourceColumns(categoryNames, "/sources?" + params.toString());
+  const columns = sourceColumns(
+    categoryNames,
+    "/sources?" + params.toString(),
+    actions,
+  );
+  const items = sources.data?.items ?? [];
+  const total = sources.data?.total ?? 0;
   return (
     <div className="page">
       <PageHeader
@@ -57,6 +67,16 @@ export function SourcesPage() {
         </div>
       )}
       {collect.isError && <ErrorState message={collect.error.message} />}
+      {actions.message &&
+        (actions.message.tone === "error" ? (
+          <div className="alert alert-error" role="alert">
+            {actions.message.text}
+          </div>
+        ) : (
+          <div className="alert" role="status">
+            {actions.message.text}
+          </div>
+        ))}
       <Card>
         <div className="toolbar card-pad">
           <Input
@@ -77,6 +97,7 @@ export function SourcesPage() {
               </option>
             ))}
           </select>
+          <CategoryDialog onSelect={(id) => setFilter("category", id)} />
           <select
             aria-label="启用状态"
             value={status}
@@ -106,34 +127,34 @@ export function SourcesPage() {
             onRetry={() => void categories.refetch()}
           />
         )}
-        {sources.data?.length === 0 && (
+        {sources.data?.items.length === 0 && (
           <EmptyState
             title={q || category || status ? "没有匹配结果" : "还没有 RSS 来源"}
             description="添加来源或调整筛选条件。"
           />
         )}
-        {!!sources.data?.length && (
-          <DataTable data={sources.data} columns={columns} />
-        )}
+        {!!items.length && <DataTable data={items} columns={columns} />}
         <div className="toolbar card-pad">
           <Button
             className="secondary"
             disabled={offset === 0}
             onClick={() => {
               const next = new URLSearchParams(params);
-              next.set("offset", String(Math.max(0, offset - 25)));
+              next.set("offset", String(Math.max(0, offset - PAGE_SIZE)));
               setParams(next);
             }}
           >
             上一页
           </Button>
-          <span className="muted">第 {offset / 25 + 1} 页</span>
+          <span className="muted">
+            共 {total} 条 · 第 {offset / PAGE_SIZE + 1} 页
+          </span>
           <Button
             className="secondary"
-            disabled={(sources.data?.length ?? 0) < 25}
+            disabled={offset + items.length >= total}
             onClick={() => {
               const next = new URLSearchParams(params);
-              next.set("offset", String(offset + 25));
+              next.set("offset", String(offset + PAGE_SIZE));
               setParams(next);
             }}
           >
@@ -141,7 +162,6 @@ export function SourcesPage() {
           </Button>
         </div>
       </Card>
-      <CategoryForm />
     </div>
   );
 }

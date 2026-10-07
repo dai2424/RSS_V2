@@ -42,7 +42,7 @@ export function MessagesPage() {
       return requireResponse(r.response, r.data, r.error);
     },
   });
-  const names = new Map(sources.data?.map((s) => [s.id, s.name]));
+  const names = new Map(sources.data?.items.map((s) => [s.id, s.name]));
   const filter = (key: string, value: string) => {
     const next = new URLSearchParams(params);
     next.set(key, value);
@@ -71,7 +71,7 @@ export function MessagesPage() {
             onChange={(e) => filter("source", e.target.value)}
           >
             <option value="">全部来源</option>
-            {sources.data?.map((s) => (
+            {sources.data?.items.map((s) => (
               <option key={s.id} value={s.id}>
                 {s.name}
               </option>

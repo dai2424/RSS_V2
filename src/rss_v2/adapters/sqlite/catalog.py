@@ -112,14 +112,14 @@ class SQLiteSourceRepository:
     def __init__(self, database: SQLiteDatabase) -> None:
         self.database = database
 
-    def list(
-        self,
-        query: str | None = None,
-        category_id: str | None = None,
-        enabled: bool | None = None,
-        limit: int = 50,
-        offset: int = 0,
-    ) -> list[Source]:
+    @staticmethod
+    def _filters(
+        query: str | None,
+        category_id: str | None,
+        enabled: bool | None,
+    ) -> tuple[str, list[Any]]:
+        """构造 list 与 count 共用的过滤条件，返回 WHERE 子句和绑定参数。"""
+
         clauses: list[str] = []
         args: list[Any] = []
         if query:
@@ -133,6 +133,17 @@ class SQLiteSourceRepository:
             clauses.append("s.enabled = ?")
             args.append(int(enabled))
         where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
+        return where, args
+
+    def list(
+        self,
+        query: str | None = None,
+        category_id: str | None = None,
+        enabled: bool | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list[Source]:
+        where, args = self._filters(query, category_id, enabled)
         connection = self.database.connect()
         try:
             rows = connection.execute(
@@ -140,6 +151,20 @@ class SQLiteSourceRepository:
                 (*args, max(1, min(limit, 100)), max(0, offset)),
             ).fetchall()
             return [_source(row) for row in rows]
+        finally:
+            connection.close()
+
+    def count(
+        self,
+        query: str | None = None,
+        category_id: str | None = None,
+        enabled: bool | None = None,
+    ) -> int:
+        where, args = self._filters(query, category_id, enabled)
+        connection = self.database.connect()
+        try:
+            row = connection.execute(f"SELECT COUNT(*) FROM rss_sources s{where}", args).fetchone()
+            return int(row[0])
         finally:
             connection.close()
 

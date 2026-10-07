@@ -165,7 +165,7 @@ def test_apply_retains_history_and_is_repeatable(legacy: Path, target: Container
     assert all(value == 0 for key, value in repeated["counts"].items() if key.endswith("created"))
     assert _hash(legacy) == original_hash
     with TestClient(create_app(target.settings)) as client:
-        assert len(client.get("/api/sources").json()) == 2
+        assert client.get("/api/sources").json()["total"] == 2
         assert len(client.get("/api/messages").json()) == 2
     assert SECRET.encode() not in target.database.path.read_bytes()
     assert SECRET not in json.dumps(source.metadata)

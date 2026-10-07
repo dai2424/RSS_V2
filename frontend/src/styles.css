@@ -609,3 +609,62 @@ tbody tr:hover {
   font-weight: 600;
   margin-bottom: 14px;
 }
+
+/* 来源列表行内操作 */
+.status-cell {
+  align-items: center;
+  display: inline-flex;
+  gap: 8px;
+  white-space: nowrap;
+}
+.switch {
+  background: hsl(var(--muted));
+  border: 1px solid hsl(var(--input));
+  border-radius: 999px;
+  cursor: pointer;
+  display: inline-flex;
+  flex: 0 0 auto;
+  height: 20px;
+  padding: 2px;
+  width: 36px;
+}
+.switch-on {
+  background: hsl(var(--primary));
+  border-color: hsl(var(--primary));
+  justify-content: flex-end;
+}
+.switch:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+.switch-knob {
+  background: hsl(var(--primary-foreground));
+  border-radius: 999px;
+  height: 14px;
+  width: 14px;
+}
+.switch:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+.health-cell {
+  display: grid;
+  gap: 2px;
+  justify-items: start;
+}
+.error-text {
+  color: hsl(var(--destructive));
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.row-actions {
+  display: flex;
+  gap: 8px;
+}
+.alert-error {
+  background: hsl(var(--destructive-background));
+  border-color: hsl(var(--destructive));
+  color: hsl(var(--destructive));
+}

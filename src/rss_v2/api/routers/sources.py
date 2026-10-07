@@ -14,6 +14,7 @@ from rss_v2.api.schemas import (
     HealthResponse,
     SourceCreateRequest,
     SourceDetailResponse,
+    SourceListResponse,
     SourcePatchRequest,
     SourceResponse,
     SourceTestResponse,
@@ -25,7 +26,7 @@ from rss_v2.domain import (
 sources_router = APIRouter(prefix="/api/sources", tags=["sources"])
 
 
-@sources_router.get("", response_model=list[SourceResponse])
+@sources_router.get("", response_model=SourceListResponse)
 def list_sources(
     request: Request,
     q: str | None = None,
@@ -33,16 +34,16 @@ def list_sources(
     enabled: bool | None = None,
     limit: int = Query(default=50, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
-) -> list[SourceResponse]:
+) -> SourceListResponse:
     service = container(request).source_service
-    values: list[SourceResponse] = []
+    items: list[SourceResponse] = []
     for item in service.list(q, category_id, enabled, limit, offset):
         response = source_response(item)
         health = service.health_history(item.id, limit=1)
         response.latest_health = health_response(health[0]) if health else None
         response.last_success_at = service.last_success_at(item.id)
-        values.append(response)
-    return values
+        items.append(response)
+    return SourceListResponse(items=items, total=service.count(q, category_id, enabled))
 
 
 @sources_router.post("", response_model=SourceResponse, status_code=status.HTTP_201_CREATED)

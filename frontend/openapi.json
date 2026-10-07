@@ -155,11 +155,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/SourceResponse"
-                  },
-                  "title": "Response List Sources Api Sources Get"
+                  "$ref": "#/components/schemas/SourceListResponse"
                 }
               }
             }
@@ -1965,6 +1961,28 @@
         ],
         "title": "SourceDetailResponse",
         "description": "来源详情响应。"
+      },
+      "SourceListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/SourceResponse"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total"
+        ],
+        "title": "SourceListResponse",
+        "description": "来源列表响应；total 是当前过滤条件下的总数，与 items 的分页窗口无关。"
       },
       "SourcePatchRequest": {
         "properties": {

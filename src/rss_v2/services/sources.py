@@ -53,6 +53,15 @@ class SourceService:
     ) -> list[Source]:
         return self.sources.list(query, category_id, enabled, limit, offset)
 
+    def count(
+        self,
+        query: str | None = None,
+        category_id: str | None = None,
+        enabled: bool | None = None,
+    ) -> int:
+        """按与 list 相同的过滤条件返回总数，供列表分页使用。"""
+        return self.sources.count(query, category_id, enabled)
+
     def get(self, source_id: str) -> Source:
         source = self.sources.get(source_id)
         if source is None:

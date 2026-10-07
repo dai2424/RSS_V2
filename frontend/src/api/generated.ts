@@ -665,6 +665,16 @@ export interface components {
         components["schemas"]["CollectionRunDetailResponse"] | null;
     };
     /**
+     * SourceListResponse
+     * @description 来源列表响应；total 是当前过滤条件下的总数，与 items 的分页窗口无关。
+     */
+    SourceListResponse: {
+      /** Items */
+      items: components["schemas"]["SourceResponse"][];
+      /** Total */
+      total: number;
+    };
+    /**
      * SourcePatchRequest
      * @description 更新来源请求。
      */
@@ -901,7 +911,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["SourceResponse"][];
+          "application/json": components["schemas"]["SourceListResponse"];
         };
       };
       /** @description Validation Error */

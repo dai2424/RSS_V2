@@ -28,8 +28,11 @@ for (const width of [1440, 768, 390]) {
     page.on("pageerror", (error) => errors.push(error.message));
     const suffix = String(Date.now());
     await page.goto("/sources");
-    await page.getByLabel("自定义行业").fill("浏览器验收" + suffix);
-    await page.getByRole("button", { name: "新增分类", exact: true }).click();
+    await page.getByRole("button", { name: "新增行业", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "自定义行业" });
+    await dialog.getByLabel("自定义行业").fill("浏览器验收" + suffix);
+    await dialog.getByRole("button", { name: "新增分类", exact: true }).click();
+    await expect(dialog).toBeHidden();
     await expect(
       page.getByRole("option", { name: "浏览器验收" + suffix }),
     ).toBeAttached();
@@ -48,7 +51,6 @@ for (const width of [1440, 768, 390]) {
     await expect(
       page.getByRole("heading", { name: "测试来源" + suffix }),
     ).toBeVisible();
-    const sourceUrl = page.url();
     await page.getByRole("link", { name: "编辑", exact: true }).click();
     await expect(page.getByLabel("来源名称", { exact: true })).toHaveValue(
       "测试来源" + suffix,
@@ -124,11 +126,11 @@ for (const width of [1440, 768, 390]) {
         page.getByRole("heading", { name: "任务", exact: true }),
       ).toBeVisible();
     }
-    await page.goto(sourceUrl);
-    await page.getByRole("button", { name: "停用来源", exact: true }).click();
-    await expect(
-      page.getByRole("button", { name: "启用来源", exact: true }),
-    ).toBeVisible();
+    await page.goto("/sources");
+    const row = page.getByRole("row").filter({ hasText: "测试来源" + suffix });
+    await expect(page.getByText(/共 \d+ 条 · 第 1 页/)).toBeVisible();
+    await row.getByRole("switch").click();
+    await expect(row).toContainText("已停用");
     await page.goto(messageUrl);
     await expect(
       page.getByRole("heading", { name: "New computing platform" }).first(),

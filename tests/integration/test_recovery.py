@@ -380,13 +380,12 @@ def test_category_source_edit_disable_and_input_boundaries(client: TestClient) -
         ]
         is False
     )
-    assert (
-        client.get(
-            "/api/sources",
-            params={"enabled": "false", "q": "新名称", "category_id": category["id"]},
-        ).json()[0]["id"]
-        == source_id
-    )
+    filtered = client.get(
+        "/api/sources",
+        params={"enabled": "false", "q": "新名称", "category_id": category["id"]},
+    ).json()
+    assert filtered["total"] == 1
+    assert filtered["items"][0]["id"] == source_id
     assert client.patch(f"/api/sources/{source_id}", json={"name": None}).status_code == 422
     assert (
         client.post(

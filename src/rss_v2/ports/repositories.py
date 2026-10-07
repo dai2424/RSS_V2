@@ -41,6 +41,15 @@ class SourceRepository(Protocol):
         offset: int = 0,
     ) -> list[Source]: ...
 
+    def count(
+        self,
+        query: str | None = None,
+        category_id: str | None = None,
+        enabled: bool | None = None,
+    ) -> int:
+        """按与 list 相同的过滤条件返回来源总数，用于分页展示。"""
+        ...
+
     def get(self, source_id: str) -> Source | None: ...
 
     def create(self, source: Source) -> Source: ...
