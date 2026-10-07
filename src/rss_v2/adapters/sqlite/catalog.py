@@ -226,6 +226,7 @@ class SQLiteSourceRepository:
             "feed_author": metadata.get("author"),
             "feed_updated_at": metadata.get("updated_at"),
             "metadata_json": dumps(metadata.get("extra", {})),
+            "source_type": metadata.get("extra", {}).get("feed_type", "rss"),
             "updated_at": now(),
         }
         assignments = ", ".join(f"{key} = ?" for key in changes)
@@ -246,6 +247,17 @@ class SQLiteHealthRepository:
 
     def __init__(self, database: SQLiteDatabase) -> None:
         self.database = database
+
+    def last_success_at(self, source_id: str) -> int | None:
+        """最近一次成功检查的 UTC 秒，失败不覆盖该值。"""
+        connection = self.database.connect()
+        try:
+            return connection.execute(
+                "SELECT max(checked_at) FROM source_health_checks WHERE source_id=? AND parse_success=1",
+                (source_id,),
+            ).fetchone()[0]
+        finally:
+            connection.close()
 
     def add(self, check: HealthCheck) -> HealthCheck:
         with self.database.transaction() as connection:

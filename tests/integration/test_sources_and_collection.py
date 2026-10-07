@@ -19,7 +19,7 @@ def _create_source(client: TestClient) -> str:
             "url": "https://example.test/feed.xml",
             "platform": "Example",
             "language": "auto",
-            "category_id": "builtin-tech",
+            "category_id": "8cabd1f6-c0c3-4b32-863d-3836cf5a8171",
         },
     )
     assert response.status_code == 201, response.text
@@ -60,7 +60,11 @@ def test_source_create_test_and_collection_are_idempotent(client: TestClient) ->
 def test_invalid_source_is_rejected(client: TestClient) -> None:
     response = client.post(
         "/api/sources",
-        json={"name": "Invalid", "url": "file:///tmp/feed", "category_id": "builtin-tech"},
+        json={
+            "name": "Invalid",
+            "url": "file:///tmp/feed",
+            "category_id": "8cabd1f6-c0c3-4b32-863d-3836cf5a8171",
+        },
     )
     assert response.status_code == 400
     assert response.json()["code"] == "invalid_url"

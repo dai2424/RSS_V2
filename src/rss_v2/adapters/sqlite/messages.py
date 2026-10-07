@@ -1,19 +1,15 @@
-"""消息、版本、采集运行和翻译 SQLite 仓储。"""
+"""messages SQLite 仓储。"""
 
 from __future__ import annotations
 
 import sqlite3
 from typing import Any
 
-from rss_v2.adapters.sqlite.common import dumps, loads
 from rss_v2.adapters.sqlite.connection import SQLiteDatabase
 from rss_v2.domain import (
-    CollectionRun,
     Message,
     MessageVersion,
     SourceLanguage,
-    TaskStatus,
-    Translation,
 )
 
 
@@ -36,41 +32,6 @@ def _version(row: sqlite3.Row) -> MessageVersion:
         collected_at=row["collected_at"],
         language=SourceLanguage(row["language"]),
         content_hash=row["content_hash"],
-    )
-
-
-def _translation(row: sqlite3.Row) -> Translation:
-    return Translation(
-        id=row["id"],
-        message_version_id=row["message_version_id"],
-        status=row["status"],
-        title=row["title"],
-        summary=row["summary"],
-        content=row["content"],
-        provider_id=row["provider_id"],
-        key_ref=row["key_ref"],
-        model=row["model"],
-        prompt_version=row["prompt_version"],
-        task_id=row["task_id"],
-        error_code=row["error_code"],
-        error_message=row["error_message"],
-        created_at=row["created_at"],
-        updated_at=row["updated_at"],
-    )
-
-
-def _run(row: sqlite3.Row) -> CollectionRun:
-    source_ids = loads(row["source_ids_json"]).get("source_ids", [])
-    return CollectionRun(
-        id=row["id"],
-        source_ids=[str(source_id) for source_id in source_ids],
-        status=TaskStatus(row["status"]),
-        requested_at=row["requested_at"],
-        completed_at=row["completed_at"],
-        created_count=row["created_count"],
-        updated_count=row["updated_count"],
-        skipped_count=row["skipped_count"],
-        failed_count=row["failed_count"],
     )
 
 
@@ -117,6 +78,34 @@ class SQLiteMessageRepository:
             row = connection.execute(
                 "SELECT * FROM messages WHERE source_id = ? AND external_id = ?",
                 (source_id, external_id),
+            ).fetchone()
+            return _message(row) if row else None
+        finally:
+            connection.close()
+
+    def get_version(self, version_id: str) -> MessageVersion | None:
+        """读取任务绑定的历史版本。"""
+        connection = self.database.connect()
+        try:
+            row = connection.execute(
+                "SELECT * FROM message_versions WHERE id=?", (version_id,)
+            ).fetchone()
+            return _version(row) if row else None
+        finally:
+            connection.close()
+
+    def find_by_url(self, source_id: str, url: str) -> Message | None:
+        return self._find_version_match(source_id, "url", url)
+
+    def find_by_hash(self, source_id: str, content_hash: str) -> Message | None:
+        return self._find_version_match(source_id, "content_hash", content_hash)
+
+    def _find_version_match(self, source_id: str, field: str, value: str) -> Message | None:
+        connection = self.database.connect()
+        try:
+            row = connection.execute(
+                f"SELECT m.* FROM messages m JOIN message_versions v ON v.message_id=m.id WHERE m.source_id=? AND v.{field}=? ORDER BY v.version_number DESC LIMIT 1",
+                (source_id, value),
             ).fetchone()
             return _message(row) if row else None
         finally:
@@ -214,146 +203,5 @@ class SQLiteMessageRepository:
                 (message_id,),
             ).fetchall()
             return [_version(row) for row in rows]
-        finally:
-            connection.close()
-
-
-class SQLiteCollectionRunRepository:
-    """采集运行仓储。"""
-
-    def __init__(self, database: SQLiteDatabase) -> None:
-        self.database = database
-
-    def create(self, run: CollectionRun) -> CollectionRun:
-        with self.database.transaction() as connection:
-            connection.execute(
-                "INSERT INTO collection_runs(id,source_ids_json,status,requested_at,completed_at,created_count,updated_count,skipped_count,failed_count) VALUES(?,?,?,?,?,?,?,?,?)",
-                (
-                    run.id,
-                    dumps({"source_ids": run.source_ids}),
-                    run.status.value,
-                    run.requested_at,
-                    run.completed_at,
-                    run.created_count,
-                    run.updated_count,
-                    run.skipped_count,
-                    run.failed_count,
-                ),
-            )
-        return run
-
-    def get(self, run_id: str) -> CollectionRun | None:
-        connection = self.database.connect()
-        try:
-            row = connection.execute(
-                "SELECT * FROM collection_runs WHERE id = ?", (run_id,)
-            ).fetchone()
-            return _run(row) if row else None
-        finally:
-            connection.close()
-
-    def update_counts(self, run_id: str, changes: dict[str, Any]) -> CollectionRun:
-        allowed = {
-            "status",
-            "completed_at",
-            "created_count",
-            "updated_count",
-            "skipped_count",
-            "failed_count",
-        }
-        values = {key: value for key, value in changes.items() if key in allowed}
-        if "status" in values and isinstance(values["status"], TaskStatus):
-            values["status"] = values["status"].value
-        if not values:
-            result = self.get(run_id)
-            if result is None:
-                raise KeyError(run_id)
-            return result
-        assignments = ", ".join(f"{key} = ?" for key in values)
-        with self.database.transaction() as connection:
-            cursor = connection.execute(
-                f"UPDATE collection_runs SET {assignments} WHERE id = ?", (*values.values(), run_id)
-            )
-            if cursor.rowcount == 0:
-                raise KeyError(run_id)
-        result = self.get(run_id)
-        if result is None:
-            raise KeyError(run_id)
-        return result
-
-
-class SQLiteTranslationRepository:
-    """翻译仓储。"""
-
-    def __init__(self, database: SQLiteDatabase) -> None:
-        self.database = database
-
-    def get_for_version(
-        self, version_id: str, prompt_version: str, model: str
-    ) -> Translation | None:
-        connection = self.database.connect()
-        try:
-            row = connection.execute(
-                "SELECT * FROM translations WHERE message_version_id=? AND prompt_version=? AND model=?",
-                (version_id, prompt_version, model),
-            ).fetchone()
-            return _translation(row) if row else None
-        finally:
-            connection.close()
-
-    def list_for_version(self, version_id: str) -> list[Translation]:
-        connection = self.database.connect()
-        try:
-            rows = connection.execute(
-                "SELECT * FROM translations WHERE message_version_id=? ORDER BY updated_at DESC",
-                (version_id,),
-            ).fetchall()
-            return [_translation(row) for row in rows]
-        finally:
-            connection.close()
-
-    def save(self, translation: Translation) -> Translation:
-        with self.database.transaction() as connection:
-            connection.execute(
-                """
-                INSERT INTO translations(id,message_version_id,status,title,summary,content,provider_id,key_ref,model,prompt_version,task_id,error_code,error_message,created_at,updated_at)
-                VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-                ON CONFLICT(message_version_id,prompt_version,model) DO UPDATE SET
-                    status=excluded.status,title=excluded.title,summary=excluded.summary,content=excluded.content,
-                    provider_id=excluded.provider_id,key_ref=excluded.key_ref,task_id=excluded.task_id,
-                    error_code=excluded.error_code,error_message=excluded.error_message,updated_at=excluded.updated_at
-                """,
-                (
-                    translation.id,
-                    translation.message_version_id,
-                    translation.status,
-                    translation.title,
-                    translation.summary,
-                    translation.content,
-                    translation.provider_id,
-                    translation.key_ref,
-                    translation.model,
-                    translation.prompt_version,
-                    translation.task_id,
-                    translation.error_code,
-                    translation.error_message,
-                    translation.created_at,
-                    translation.updated_at,
-                ),
-            )
-        result = self.get_for_version(
-            translation.message_version_id, translation.prompt_version, translation.model or ""
-        )
-        if result is None:
-            raise RuntimeError("翻译写入后无法读取")
-        return result
-
-    def get(self, translation_id: str) -> Translation | None:
-        connection = self.database.connect()
-        try:
-            row = connection.execute(
-                "SELECT * FROM translations WHERE id = ?", (translation_id,)
-            ).fetchone()
-            return _translation(row) if row else None
         finally:
             connection.close()

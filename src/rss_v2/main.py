@@ -3,10 +3,15 @@
 from __future__ import annotations
 
 import argparse
+import json
+import logging
+from pathlib import Path
 
-from rss_v2.adapters.sqlite.migrations import MigrationRunner
+import uvicorn
+
 from rss_v2.api.app import create_app
 from rss_v2.bootstrap import build_container
+from rss_v2.settings import Settings
 from rss_v2.tasks.worker import Worker
 
 app = create_app()
@@ -18,12 +23,28 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="RSS v2")
     subparsers = parser.add_subparsers(dest="command", required=True)
     subparsers.add_parser("migrate", help="执行数据库迁移")
+    subparsers.add_parser("api", help="启动本机 API 和已构建的前端")
+    backup_parser = subparsers.add_parser("backup", help="在线备份并检查完整性")
+    backup_parser.add_argument("destination", type=Path)
+    schema_parser = subparsers.add_parser("schema", help="导出 OpenAPI，不创建数据库")
+    schema_parser.add_argument("--output", type=Path, default=Path("frontend/openapi.json"))
     worker_parser = subparsers.add_parser("worker", help="运行后台 worker")
     worker_parser.add_argument("--once", action="store_true", help="只执行一个任务")
     args = parser.parse_args()
-    container = build_container()
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    if args.command == "schema":
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_text(
+            json.dumps(create_app().openapi(), ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+        return
+    if args.command == "api":
+        settings = Settings()
+        uvicorn.run(create_app(settings), host=settings.api_host, port=settings.api_port)
+        return
+    container = build_container(migrate=args.command != "migrate")
     if args.command == "migrate":
-        applied = MigrationRunner(container.database, container.settings.migrations_dir).run()
+        applied = container.migrate()
         print(f"已执行迁移：{', '.join(applied) if applied else '无'}")
     elif args.command == "worker":
         worker = Worker(container)
@@ -31,6 +52,9 @@ def main() -> None:
             print(f"任务已领取：{worker.run_once()}")
         else:
             worker.run_forever()
+    elif args.command == "backup":
+        container.backup(args.destination)
+        print("备份已完成并通过完整性检查")
 
 
 if __name__ == "__main__":

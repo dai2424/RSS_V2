@@ -5,7 +5,7 @@ from __future__ import annotations
 import sqlite3
 from typing import Any
 
-from rss_v2.adapters.sqlite.common import dumps, now
+from rss_v2.adapters.sqlite.common import dumps, loads, now
 from rss_v2.adapters.sqlite.connection import SQLiteDatabase
 from rss_v2.domain import LLMCall, Provider, ProviderKey
 
@@ -22,6 +22,9 @@ def _provider(row: sqlite3.Row) -> Provider:
         session_header_name=row["session_header_name"],
         created_at=row["created_at"],
         updated_at=row["updated_at"],
+        extra_headers={
+            str(key): str(value) for key, value in loads(row["extra_headers_json"]).items()
+        },
     )
 
 
@@ -69,7 +72,7 @@ class SQLiteLLMConfigRepository:
     def create_provider(self, provider: Provider) -> Provider:
         with self.database.transaction() as connection:
             connection.execute(
-                "INSERT INTO llm_providers(id,name,base_url,model,enabled,priority,timeout_seconds,session_header_name,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)",
+                "INSERT INTO llm_providers(id,name,base_url,model,enabled,priority,timeout_seconds,session_header_name,created_at,updated_at,extra_headers_json) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
                 (
                     provider.id,
                     provider.name,
@@ -81,6 +84,7 @@ class SQLiteLLMConfigRepository:
                     provider.session_header_name,
                     provider.created_at,
                     provider.updated_at,
+                    dumps(provider.extra_headers),
                 ),
             )
         return provider
@@ -95,6 +99,9 @@ class SQLiteLLMConfigRepository:
             "timeout_seconds",
             "session_header_name",
         }
+        if "extra_headers" in changes:
+            changes = {**changes, "extra_headers_json": dumps(changes["extra_headers"])}
+            allowed.add("extra_headers_json")
         values = {key: value for key, value in changes.items() if key in allowed}
         if not values:
             result = self.get_provider(provider_id)

@@ -1,9 +1,18 @@
 """运行配置。"""
 
-from pathlib import Path
+from __future__ import annotations
 
-from pydantic import Field
-from pydantic_settings import BaseSettings, SettingsConfigDict
+import os
+from pathlib import Path
+from typing import Literal
+
+from pydantic import Field, model_validator
+from pydantic_settings import (
+    BaseSettings,
+    PydanticBaseSettingsSource,
+    SettingsConfigDict,
+    TomlConfigSettingsSource,
+)
 
 
 class Settings(BaseSettings):
@@ -13,14 +22,42 @@ class Settings(BaseSettings):
 
     runtime_dir: Path = Path("runtime")
     database_path: Path = Path("runtime/db/rss_v2.db")
-    migrations_dir: Path = Path("migrations")
-    api_host: str = "127.0.0.1"
+    migrations_dir: Path = Path(__file__).resolve().parents[2] / "migrations"
+    frontend_dist: Path = Path("runtime/frontend")
+    api_host: Literal["127.0.0.1", "::1", "localhost"] = "127.0.0.1"
     api_port: int = 8000
     rss_timeout_seconds: float = Field(default=20.0, gt=0, le=120)
     worker_lease_seconds: int = Field(default=300, gt=10, le=3600)
     worker_poll_seconds: float = Field(default=2.0, gt=0, le=60)
     llm_default_prompt_version: str = "translation-v1"
     llm_retry_cooldown_seconds: int = Field(default=60, gt=0, le=3600)
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        """显式参数 > RSS_ 环境变量 > RSS_CONFIG 指定的无密钥 TOML。"""
+        return (
+            init_settings,
+            env_settings,
+            TomlConfigSettingsSource(
+                settings_cls, toml_file=Path(os.getenv("RSS_CONFIG", "config/settings.toml"))
+            ),
+        )
+
+    @model_validator(mode="after")
+    def derive_paths(self) -> Settings:
+        """只修改运行目录时，数据库自动跟随；显式数据库路径优先。"""
+        if "database_path" not in self.model_fields_set:
+            self.database_path = self.runtime_dir / "db" / "rss_v2.db"
+        if "frontend_dist" not in self.model_fields_set:
+            self.frontend_dist = self.runtime_dir / "frontend"
+        return self
 
     def ensure_runtime_dirs(self) -> None:
         """创建运行时目录，不触碰源码目录。"""

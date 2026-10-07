@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import sqlite3
 from pathlib import Path
 
 from rss_v2.adapters.sqlite.connection import SQLiteDatabase
@@ -31,21 +32,36 @@ class MigrationRunner:
                 )
                 """
             )
-            migration_files = sorted(self.migrations_dir.glob("*.sql"))
-            for migration in migration_files:
+
+            if not self.migrations_dir.is_dir():
+                raise RuntimeError("迁移目录不存在")
+            for migration in sorted(self.migrations_dir.glob("*.sql")):
                 checksum = hashlib.sha256(migration.read_bytes()).hexdigest()
-                row = connection.execute(
-                    "SELECT checksum FROM schema_migrations WHERE version = ?", (migration.name,)
-                ).fetchone()
-                if row is not None:
-                    if row["checksum"] != checksum:
-                        raise RuntimeError(f"迁移文件已被修改：{migration.name}")
-                    continue
                 connection.execute("BEGIN IMMEDIATE")
                 try:
-                    connection.executescript(migration.read_text(encoding="utf-8"))
+                    row = connection.execute(
+                        "SELECT checksum FROM schema_migrations WHERE version=?", (migration.name,)
+                    ).fetchone()
+                    if row is not None:
+                        if row["checksum"] != checksum:
+                            raise RuntimeError(f"迁移文件已被修改：{migration.name}")
+                        connection.commit()
+                        continue
+                    # executescript 会隐式提交；逐句执行以保证 DDL 和版本记录原子提交。
+                    statement = ""
+                    for line in migration.read_text(encoding="utf-8").splitlines(keepends=True):
+                        statement += line
+                        if sqlite3.complete_statement(statement):
+                            connection.execute(statement)
+                            statement = ""
+                    if statement.strip() and not all(
+                        line.strip().startswith("--")
+                        for line in statement.splitlines()
+                        if line.strip()
+                    ):
+                        raise RuntimeError(f"迁移末尾缺少分号：{migration.name}")
                     connection.execute(
-                        "INSERT INTO schema_migrations(version, checksum, applied_at) VALUES (?, ?, strftime('%s', 'now'))",
+                        "INSERT INTO schema_migrations VALUES (?, ?, strftime('%s', 'now'))",
                         (migration.name, checksum),
                     )
                     connection.commit()

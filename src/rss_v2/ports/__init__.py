@@ -1,6 +1,8 @@
 """RSS v2 端口层。"""
 
-from .external import FeedClient, LLMProvider, SecretResolver
+from rss_v2.llm import LLMProvider
+
+from .external import FeedClient, SecretResolver
 from .repositories import (
     CategoryRepository,
     CollectionRunRepository,

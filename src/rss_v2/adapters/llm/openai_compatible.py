@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
-import json
 import os
 import time
 import uuid
-from typing import Any, cast
 
 import httpx
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
@@ -20,8 +18,41 @@ class TranslationResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     title: str = Field(min_length=1)
-    summary: str = ""
-    content: str = ""
+    summary: str
+    content: str
+
+
+class ContentPart(BaseModel):
+    """兼容多段文本响应。"""
+
+    text: str = ""
+
+
+class ChatMessage(BaseModel):
+    """模型消息。"""
+
+    content: str | list[ContentPart]
+
+
+class ChatChoice(BaseModel):
+    """候选模型响应。"""
+
+    message: ChatMessage
+
+
+class Usage(BaseModel):
+    """兼容缺省 token 用量。"""
+
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    total_tokens: int = 0
+
+
+class ChatResponse(BaseModel):
+    """兼容协议的响应边界。"""
+
+    choices: list[ChatChoice] = Field(min_length=1)
+    usage: Usage = Field(default_factory=Usage)
 
 
 class EnvironmentSecretResolver:
@@ -61,9 +92,13 @@ class OpenAICompatibleProvider:
             "必须只返回 JSON 对象，字段严格为 title、summary、content，不要 Markdown 包裹。\n"
             f"标题：{title}\n摘要：{summary}\n正文：{content}"
         )
-        headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
+        headers = {
+            **provider.extra_headers,
+            "Authorization": f"Bearer {key}",
+            "Content-Type": "application/json",
+        }
         if provider.session_header_name:
-            headers[provider.session_header_name] = f"rss-v2-{uuid.uuid4().hex}"
+            headers[provider.session_header_name] = str(uuid.uuid4())
         payload = {
             "model": provider.model,
             "messages": [
@@ -93,35 +128,23 @@ class OpenAICompatibleProvider:
             raise ExternalServiceError(
                 "llm_request_error", f"模型请求被拒绝（HTTP {response.status_code}）"
             )
-        try:
-            body = cast(dict[str, Any], response.json())
-            raw_content = body["choices"][0]["message"]["content"]
-            if isinstance(raw_content, list):
-                content_parts = cast(list[Any], raw_content)
-                raw_content = "".join(
-                    str(cast(dict[str, Any], item).get("text", ""))
-                    for item in content_parts
-                    if isinstance(item, dict)
-                )
-            data = json.loads(str(raw_content))
-            parsed = TranslationResponse.model_validate(data)
-        except (
-            KeyError,
-            IndexError,
-            TypeError,
-            ValueError,
-            ValidationError,
-            json.JSONDecodeError,
-        ) as exc:
-            raise ExternalServiceError("llm_invalid_output", "模型返回的翻译结构无法校验") from exc
-        usage = body.get("usage", {})
-        token_usage = {
-            "prompt_tokens": int(usage.get("prompt_tokens", 0) or 0),
-            "completion_tokens": int(usage.get("completion_tokens", 0) or 0),
-            "total_tokens": int(usage.get("total_tokens", 0) or 0),
-        }
+
+        parsed, token_usage = self._parse_response(response)
         return (
             TranslationResult(parsed.title, parsed.summary, parsed.content),
             token_usage,
             duration_ms,
         )
+
+    @staticmethod
+    def _parse_response(response: httpx.Response) -> tuple[TranslationResponse, dict[str, int]]:
+        """校验协议 envelope 与模型 JSON；不记录返回正文。"""
+        try:
+            body = ChatResponse.model_validate_json(response.content)
+            raw = body.choices[0].message.content
+            raw_content = raw if isinstance(raw, str) else "".join(item.text for item in raw)
+            parsed = TranslationResponse.model_validate_json(raw_content)
+        except ValidationError as exc:
+            raise ExternalServiceError("llm_invalid_output", "模型返回的翻译结构无法校验") from exc
+        token_usage = body.usage.model_dump()
+        return parsed, token_usage

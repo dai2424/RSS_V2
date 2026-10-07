@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
+from typing import Any, cast
 
-from rss_v2.adapters.sqlite.common import new_id, now
 from rss_v2.domain import DomainError, Provider, ProviderKey
+from rss_v2.domain.values import new_id, now, validate_http_url
 from rss_v2.ports import LLMConfigRepository
 
 
@@ -32,9 +34,12 @@ class ProviderService:
         priority: int,
         timeout_seconds: float,
         session_header_name: str | None,
+        extra_headers: dict[str, str] | None = None,
     ) -> Provider:
-        if not base_url.startswith(("http://", "https://")):
-            raise DomainError("invalid_provider_url", "模型 Base URL 必须是 HTTP(S) 地址")
+        base_url = validate_http_url(base_url)
+        self.validate_session_header(session_header_name)
+        if not name.strip() or not model.strip():
+            raise DomainError("invalid_provider", "模型名称与模型 ID 不能为空")
         timestamp = now()
         return self.config.create_provider(
             Provider(
@@ -48,6 +53,7 @@ class ProviderService:
                 session_header_name,
                 timestamp,
                 timestamp,
+                self.validate_headers(extra_headers or {}),
             )
         )
 
@@ -55,12 +61,15 @@ class ProviderService:
         provider = self.config.get_provider(provider_id)
         if provider is None:
             raise DomainError("provider_not_found", "模型 provider 不存在")
-        if (
-            "base_url" in changes
-            and isinstance(changes["base_url"], str)
-            and not changes["base_url"].startswith(("http://", "https://"))
-        ):
-            raise DomainError("invalid_provider_url", "模型 Base URL 必须是 HTTP(S) 地址")
+        if isinstance(changes.get("base_url"), str):
+            changes["base_url"] = validate_http_url(str(changes["base_url"])).rstrip("/")
+        if "session_header_name" in changes:
+            self.validate_session_header(changes["session_header_name"])
+        for field in ("name", "model"):
+            if field in changes and not str(changes[field]).strip():
+                raise DomainError("invalid_provider", "模型名称与模型 ID 不能为空")
+        if "extra_headers" in changes:
+            changes["extra_headers"] = self.validate_headers(changes["extra_headers"])
         return self.config.update_provider(provider_id, changes)
 
     def add_key(self, provider_id: str, key_ref: str, priority: int) -> ProviderKey:
@@ -81,7 +90,40 @@ class ProviderService:
     def update_key(self, provider_id: str, key_id: str, changes: dict[str, object]) -> ProviderKey:
         if self.config.get_provider(provider_id) is None:
             raise DomainError("provider_not_found", "模型 provider 不存在")
+        if not any(key.id == key_id for key in self.config.list_keys(provider_id)):
+            raise DomainError("key_not_found", "当前 provider 下没有此 Key 引用")
         try:
             return self.config.update_key(key_id, changes)
         except KeyError as exc:
             raise DomainError("key_not_found", "模型 Key 引用不存在") from exc
+
+    @staticmethod
+    def validate_session_header(name: object) -> None:
+        """会话头不能覆盖认证或协议头。"""
+        if name is None:
+            return
+        if (
+            not isinstance(name, str)
+            or not re.fullmatch(r"[A-Za-z][A-Za-z0-9-]*", name)
+            or name.lower() in {"authorization", "cookie", "host", "content-type", "x-api-key"}
+        ):
+            raise DomainError("invalid_headers", "会话头名称无效")
+
+    @staticmethod
+    def validate_headers(headers: object) -> dict[str, str]:
+        """自定义头仅用于非敏感兼容参数，认证头必须通过 Key 引用生成。"""
+        if not isinstance(headers, dict):
+            raise DomainError("invalid_headers", "请求头必须是键值对象")
+        clean: dict[str, str] = {}
+        # isinstance 已限定为字典；逐项验证名称和文本，不依赖未经检查的值类型。
+        for key, value in cast(dict[str, Any], headers).items():
+            name, text = str(key), str(value)
+            if (
+                name.lower() in {"authorization", "cookie", "x-api-key", "api-key", "host"}
+                or not re.fullmatch(r"[A-Za-z][A-Za-z0-9-]*", name)
+                or "\r" in text
+                or "\n" in text
+            ):
+                raise DomainError("invalid_headers", "请求头不能包含密钥、认证信息或换行")
+            clean[name] = text
+        return clean

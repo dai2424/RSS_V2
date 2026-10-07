@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import calendar
 import hashlib
 import html
 import time
@@ -66,7 +67,7 @@ class HTTPXFeedClient:
         parse_feed = cast(Callable[[bytes], object], feedparser.__dict__["parse"])
         parsed = cast(dict[str, Any], parse_feed(response.content))
         entries = list(parsed.get("entries", []))
-        if bool(parsed.get("bozo", False)) and not entries:
+        if not parsed.get("version") or (bool(parsed.get("bozo", False)) and not entries):
             raise ExternalServiceError("feed_parse_error", "RSS 内容无法解析")
         items: list[FeedItem] = []
         for raw_entry in entries:
@@ -82,10 +83,9 @@ class HTTPXFeedClient:
                 or link
                 or hashlib.sha256(title.encode()).hexdigest()
             )
-            published = entry.get("published") or entry.get("updated")
-            content_hash = hashlib.sha256(
-                f"{title}\n{summary}\n{content}\n{link}".encode()
-            ).hexdigest()
+            published = entry.get("published_parsed") or entry.get("updated_parsed")
+            published_seconds = calendar.timegm(published) if published else None
+            content_hash = hashlib.sha256(f"{title}\n{summary}\n{content}".encode()).hexdigest()
             items.append(
                 FeedItem(
                     external_id=external_id,
@@ -93,7 +93,7 @@ class HTTPXFeedClient:
                     summary=summary,
                     content=content,
                     url=link,
-                    published_at=str(published) if published else None,
+                    published_at=published_seconds,
                     language=_language(f"{title} {summary} {content}"),
                     content_hash=content_hash,
                 )
@@ -106,6 +106,8 @@ class HTTPXFeedClient:
             if key not in known and isinstance(value, (str, int, float, bool))
         }
         metadata["duration_ms"] = int((time.perf_counter() - started) * 1000)
+        metadata["http_status"] = response.status_code
+        metadata["feed_type"] = str(parsed.get("version"))
         return FeedSnapshot(
             title=_text(feed.get("title")) or None,
             link=str(feed.get("link")) if feed.get("link") else None,

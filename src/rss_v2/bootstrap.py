@@ -3,19 +3,17 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 
 from rss_v2.adapters.llm.openai_compatible import (
     EnvironmentSecretResolver,
     OpenAICompatibleProvider,
 )
 from rss_v2.adapters.rss.feedparser_client import HTTPXFeedClient
+from rss_v2.adapters.sqlite.collections import SQLiteCollectionRunRepository
 from rss_v2.adapters.sqlite.connection import SQLiteDatabase
 from rss_v2.adapters.sqlite.llm import SQLiteLLMCallRepository, SQLiteLLMConfigRepository
-from rss_v2.adapters.sqlite.messages import (
-    SQLiteCollectionRunRepository,
-    SQLiteMessageRepository,
-    SQLiteTranslationRepository,
-)
+from rss_v2.adapters.sqlite.messages import SQLiteMessageRepository
 from rss_v2.adapters.sqlite.migrations import MigrationRunner
 from rss_v2.adapters.sqlite.repositories import (
     SQLiteCategoryRepository,
@@ -23,6 +21,7 @@ from rss_v2.adapters.sqlite.repositories import (
     SQLiteSourceRepository,
     SQLiteTaskRepository,
 )
+from rss_v2.adapters.sqlite.translations import SQLiteTranslationRepository
 from rss_v2.domain import Provider
 from rss_v2.services.collection import CollectionService
 from rss_v2.services.messages import MessageService
@@ -56,6 +55,14 @@ class Container:
     task_service: TaskService
     provider_service: ProviderService
     secrets: EnvironmentSecretResolver
+
+    def migrate(self) -> list[str]:
+        """CLI 通过组合根执行迁移。"""
+        return MigrationRunner(self.database, self.settings.migrations_dir).run()
+
+    def backup(self, destination: Path) -> None:
+        """CLI 通过组合根执行可验证的在线备份。"""
+        self.database.backup(destination)
 
 
 def build_container(settings: Settings | None = None, migrate: bool = True) -> Container:

@@ -3,21 +3,10 @@
 from __future__ import annotations
 
 import json
-import time
-import uuid
 from typing import Any, cast
 
-
-def new_id() -> str:
-    """返回 UUID 字符串。"""
-
-    return str(uuid.uuid4())
-
-
-def now() -> int:
-    """返回 UTC Unix 秒。"""
-
-    return int(time.time())
+from rss_v2.domain.values import new_id as new_id
+from rss_v2.domain.values import now as now
 
 
 def dumps(value: Any) -> str:
@@ -32,4 +21,5 @@ def loads(value: str | None) -> dict[str, Any]:
     if not value:
         return {}
     result = json.loads(value)
+    # isinstance 已确认 JSON 顶层为字典，键由 JSON 解析器保证是字符串。
     return cast(dict[str, Any], result) if isinstance(result, dict) else {}

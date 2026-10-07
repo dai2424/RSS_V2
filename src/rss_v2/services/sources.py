@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass
-from urllib.parse import urlparse
 
-from rss_v2.adapters.sqlite.common import new_id, now
 from rss_v2.domain import Category, DomainError, HealthCheck, Source, SourceLanguage
+from rss_v2.domain.values import new_id, now, validate_http_url
 from rss_v2.ports import CategoryRepository, FeedClient, HealthRepository, SourceRepository
 
 
@@ -121,6 +121,7 @@ class SourceService:
     def test(self, source_id: str) -> tuple[Source, HealthCheck]:
         source = self.get(source_id)
         checked_at = now()
+        started = time.perf_counter()
         try:
             snapshot = self.feed_client.fetch(source.url, self.timeout_seconds)
             updated = self.sources.save_feed_metadata(
@@ -139,25 +140,25 @@ class SourceService:
                 id=new_id(),
                 source_id=source.id,
                 checked_at=checked_at,
-                http_status=200,
-                latency_ms=None,
+                http_status=int(snapshot.metadata.get("http_status", 200)),
+                latency_ms=int((time.perf_counter() - started) * 1000),
                 parse_success=True,
                 entry_count=len(snapshot.items),
             )
             return updated, self.health.add(check)
-        except DomainError:
-            raise
         except Exception as exc:
             check = HealthCheck(
                 id=new_id(),
                 source_id=source.id,
                 checked_at=checked_at,
                 http_status=getattr(exc, "status_code", None),
-                latency_ms=None,
+                latency_ms=int((time.perf_counter() - started) * 1000),
                 parse_success=False,
                 entry_count=0,
                 error_code=getattr(exc, "code", "feed_error"),
-                error_message=str(exc)[:500],
+                error_message=exc.message
+                if isinstance(exc, DomainError)
+                else "RSS 检查发生内部错误",
             )
             self.health.add(check)
             raise DomainError("feed_unavailable", f"RSS 检查失败：{check.error_message}") from exc
@@ -166,8 +167,10 @@ class SourceService:
         self.get(source_id)
         return self.health.list_for_source(source_id, limit)
 
+    def last_success_at(self, source_id: str) -> int | None:
+        """返回最近成功检查时间。"""
+        return self.health.last_success_at(source_id)
+
     @staticmethod
     def _validate_url(url: str) -> None:
-        parsed = urlparse(url.strip())
-        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
-            raise DomainError("invalid_url", "RSS 地址必须是有效的 HTTP(S) 地址")
+        validate_http_url(url)

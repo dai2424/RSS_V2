@@ -4,7 +4,20 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+
+class PatchRequest(BaseModel):
+    """PATCH 允许省略字段，但仅会话头允许显式置空。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    @model_validator(mode="after")
+    def reject_null(self) -> PatchRequest:
+        for key in self.model_fields_set:
+            if key != "session_header_name" and getattr(self, key) is None:
+                raise ValueError(f"{key} 不能为 null")
+        return self
 
 
 class CategoryCreateRequest(BaseModel):
@@ -39,7 +52,7 @@ class SourceCreateRequest(BaseModel):
     time_offset_minutes: int = Field(default=0, ge=-1440, le=1440)
 
 
-class SourcePatchRequest(BaseModel):
+class SourcePatchRequest(PatchRequest):
     """更新来源请求。"""
 
     name: str | None = Field(default=None, min_length=1, max_length=200)
@@ -72,6 +85,8 @@ class SourceResponse(BaseModel):
     metadata: dict[str, Any]
     created_at: int
     updated_at: int
+    latest_health: HealthResponse | None = None
+    last_success_at: int | None = None
 
 
 class HealthResponse(BaseModel):
@@ -93,6 +108,14 @@ class SourceTestResponse(BaseModel):
 
     source: SourceResponse
     health: HealthResponse
+
+
+class SourceDetailResponse(BaseModel):
+    """来源详情响应。"""
+
+    source: SourceResponse
+    health: list[HealthResponse]
+    latest_collection: CollectionRunDetailResponse | None = None
 
 
 class CollectionRunRequest(BaseModel):
@@ -142,11 +165,12 @@ class MessageVersionResponse(BaseModel):
     summary: str
     content: str
     url: str
-    published_at: str | None
+    published_at: int | None
     collected_at: int
     language: str
     content_hash: str
     translations: list[TranslationResponse]
+    translation_task: TaskResponse | None = None
 
 
 class MessageResponse(BaseModel):
@@ -196,9 +220,10 @@ class ProviderCreateRequest(BaseModel):
     priority: int = Field(default=100, ge=0, le=10000)
     timeout_seconds: float = Field(default=60, gt=0, le=600)
     session_header_name: str | None = Field(default=None, max_length=100)
+    extra_headers: dict[str, str] = Field(default_factory=dict)
 
 
-class ProviderPatchRequest(BaseModel):
+class ProviderPatchRequest(PatchRequest):
     """更新 provider 请求。"""
 
     name: str | None = Field(default=None, min_length=1, max_length=100)
@@ -208,6 +233,7 @@ class ProviderPatchRequest(BaseModel):
     priority: int | None = Field(default=None, ge=0, le=10000)
     timeout_seconds: float | None = Field(default=None, gt=0, le=600)
     session_header_name: str | None = Field(default=None, max_length=100)
+    extra_headers: dict[str, str] = Field(default_factory=dict)
 
 
 class ProviderKeyCreateRequest(BaseModel):
@@ -217,7 +243,7 @@ class ProviderKeyCreateRequest(BaseModel):
     priority: int = Field(default=100, ge=0, le=10000)
 
 
-class ProviderKeyPatchRequest(BaseModel):
+class ProviderKeyPatchRequest(PatchRequest):
     """更新 key 引用请求。"""
 
     priority: int | None = Field(default=None, ge=0, le=10000)
@@ -248,3 +274,18 @@ class ProviderResponse(BaseModel):
     timeout_seconds: float
     session_header_name: str | None
     keys: list[ProviderKeyResponse]
+    extra_headers: dict[str, str]
+
+
+class CollectionRunDetailResponse(BaseModel):
+    """采集运行统计。"""
+
+    id: str
+    source_ids: list[str]
+    status: str
+    requested_at: int
+    completed_at: int | None
+    created_count: int
+    updated_count: int
+    skipped_count: int
+    failed_count: int
