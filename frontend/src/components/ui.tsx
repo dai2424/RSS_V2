@@ -14,11 +14,14 @@ export function Button({
   type = "button",
   ...props
 }: ComponentProps<"button">) {
-  const variant = className.includes("secondary")
-    ? "outline"
-    : className.includes("danger")
-      ? "destructive"
-      : "default";
+  // 关键字映射到按钮变体：danger 为实心危险色，danger-outline 为红色描边。
+  const variant = className.includes("danger-outline")
+    ? "destructive-outline"
+    : className.includes("secondary")
+      ? "outline"
+      : className.includes("danger")
+        ? "destructive"
+        : "default";
   return (
     <BaseButton
       variant={variant}

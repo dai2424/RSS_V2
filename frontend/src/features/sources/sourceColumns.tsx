@@ -116,7 +116,7 @@ function ActionCell({
         采集
       </Button>
       <Button
-        className="danger"
+        className="danger-outline"
         disabled={pending}
         onClick={() => actions.requestDelete(source)}
       >

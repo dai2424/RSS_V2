@@ -106,7 +106,7 @@ export function SourceDetailPage() {
                 {collect.isPending ? "创建任务…" : "立即采集"}
               </Button>
               <Button
-                className="danger"
+                className="danger-outline"
                 disabled={busy}
                 onClick={() => setDeleting(true)}
               >
