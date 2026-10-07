@@ -33,8 +33,8 @@ def start(*, open_browser: bool = True) -> int:
     try:
         with chdir(project):
             settings = Settings()
-            _check_port(settings)
             _prepare_frontend(project, settings)
+            settings = _select_port(settings)
             build_container(settings)
             return _serve(project, settings, open_browser)
     except KeyboardInterrupt:
@@ -132,13 +132,27 @@ def _check_port(settings: Settings) -> None:
             ) from exc
 
 
-def _spawn(command: str, project: Path, output: BinaryIO) -> subprocess.Popen[bytes]:
+def _select_port(settings: Settings) -> Settings:
+    """首选端口不可用时让系统分配空闲端口，只调整本次启动配置。"""
+    try:
+        _check_port(settings)
+        return settings
+    except StartupError:
+        family = socket.AF_INET6 if ":" in settings.api_host else socket.AF_INET
+        with socket.socket(family, socket.SOCK_STREAM) as listener:
+            listener.bind((settings.api_host, 0))
+            port = listener.getsockname()[1]
+        print(f"端口 {settings.api_port} 不可用，本次自动使用端口 {port}。", flush=True)
+        return settings.model_copy(update={"api_port": port})
+
+
+def _spawn(command: str, project: Path, output: BinaryIO, port: int) -> subprocess.Popen[bytes]:
     """API 和 worker 是独立进程，继承同一环境，输出分别落在日志文件。"""
     flags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
     return subprocess.Popen(
         [sys.executable, "-m", "rss_v2.main", command],
         cwd=project,
-        env={**os.environ, "PYTHONUTF8": "1"},
+        env={**os.environ, "PYTHONUTF8": "1", "RSS_API_PORT": str(port)},
         stdout=output,
         stderr=subprocess.STDOUT,
         creationflags=flags,
@@ -195,7 +209,7 @@ def _serve(project: Path, settings: Settings, open_browser: bool) -> int:
         try:
             for command in ("api", "worker"):
                 output = stack.enter_context((logs / f"{command}.log").open("ab"))
-                children.append(_spawn(command, project, output))
+                children.append(_spawn(command, project, output, settings.api_port))
             _wait_ready(url, children, logs)
             print(f"工作台已就绪：{url}/sources\n按 Ctrl+C 停止 API 和 worker。", flush=True)
             if open_browser and not webbrowser.open(url + "/sources"):

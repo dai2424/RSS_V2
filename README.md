@@ -10,7 +10,7 @@ RSS 来源管理 → 独立 worker 采集 → 消息版本 → 英文内容中�
 .\start.cmd
 ```
 
-也可以直接双击 `start.cmd`。首次自动安装依赖和构建页面，以后没有改动会跳过前端准备；随后启动 API、worker 并打开 <http://127.0.0.1:8000/sources>。保留启动窗口，按 **Ctrl+C** 一起停止；Windows 若询问终止批处理，输入 `Y`。无需自动打开浏览器时使用 `start.cmd --no-browser`。服务日志位于运行目录的 `logs/`。
+也可以直接双击 `start.cmd`。首次自动安装依赖和构建页面，以后没有改动会跳过前端准备；随后启动 API、worker 并打开页面。优先使用 8000，端口被占用时自动选择空闲端口；以启动窗口显示及自动打开的地址为准。保留启动窗口，按 **Ctrl+C** 一起停止；Windows 若询问终止批处理，输入 `Y`。无需自动打开浏览器时使用 `start.cmd --no-browser`。服务日志位于运行目录的 `logs/`。
 
 需要单独调试时仍可使用 `uv run python -m rss_v2.main api` 或 `uv run python -m rss_v2.main worker --once`。
 
@@ -34,7 +34,7 @@ $env:RSS_LLM_KEY_MAIN = '<你的密钥>'
 | `RSS_RUNTIME_DIR` | `runtime`，数据库与构建产物根目录 |
 | `RSS_DATABASE_PATH` | `<runtime>/db/rss_v2.db`，可单独覆盖 |
 | `RSS_FRONTEND_DIST` | `<runtime>/frontend`；自定义时构建和 API 使用同一绝对路径 |
-| `RSS_API_PORT` | `8000` |
+| `RSS_API_PORT` | `8000`；一键启动的首选端口，冲突时自动换用空闲端口 |
 | `RSS_WORKER_LEASE_SECONDS` | `300` |
 | `RSS_LLM_RETRY_COOLDOWN_SECONDS` | `60` |
 

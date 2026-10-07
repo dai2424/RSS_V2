@@ -14,13 +14,18 @@ from rss_v2 import launcher
 from rss_v2.settings import Settings
 
 
+@pytest.mark.parametrize("occupied", [False, True])
 def test_child_failure_stops_both_processes_and_worker_runs(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, occupied: bool
 ) -> None:
     """API、界面、worker 可用；API 退出时启动器回收 worker，不留后台进程。"""
-    with socket.socket() as listener:
-        listener.bind(("127.0.0.1", 0))
-        port = listener.getsockname()[1]
+    listener = socket.socket()
+    listener.bind(("127.0.0.1", 0))
+    port = listener.getsockname()[1]
+    if occupied:
+        listener.listen()
+    else:
+        listener.close()
     frontend = tmp_path / "frontend"
     frontend.mkdir()
     (frontend / "index.html").write_text("<html>startup fixture</html>", encoding="utf-8")
@@ -34,23 +39,30 @@ def test_child_failure_stops_both_processes_and_worker_runs(
     spawned: list[subprocess.Popen[bytes]] = []
     spawn = launcher._spawn
 
-    def track(command: str, project: Path, output: BinaryIO) -> subprocess.Popen[bytes]:
-        child = spawn(command, project, output)
+    def track(command: str, project: Path, output: BinaryIO, port: int) -> subprocess.Popen[bytes]:
+        child = spawn(command, project, output, port)
         spawned.append(child)
         return child
 
     monkeypatch.setattr(launcher, "_spawn", track)
-    settings = Settings()
+    settings = launcher._select_port(Settings())
+    assert (settings.api_port != port) is occupied
     project = Path(__file__).resolve().parents[2]
-    base = f"http://127.0.0.1:{port}"
-    with ThreadPoolExecutor(max_workers=1) as pool:
-        verification = pool.submit(_verify_and_end_api, base, settings, spawned)
-        with pytest.raises(launcher.StartupError, match="API 已退出"):
-            launcher._serve(project, settings, open_browser=False)
-        verification.result(timeout=5)
-    assert len(spawned) == 2 and all(child.poll() is not None for child in spawned)
-    with socket.socket() as connection:
-        assert connection.connect_ex(("127.0.0.1", port)) != 0
+    base = f"http://127.0.0.1:{settings.api_port}"
+    try:
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            verification = pool.submit(_verify_and_end_api, base, settings, spawned)
+            with pytest.raises(launcher.StartupError, match="API 已退出"):
+                launcher._serve(project, settings, open_browser=False)
+            verification.result(timeout=5)
+        assert len(spawned) == 2 and all(child.poll() is not None for child in spawned)
+        with socket.socket() as connection:
+            assert connection.connect_ex(("127.0.0.1", settings.api_port)) != 0
+        if occupied:
+            with socket.socket() as connection:
+                assert connection.connect_ex(("127.0.0.1", port)) == 0
+    finally:
+        listener.close()
 
 
 def _verify_and_end_api(
