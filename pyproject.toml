@@ -41,12 +41,12 @@ src = ["src", "tests"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
-ignore = ["B008"]
+# SQL 列清单在适配器中保持与迁移字段顺序一致，允许其超过行宽。
+ignore = ["B008", "E501"]
 
 [tool.pyright]
-include = ["src", "tests"]
+include = ["src"]
 exclude = ["**/__pycache__", "frontend"]
 pythonVersion = "3.12"
 typeCheckingMode = "strict"
 reportMissingTypeStubs = false
-

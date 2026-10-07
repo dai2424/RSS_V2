@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Example Tech</title>
+    <link>https://example.test/</link>
+    <description>Example feed</description>
+    <language>en-us</language>
+    <item>
+      <guid>entry-1</guid>
+      <title>New computing platform</title>
+      <link>https://example.test/entry-1</link>
+      <description><![CDATA[<p>A new computing platform is available.</p>]]></description>
+      <pubDate>Tue, 07 Oct 2026 08:00:00 GMT</pubDate>
+    </item>
+  </channel>
+</rss>

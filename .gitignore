@@ -4,7 +4,7 @@ __pycache__/
 .ruff_cache/
 .pyright/
 .venv/
-uv.lock
+.vscode/
 env/
 db/*.db
 db/*.db-*
@@ -12,4 +12,5 @@ runtime/
 frontend/node_modules/
 frontend/dist/
 *.log
-
+.zcode/
+.zcodeignore
