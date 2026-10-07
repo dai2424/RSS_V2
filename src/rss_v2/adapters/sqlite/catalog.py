@@ -146,8 +146,10 @@ class SQLiteSourceRepository:
         where, args = self._filters(query, category_id, enabled)
         connection = self.database.connect()
         try:
+            # 按创建时间倒序并用 rowid 决胜：编辑、启停不改变行位置，分页顺序稳定。
             rows = connection.execute(
-                f"SELECT s.* FROM rss_sources s{where} ORDER BY s.updated_at DESC LIMIT ? OFFSET ?",
+                f"SELECT s.* FROM rss_sources s{where} "
+                "ORDER BY s.created_at DESC, s.rowid DESC LIMIT ? OFFSET ?",
                 (*args, max(1, min(limit, 100)), max(0, offset)),
             ).fetchall()
             return [_source(row) for row in rows]

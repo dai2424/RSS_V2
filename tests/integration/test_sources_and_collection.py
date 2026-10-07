@@ -71,6 +71,22 @@ def test_invalid_source_is_rejected(client: TestClient) -> None:
     assert response.json()["code"] == "invalid_url"
 
 
+def test_source_order_is_stable_across_edits(client: TestClient) -> None:
+    """列表按创建时间倒序；编辑和启停不改变行位置，同一秒内按入库顺序决胜。"""
+    category_id = "8cabd1f6-c0c3-4b32-863d-3836cf5a8171"
+    first = client.post(
+        "/api/sources",
+        json={"name": "来源一", "url": "https://one.test/feed", "category_id": category_id},
+    ).json()
+    second = client.post(
+        "/api/sources",
+        json={"name": "来源二", "url": "https://two.test/feed", "category_id": category_id},
+    ).json()
+    assert client.patch(f"/api/sources/{first['id']}", json={"enabled": False}).status_code == 200
+    listed = client.get("/api/sources").json()
+    assert [item["id"] for item in listed["items"]] == [second["id"], first["id"]]
+
+
 @respx.mock
 def test_translation_uses_provider_key_and_keeps_original(
     client: TestClient, monkeypatch: pytest.MonkeyPatch

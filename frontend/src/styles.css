@@ -631,7 +631,6 @@ tbody tr:hover {
 .switch-on {
   background: hsl(var(--primary));
   border-color: hsl(var(--primary));
-  justify-content: flex-end;
 }
 .switch:disabled {
   cursor: default;
@@ -641,7 +640,18 @@ tbody tr:hover {
   background: hsl(var(--primary-foreground));
   border-radius: 999px;
   height: 14px;
+  transition:
+    transform 150ms ease,
+    background-color 150ms ease;
   width: 14px;
+}
+.switch-on .switch-knob {
+  transform: translateX(16px);
+}
+@media (prefers-reduced-motion: reduce) {
+  .switch-knob {
+    transition: none;
+  }
 }
 .switch:focus-visible {
   outline: 2px solid hsl(var(--ring));
