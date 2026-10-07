@@ -116,6 +116,8 @@ class TranslationService:
                 try:
                     return self._execute_key(task, version, candidate, key, prompt)
                 except DomainError as exc:
+                    if exc.code == "task_lease_lost":
+                        raise
                     last_error = exc
         self._save_result(task, version, providers[0], None, prompt, None, last_error)
         raise last_error
@@ -240,7 +242,8 @@ class TranslationService:
                 error_message=error.message if error else None,
                 created_at=now(),
                 updated_at=now(),
-            )
+            ),
+            task.lease_token,
         )
 
     def _keys(self, provider: Provider) -> list[ProviderKey]:

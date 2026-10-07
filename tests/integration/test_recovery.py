@@ -9,7 +9,8 @@ import respx
 from fastapi.testclient import TestClient
 
 from rss_v2.bootstrap import Container, build_container
-from rss_v2.domain import ExternalServiceError, Provider, TaskStatus, TranslationResult
+from rss_v2.domain import DomainError, ExternalServiceError, Provider, TaskStatus, TranslationResult
+from rss_v2.domain.values import now
 from rss_v2.tasks.worker import Worker
 
 FEED = Path("tests/fixtures/sample_feed.xml").read_text(encoding="utf-8")
@@ -79,6 +80,29 @@ class FakeProvider:
 
 
 @respx.mock
+def test_expired_worker_cannot_persist_translation(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    respx.get("https://one.test/feed").mock(return_value=httpx.Response(200, text=FEED))
+    source_id = source(client)
+    container: Container = client.app.state.container
+    collect(client, source_id, Worker(container))
+    provider(client, monkeypatch)
+    container.translation_service.provider = FakeProvider()
+    message_id = client.get("/api/messages").json()[0]["id"]
+    client.post(f"/api/messages/{message_id}/translate")
+    expired = container.tasks.claim_next(["translate_message"], 100, 20)
+    container.tasks.reclaim_expired(121)
+    current = container.tasks.claim_next(["translate_message"], 121, 20)
+    assert expired is not None and current is not None
+    with pytest.raises(DomainError, match="租约"):
+        container.translation_service.run(expired)
+    assert not container.translations.list_for_version(expired.input_version_id)
+    result = container.translation_service.run(current)
+    assert result.title == "中文标题" and result.task_id == current.id
+
+
+@respx.mock
 def test_versions_a_b_a_and_translation_uses_queued_version(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -119,8 +143,8 @@ def test_url_and_content_fallback_do_not_duplicate(client: TestClient) -> None:
     route.mock(
         return_value=httpx.Response(
             200,
-            text=FEED.replace("article-001", "other-guid").replace(
-                "/news/1", "/news/1?utm_source=campaign"
+            text=FEED.replace("<guid>entry-1</guid>", "<guid>other-guid</guid>").replace(
+                "https://example.test/entry-1", "https://example.test/entry-1?utm_source=campaign"
             ),
         )
     )
@@ -128,6 +152,17 @@ def test_url_and_content_fallback_do_not_duplicate(client: TestClient) -> None:
     messages = client.get("/api/messages").json()
     assert len(messages) == 1
     assert messages[0]["latest_version"]["version_number"] == 1
+    route.mock(
+        return_value=httpx.Response(
+            200,
+            text=FEED.replace("<guid>entry-1</guid>", "<guid>third-guid</guid>").replace(
+                "https://example.test/entry-1", "https://example.test/moved"
+            ),
+        )
+    )
+    collect(client, source_id, worker)
+    assert len(client.get("/api/messages").json()) == 1
+    assert client.get("/api/messages").json()[0]["latest_version"]["version_number"] == 1
 
 
 @respx.mock
@@ -272,6 +307,52 @@ def test_invalid_model_output_stops_after_three_attempts(
     failed = client.get(f"/api/tasks/{task['id']}").json()
     assert failed["status"] == "failed" and failed["attempts"] == 3
     assert client.post(f"/api/tasks/{task['id']}/retry").json()["status"] == "queued"
+
+
+@respx.mock
+def test_model_retry_waits_for_configured_cooldown(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    respx.get("https://one.test/feed").mock(return_value=httpx.Response(200, text=FEED))
+    source_id = source(client)
+    container: Container = client.app.state.container
+    container.settings.llm_retry_cooldown_seconds = 120
+    container.translation_service.cooldown_seconds = 120
+    collect(client, source_id, Worker(container))
+    provider(client, monkeypatch)
+    container.translation_service.provider = FakeProvider({"MAIN": "rate_limited"})
+    message_id = client.get("/api/messages").json()[0]["id"]
+    task = client.post(f"/api/messages/{message_id}/translate").json()
+    assert Worker(container).run_once()
+    queued = container.tasks.get(task["id"])
+    assert queued.status == TaskStatus.QUEUED
+    assert queued.available_at >= now() + 119
+    assert not Worker(container).run_once()
+
+
+@pytest.mark.parametrize(
+    "content", ["not json", '{"title":"标题"}', '{"title":4,"summary":"摘要","content":"正文"}']
+)
+@respx.mock
+def test_compatible_adapter_rejects_malformed_translation(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, content: str
+) -> None:
+    respx.get("https://one.test/feed").mock(return_value=httpx.Response(200, text=FEED))
+    source_id = source(client)
+    container: Container = client.app.state.container
+    collect(client, source_id, Worker(container))
+    provider(client, monkeypatch)
+    respx.post("https://llm.test/v1/chat/completions").mock(
+        return_value=httpx.Response(200, json={"choices": [{"message": {"content": content}}]})
+    )
+    message_id = client.get("/api/messages").json()[0]["id"]
+    task = client.post(f"/api/messages/{message_id}/translate").json()
+    assert Worker(container).run_once()
+    status = client.get(f"/api/tasks/{task['id']}").json()
+    assert status["error_code"] == "llm_invalid_output"
+    version = client.get(f"/api/messages/{message_id}").json()["versions"][0]
+    assert version["title"] == "New computing platform"
+    assert version["translations"][0]["status"] == "failed"
 
 
 @pytest.mark.parametrize(

@@ -36,7 +36,12 @@ class Worker:
             if task.task_type != TaskType.TRANSLATE_MESSAGE:
                 tasks.complete(task.id, lease_token=task.lease_token)
         except ExternalServiceError as exc:
-            tasks.fail(task.id, exc.code, exc.message, task.attempts < 3, task.lease_token)
+            delay = (
+                max(60, self.container.settings.llm_retry_cooldown_seconds)
+                if task.task_type == TaskType.TRANSLATE_MESSAGE
+                else 60
+            )
+            tasks.fail(task.id, exc.code, exc.message, task.attempts < 3, task.lease_token, delay)
         except DomainError as exc:
             tasks.fail(task.id, exc.code, exc.message, False, task.lease_token)
         except Exception as exc:

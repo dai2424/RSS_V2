@@ -145,6 +145,7 @@ class SQLiteTaskRepository:
         error_message: str,
         retryable: bool,
         lease_token: str | None = None,
+        retry_delay_seconds: int = 60,
     ) -> Task:
         status = TaskStatus.QUEUED.value if retryable else TaskStatus.FAILED.value
         with self.database.transaction() as connection:
@@ -155,7 +156,7 @@ class SQLiteTaskRepository:
                     error_code,
                     error_message[:1000],
                     now(),
-                    now() + 60 if retryable else 0,
+                    now() + retry_delay_seconds if retryable else 0,
                     task_id,
                     lease_token,
                     lease_token,

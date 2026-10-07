@@ -1,5 +1,6 @@
 """来源、采集和版本集成测试。"""
 
+import json
 from pathlib import Path
 
 import pytest
@@ -105,7 +106,13 @@ def test_translation_uses_provider_key_and_keeps_original(
                 "choices": [
                     {
                         "message": {
-                            "content": '{"title":"新计算平台","summary":"平台已发布。","content":"新的计算平台已经发布。"}'
+                            "content": json.dumps(
+                                {
+                                    "title": "新计算平台",
+                                    "summary": "平台已发布。",
+                                    "content": "新的计算平台已经发布。",
+                                }
+                            )
                         }
                     }
                 ],

@@ -41,8 +41,12 @@ src = ["src", "tests"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
-# SQL 列清单在适配器中保持与迁移字段顺序一致，允许其超过行宽。
-ignore = ["B008", "E501"]
+ignore = ["B008"]
+
+[tool.ruff.lint.per-file-ignores]
+# SQL 列清单保持与迁移字段顺序一致；仅适配器和升级 fixture 允许长 SQL。
+"src/rss_v2/adapters/sqlite/*.py" = ["E501"]
+"tests/integration/test_migrations.py" = ["E501"]
 
 [tool.pyright]
 include = ["src"]
