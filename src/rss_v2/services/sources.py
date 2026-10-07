@@ -5,7 +5,7 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass
 
-from rss_v2.domain import Category, DomainError, HealthCheck, Source, SourceLanguage
+from rss_v2.domain import Category, DomainError, HealthCheck, Source, SourceDeletion, SourceLanguage
 from rss_v2.domain.values import new_id, now, validate_http_url
 from rss_v2.ports import CategoryRepository, FeedClient, HealthRepository, SourceRepository
 
@@ -61,6 +61,12 @@ class SourceService:
     ) -> int:
         """按与 list 相同的过滤条件返回总数，供列表分页使用。"""
         return self.sources.count(query, category_id, enabled)
+
+    def delete(self, source_id: str) -> SourceDeletion:
+        """删除来源及其从属数据；不存在时抛 source_not_found。"""
+
+        self.get(source_id)
+        return self.sources.delete(source_id)
 
     def get(self, source_id: str) -> Source:
         source = self.sources.get(source_id)

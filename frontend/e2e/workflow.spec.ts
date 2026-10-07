@@ -153,6 +153,18 @@ for (const width of [1280, 1440, 1920]) {
       path: testInfo.outputPath(`sources-${width}.png`),
       fullPage: true,
     });
+    // 删除来源：确认弹层说明影响后执行，行与消息一并清理。
+    await row.getByRole("button", { name: "删除", exact: true }).click();
+    const confirm = page.getByRole("alertdialog", { name: "删除来源" });
+    await expect(confirm).toContainText("不可恢复");
+    await expect(confirm).toContainText("1 条消息");
+    await confirm
+      .getByRole("button", { name: "确认删除", exact: true })
+      .click();
+    await expect(confirm).toBeHidden();
+    await expect(
+      page.getByRole("row").filter({ hasText: "测试来源" + suffix }),
+    ).toHaveCount(0);
   });
 }
 

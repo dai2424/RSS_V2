@@ -51,7 +51,11 @@ export interface paths {
     get: operations["get_source_api_sources__source_id__get"];
     put?: never;
     post?: never;
-    delete?: never;
+    /**
+     * Delete Source
+     * @description 删除来源及其从属数据；受影响的未完成采集运行按剩余任务重算状态。
+     */
+    delete: operations["delete_source_api_sources__source_id__delete"];
     options?: never;
     head?: never;
     /** Update Source */
@@ -654,6 +658,14 @@ export interface components {
       time_offset_minutes: number;
     };
     /**
+     * SourceDeleteResponse
+     * @description 删除来源响应；deleted_messages 为随之删除的消息条数。
+     */
+    SourceDeleteResponse: {
+      /** Deleted Messages */
+      deleted_messages: number;
+    };
+    /**
      * SourceDetailResponse
      * @description 来源详情响应。
      */
@@ -661,6 +673,11 @@ export interface components {
       source: components["schemas"]["SourceResponse"];
       /** Health */
       health: components["schemas"]["HealthResponse"][];
+      /**
+       * Message Count
+       * @default 0
+       */
+      message_count: number;
       latest_collection?:
         components["schemas"]["CollectionRunDetailResponse"] | null;
     };
@@ -976,6 +993,37 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["SourceDetailResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  delete_source_api_sources__source_id__delete: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        source_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SourceDeleteResponse"];
         };
       };
       /** @description Validation Error */

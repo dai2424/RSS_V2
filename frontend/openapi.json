@@ -253,6 +253,47 @@
           }
         }
       },
+      "delete": {
+        "tags": [
+          "sources"
+        ],
+        "summary": "Delete Source",
+        "description": "删除来源及其从属数据；受影响的未完成采集运行按剩余任务重算状态。",
+        "operationId": "delete_source_api_sources__source_id__delete",
+        "parameters": [
+          {
+            "name": "source_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Source Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceDeleteResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
       "patch": {
         "tags": [
           "sources"
@@ -1931,6 +1972,20 @@
         "title": "SourceCreateRequest",
         "description": "创建来源请求。"
       },
+      "SourceDeleteResponse": {
+        "properties": {
+          "deleted_messages": {
+            "type": "integer",
+            "title": "Deleted Messages"
+          }
+        },
+        "type": "object",
+        "required": [
+          "deleted_messages"
+        ],
+        "title": "SourceDeleteResponse",
+        "description": "删除来源响应；deleted_messages 为随之删除的消息条数。"
+      },
       "SourceDetailResponse": {
         "properties": {
           "source": {
@@ -1942,6 +1997,11 @@
             },
             "type": "array",
             "title": "Health"
+          },
+          "message_count": {
+            "type": "integer",
+            "title": "Message Count",
+            "default": 0
           },
           "latest_collection": {
             "anyOf": [

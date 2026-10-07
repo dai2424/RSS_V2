@@ -28,6 +28,11 @@ class MessageService:
             result.append((message, version, translations))
         return result
 
+    def count_for_source(self, source_id: str) -> int:
+        """来源下的消息条数，用于删除确认中的影响说明。"""
+
+        return self.messages.count_for_source(source_id)
+
     def detail(
         self, message_id: str
     ) -> tuple[Message, list[tuple[MessageVersion, list[Translation]]]]:

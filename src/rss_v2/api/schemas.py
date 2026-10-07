@@ -122,7 +122,14 @@ class SourceDetailResponse(BaseModel):
 
     source: SourceResponse
     health: list[HealthResponse]
+    message_count: int = 0
     latest_collection: CollectionRunDetailResponse | None = None
+
+
+class SourceDeleteResponse(BaseModel):
+    """删除来源响应；deleted_messages 为随之删除的消息条数。"""
+
+    deleted_messages: int
 
 
 class CollectionRunRequest(BaseModel):

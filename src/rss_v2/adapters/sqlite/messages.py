@@ -205,3 +205,13 @@ class SQLiteMessageRepository:
             return [_version(row) for row in rows]
         finally:
             connection.close()
+
+    def count_for_source(self, source_id: str) -> int:
+        connection = self.database.connect()
+        try:
+            row = connection.execute(
+                "SELECT COUNT(*) FROM messages WHERE source_id = ?", (source_id,)
+            ).fetchone()
+            return int(row[0])
+        finally:
+            connection.close()

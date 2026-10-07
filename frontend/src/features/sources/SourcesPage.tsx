@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { useState } from "react";
 import { DataTable } from "../../components/DataTable";
 import {
   Button,
@@ -13,10 +14,11 @@ import { useSourceActions } from "./useSourceActions";
 import { useSourcesList } from "./useSourcesList";
 import { sourceColumns } from "./sourceColumns";
 import { CategoryDialog } from "./CategoryDialog";
+import { SourceDeleteDialog, type DeleteTarget } from "./SourceDeleteDialog";
 
 const PAGE_SIZE = 25;
 
-/** 来源列表页面：行内启停/测试/采集，反馈走顶部浮层提示。 */
+/** 来源列表页面：行内启停/测试/采集/删除，反馈走顶部浮层提示。 */
 export function SourcesPage() {
   const {
     params,
@@ -31,13 +33,18 @@ export function SourcesPage() {
     setFilter,
   } = useSourcesList();
   const actions = useSourceActions();
+  const [deleting, setDeleting] = useState<DeleteTarget | null>(null);
   const categoryNames = new Map(
     (categories.data ?? []).map((item) => [item.id, item.name]),
   );
   const columns = sourceColumns(
     categoryNames,
     "/sources?" + params.toString(),
-    actions,
+    {
+      ...actions,
+      requestDelete: (source) =>
+        setDeleting({ id: source.id, name: source.name }),
+    },
   );
   const items = sources.data?.items ?? [];
   const total = sources.data?.total ?? 0;
@@ -162,6 +169,7 @@ export function SourcesPage() {
           </Button>
         </div>
       </Card>
+      <SourceDeleteDialog source={deleting} onClose={() => setDeleting(null)} />
     </div>
   );
 }

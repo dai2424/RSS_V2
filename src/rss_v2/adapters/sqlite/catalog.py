@@ -7,7 +7,8 @@ from typing import Any
 
 from rss_v2.adapters.sqlite.common import dumps, loads, new_id, now
 from rss_v2.adapters.sqlite.connection import SQLiteDatabase
-from rss_v2.domain import Category, HealthCheck, Source, SourceLanguage
+from rss_v2.adapters.sqlite.source_deletion import delete_source
+from rss_v2.domain import Category, HealthCheck, Source, SourceDeletion, SourceLanguage
 
 
 def _category(row: sqlite3.Row) -> Category:
@@ -169,6 +170,11 @@ class SQLiteSourceRepository:
             return int(row[0])
         finally:
             connection.close()
+
+    def delete(self, source_id: str) -> SourceDeletion:
+        """级联删除来源；具体清理顺序见 source_deletion 模块。"""
+
+        return delete_source(self.database, source_id)
 
     def get(self, source_id: str) -> Source | None:
         connection = self.database.connect()

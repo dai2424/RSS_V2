@@ -14,6 +14,7 @@ from rss_v2.domain import (
     Provider,
     ProviderKey,
     Source,
+    SourceDeletion,
     Task,
     Translation,
 )
@@ -48,6 +49,13 @@ class SourceRepository(Protocol):
         enabled: bool | None = None,
     ) -> int:
         """按与 list 相同的过滤条件返回来源总数，用于分页展示。"""
+        ...
+
+    def delete(self, source_id: str) -> SourceDeletion:
+        """删除来源及其消息、版本、译文、健康记录、采集结果与相关任务。
+
+        未完成的采集运行会移除该来源；来源不存在时抛 KeyError。
+        """
         ...
 
     def get(self, source_id: str) -> Source | None: ...
@@ -97,6 +105,10 @@ class MessageRepository(Protocol):
     ) -> list[tuple[Message, MessageVersion | None]]: ...
 
     def versions(self, message_id: str) -> list[MessageVersion]: ...
+
+    def count_for_source(self, source_id: str) -> int:
+        """返回来源下的消息条数，用于删除前的影响说明。"""
+        ...
 
 
 class CollectionRunRepository(Protocol):

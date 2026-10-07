@@ -13,6 +13,7 @@ from rss_v2.api.schemas import (
     CollectionRunDetailResponse,
     HealthResponse,
     SourceCreateRequest,
+    SourceDeleteResponse,
     SourceDetailResponse,
     SourceListResponse,
     SourcePatchRequest,
@@ -68,10 +69,22 @@ def get_source(source_id: str, request: Request) -> SourceDetailResponse:
     return SourceDetailResponse(
         source=source,
         health=[health_response(item) for item in current.source_service.health_history(source_id)],
+        message_count=current.message_service.count_for_source(source_id),
         latest_collection=CollectionRunDetailResponse.model_validate(run, from_attributes=True)
         if run
         else None,
     )
+
+
+@sources_router.delete("/{source_id}", response_model=SourceDeleteResponse)
+def delete_source(source_id: str, request: Request) -> SourceDeleteResponse:
+    """删除来源及其从属数据；受影响的未完成采集运行按剩余任务重算状态。"""
+
+    current = container(request)
+    result = current.source_service.delete(source_id)
+    for run_id in result.unfinished_run_ids:
+        current.collection_service.refresh_run(run_id)
+    return SourceDeleteResponse(deleted_messages=result.messages)
 
 
 @sources_router.patch("/{source_id}", response_model=SourceResponse)

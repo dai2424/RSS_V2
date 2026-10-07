@@ -12,6 +12,7 @@ export interface SourceActions {
   toggle: (source: Source) => void;
   test: (source: Source) => void;
   collect: (source: Source) => void;
+  requestDelete: (source: Source) => void;
 }
 
 /** 集中定义来源表格字段：域名代替完整地址，状态就地切换，健康失败附错误摘要。 */
@@ -113,6 +114,13 @@ function ActionCell({
         onClick={() => actions.collect(source)}
       >
         采集
+      </Button>
+      <Button
+        className="danger"
+        disabled={pending}
+        onClick={() => actions.requestDelete(source)}
+      >
+        删除
       </Button>
     </div>
   );

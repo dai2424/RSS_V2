@@ -1,4 +1,5 @@
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { useState } from "react";
 import {
   Badge,
   Button,
@@ -10,10 +11,13 @@ import { showToast } from "../../components/Toast";
 import { formatTime, statusLabels } from "../../lib/display";
 import { useSourceDetail } from "./useSourceDetail";
 import { SourceMetadata, SourceHealth } from "./SourceHistory";
+import { SourceDeleteDialog } from "./SourceDeleteDialog";
 
 /** 来源详情和操作入口；历史展示与数据用例分别维护。 */
 export function SourceDetailPage() {
   const { source, testSource, toggleSource, collect } = useSourceDetail();
+  const [deleting, setDeleting] = useState(false);
+  const navigate = useNavigate();
   if (source.isPending)
     return (
       <div className="loading" role="status">
@@ -101,6 +105,13 @@ export function SourceDetailPage() {
               >
                 {collect.isPending ? "创建任务…" : "立即采集"}
               </Button>
+              <Button
+                className="danger"
+                disabled={busy}
+                onClick={() => setDeleting(true)}
+              >
+                删除来源
+              </Button>
             </div>
           </Card>
           <Card className="card-pad">
@@ -125,6 +136,11 @@ export function SourceDetailPage() {
         </div>
         <SourceHealth health={health} lastSuccess={item.last_success_at} />
       </div>
+      <SourceDeleteDialog
+        source={deleting ? { id: item.id, name: item.name } : null}
+        onClose={() => setDeleting(false)}
+        onDeleted={() => navigate("/sources", { replace: true })}
+      />
     </div>
   );
 }

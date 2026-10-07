@@ -177,6 +177,14 @@ class CollectionRun:
 
 
 @dataclass(frozen=True, slots=True)
+class SourceDeletion:
+    """删除来源的结果统计。"""
+
+    messages: int  # 一并删除的消息条数（版本与译文随消息级联删除）
+    unfinished_run_ids: tuple[str, ...]  # 移除该来源后需要重算状态的未完成采集运行
+
+
+@dataclass(frozen=True, slots=True)
 class Task:
     """持久化后台任务。"""
 
