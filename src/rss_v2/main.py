@@ -17,21 +17,32 @@ from rss_v2.tasks.worker import Worker
 app = create_app()
 
 
-def main() -> None:
-    """解析 CLI 命令。"""
-
+def _parser() -> argparse.ArgumentParser:
+    """集中定义命令参数；具体执行仍复用组合根。"""
     parser = argparse.ArgumentParser(description="RSS v2")
     subparsers = parser.add_subparsers(dest="command", required=True)
     subparsers.add_parser("migrate", help="执行数据库迁移")
     subparsers.add_parser("api", help="启动本机 API 和已构建的前端")
+    start_parser = subparsers.add_parser("start", help="一键准备并启动 API、worker 和工作台")
+    start_parser.add_argument("--no-browser", action="store_true", help="不自动打开浏览器")
     backup_parser = subparsers.add_parser("backup", help="在线备份并检查完整性")
     backup_parser.add_argument("destination", type=Path)
     schema_parser = subparsers.add_parser("schema", help="导出 OpenAPI，不创建数据库")
     schema_parser.add_argument("--output", type=Path, default=Path("frontend/openapi.json"))
     worker_parser = subparsers.add_parser("worker", help="运行后台 worker")
     worker_parser.add_argument("--once", action="store_true", help="只执行一个任务")
-    args = parser.parse_args()
+    return parser
+
+
+def main() -> None:
+    """解析并执行 API、迁移、worker 或一键启动命令。"""
+
+    args = _parser().parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    if args.command == "start":
+        from rss_v2.launcher import start
+
+        raise SystemExit(start(open_browser=not args.no_browser))
     if args.command == "schema":
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(

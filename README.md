@@ -2,36 +2,27 @@
 
 RSS 来源管理 → 独立 worker 采集 → 消息版本 → 英文内容中文化。当前阶段仅供本机使用，不支持局域网部署，也不导入 v1 数据。
 
-## 首次运行
+## 启动
 
-需要 Python 3.12、uv、Node.js 22 和 npm。在项目根目录执行：
-
-```powershell
-uv sync --locked
-uv run python -m rss_v2.main migrate
-Push-Location frontend
-npm ci
-npm run build
-Pop-Location
-uv run python -m rss_v2.main api
-```
-
-打开 <http://127.0.0.1:8000/sources>。另开终端启动 worker：
+需要 uv、Node.js 22 和 npm。在项目根目录只执行：
 
 ```powershell
-uv run python -m rss_v2.main worker
+.\start.cmd
 ```
 
-只执行一个已排队任务：`uv run python -m rss_v2.main worker --once`。API 只创建任务；没有 worker 时，任务会保持排队。
+也可以直接双击 `start.cmd`。首次自动安装依赖和构建页面，以后没有改动会跳过前端准备；随后启动 API、worker 并打开 <http://127.0.0.1:8000/sources>。保留启动窗口，按 **Ctrl+C** 一起停止；Windows 若询问终止批处理，输入 `Y`。无需自动打开浏览器时使用 `start.cmd --no-browser`。服务日志位于运行目录的 `logs/`。
+
+需要单独调试时仍可使用 `uv run python -m rss_v2.main api` 或 `uv run python -m rss_v2.main worker --once`。
 
 操作顺序：创建行业分类 → 新增来源 → 测试来源 → 立即采集 → 查看消息 → 配置 Provider 与 Key 引用 → 生成中文。
 
 ## 模型与配置
 
-Web 页只填写兼容 API 的 Base URL、模型名、非敏感请求头和 Key 引用名。例如引用名为 `MAIN`，需要在启动 **API 和 worker 的两个终端**分别设置：
+Web 页只填写兼容 API 的 Base URL、模型名、非敏感请求头和 Key 引用名。例如引用名为 `MAIN`，在启动终端设置一次即可，API 和 worker 都会继承：
 
 ```powershell
 $env:RSS_LLM_KEY_MAIN = '<你的密钥>'
+.\start.cmd
 ```
 
 不要把真实密钥写入命令示例、仓库配置、请求头配置、截图或提交。引用名中的连字符转换为下划线，再统一转为大写匹配环境变量。可选会话头名称示例：`x-opencode-session`，每次调用自动生成会话 ID。
