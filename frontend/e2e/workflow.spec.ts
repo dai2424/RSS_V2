@@ -29,7 +29,7 @@ async function drainWorker(request: APIRequestContext) {
   throw new Error("任务队列未能排空，可能存在反复失败的任务。");
 }
 
-for (const width of [1440, 768, 390]) {
+for (const width of [1280, 1440, 1920]) {
   test(`RSS 主流程与键盘操作 ${width}px`, async ({
     page,
     request,
@@ -126,17 +126,13 @@ for (const width of [1440, 768, 390]) {
       fullPage: true,
     });
     await expect(page.locator("body")).toHaveJSProperty("scrollWidth", width);
-    if (width < 1024) {
-      await page.getByRole("button", { name: "打开导航", exact: true }).click();
-      await page
-        .getByRole("dialog")
-        .getByRole("link", { name: "任务", exact: true })
-        .focus();
-      await page.keyboard.press("Enter");
-      await expect(
-        page.getByRole("heading", { name: "任务", exact: true }),
-      ).toBeVisible();
-    }
+    const sidebar = page.getByRole("complementary", { name: "主导航" });
+    await expect(sidebar).toBeVisible();
+    await sidebar.getByRole("link", { name: "任务", exact: true }).focus();
+    await page.keyboard.press("Enter");
+    await expect(
+      page.getByRole("heading", { name: "任务", exact: true }),
+    ).toBeVisible();
     await page.goto("/sources");
     const row = page.getByRole("row").filter({ hasText: "测试来源" + suffix });
     await expect(page.getByText(/共 \d+ 条 · 第 1 页/)).toBeVisible();
@@ -170,28 +166,51 @@ test("保存失败保留表单与未保存离开提示", async ({ page }) => {
     .getByLabel("RSS 地址", { exact: true })
     .fill("http://127.0.0.1:8877/fixtures/feed.xml?failure=true");
   await page.getByLabel("行业分类", { exact: true }).selectOption({ index: 1 });
-  await page.route("**/api/sources", (route) =>
-    route.fulfill({
+  let finish = () => {};
+  const submitted = new Promise<void>((resolve) => {
+    finish = resolve;
+  });
+  await page.route("**/api/sources", async (route) => {
+    await submitted;
+    await route.fulfill({
       status: 503,
       contentType: "application/json",
       body: JSON.stringify({ code: "unavailable", message: "服务暂不可用" }),
-    }),
-  );
-  await page.getByRole("button", { name: "保存来源", exact: true }).click();
+    });
+  });
+  try {
+    await page.getByRole("button", { name: "保存来源", exact: true }).click();
+    await expect(
+      page.getByRole("button", { name: "保存中…", exact: true }),
+    ).toBeDisabled();
+  } finally {
+    finish();
+  }
   await expect(page.getByRole("alert")).toContainText("服务暂不可用");
   await expect(page.getByLabel("来源名称", { exact: true })).toHaveValue(
     "保留输入",
   );
   await page.getByRole("link", { name: "取消", exact: true }).click();
   await expect(page.getByRole("alertdialog")).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "继续编辑", exact: true }),
+  ).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(page.getByRole("alertdialog").locator(":focus")).toHaveCount(1);
+  await page.keyboard.press("Shift+Tab");
   await page.getByRole("button", { name: "继续编辑", exact: true }).click();
+  await expect(
+    page.getByRole("link", { name: "取消", exact: true }),
+  ).toBeFocused();
   await expect(page.getByLabel("来源名称", { exact: true })).toHaveValue(
     "保留输入",
   );
 });
 
-test("Provider 与 Key 引用配置，窄屏保持可操作", async ({ page }, testInfo) => {
-  await page.setViewportSize({ width: 390, height: 1000 });
+test("Provider 与 Key 引用配置，1280px 桌面可操作", async ({
+  page,
+}, testInfo) => {
+  await page.setViewportSize({ width: 1280, height: 1000 });
   const name = "界面配置验收" + Date.now();
   await page.goto("/settings/providers");
   const create = page.locator("form").first();
@@ -228,9 +247,9 @@ test("Provider 与 Key 引用配置，窄屏保持可操作", async ({ page }, t
   await expect(
     card.getByRole("button", { name: "启用", exact: true }),
   ).toBeVisible();
-  await expect(page.locator("body")).toHaveJSProperty("scrollWidth", 390);
+  await expect(page.locator("body")).toHaveJSProperty("scrollWidth", 1280);
   await page.screenshot({
-    path: testInfo.outputPath("providers-390.png"),
+    path: testInfo.outputPath("providers-1280.png"),
     fullPage: true,
   });
 });

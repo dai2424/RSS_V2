@@ -2,6 +2,8 @@
 
 RSS 来源管理 → 独立 worker 采集 → 消息版本 → 英文内容中文化。当前阶段仅供本机使用，不支持局域网部署；支持独立导入 v1 RSS 数据。
 
+界面仅面向电脑浏览器，最低支持 **1280px 内容区宽度**，以 1440px 为设计基准，验收覆盖 1280、1440、1920px。手机及低于 1280px 的窗口不纳入支持范围；已有响应式样式保留。
+
 ## 启动
 
 需要 uv、Node.js 22 和 npm。在项目根目录只执行：
@@ -60,6 +62,8 @@ Pop-Location
 ```
 
 OpenAPI 导出不会创建数据库，`src/api/generated.ts` 不手工编辑。浏览器测试默认使用本机 Edge；也可执行 `npx playwright install chromium` 后设置 `PLAYWRIGHT_CHANNEL=chromium`。验收服务只使用固定 RSS 和模拟模型，自动化测试不调用真实模型。
+
+浏览器主流程覆盖 1280、1440、1920px，Provider/Key 配置在 1280px 检查；其余用例默认 1440px。继续检查状态反馈、失败后保留输入、键盘操作与弹窗焦点，截图写入被忽略的 `frontend/test-results/`。
 
 ## 备份与恢复
 

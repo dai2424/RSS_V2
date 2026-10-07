@@ -7,6 +7,7 @@ export default defineConfig({
   use: {
     baseURL: "http://127.0.0.1:8877",
     channel: process.env.PLAYWRIGHT_CHANNEL || "msedge",
+    viewport: { width: 1440, height: 1000 },
     trace: "retain-on-failure",
   },
   webServer: {
