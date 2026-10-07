@@ -1,6 +1,6 @@
 # RSS v2
 
-RSS 来源管理 → 独立 worker 采集 → 消息版本 → 英文内容中文化。当前阶段仅供本机使用，不支持局域网部署，也不导入 v1 数据。
+RSS 来源管理 → 独立 worker 采集 → 消息版本 → 英文内容中文化。当前阶段仅供本机使用，不支持局域网部署；支持独立导入 v1 RSS 数据。
 
 ## 启动
 
@@ -62,6 +62,15 @@ Pop-Location
 OpenAPI 导出不会创建数据库，`src/api/generated.ts` 不手工编辑。浏览器测试默认使用本机 Edge；也可执行 `npx playwright install chromium` 后设置 `PLAYWRIGHT_CHANNEL=chromium`。验收服务只使用固定 RSS 和模拟模型，自动化测试不调用真实模型。
 
 ## 备份与恢复
+
+v1 RSS 数据可以独立导入，默认只预览，增加 `--apply` 才应用。导入会自动备份当前 v2 数据库，保留来源启停、分类、消息和版本；重复执行不重复新增。v1 原数据库只读，不导入模型密钥或分析结果。缺 RSS 地址的历史来源保持停用，编辑补齐地址后才能启用。
+
+```powershell
+uv run python -m rss_v2.main import-v1 ..\RSS_slop_v1\data\news.db
+uv run python -m rss_v2.main import-v1 ..\RSS_slop_v1\data\news.db --apply
+```
+
+详细映射与验收见 [v1 RSS 数据导入](docs/阶段目标/1-RSS订阅_v1迁移_AI.md)。
 
 ```powershell
 uv run python -m rss_v2.main backup runtime/db/backup-20261007.db

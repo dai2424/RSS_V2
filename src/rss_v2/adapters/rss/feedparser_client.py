@@ -13,7 +13,8 @@ import feedparser
 import httpx
 from bs4 import BeautifulSoup
 
-from rss_v2.domain import ExternalServiceError, FeedItem, FeedSnapshot, SourceLanguage
+from rss_v2.domain import ExternalServiceError, FeedItem, FeedSnapshot
+from rss_v2.domain.values import detect_language
 
 
 def _text(value: Any) -> str:
@@ -22,21 +23,6 @@ def _text(value: Any) -> str:
     if value is None:
         return ""
     return BeautifulSoup(html.unescape(str(value)), "html.parser").get_text(" ", strip=True)
-
-
-def _language(text: str) -> SourceLanguage:
-    """用轻量字符比例判断条目语言，未知内容归为 mixed。"""
-
-    letters = [char for char in text if char.isalpha()]
-    if not letters:
-        return SourceLanguage.AUTO
-    cjk = sum("\u4e00" <= char <= "\u9fff" for char in letters)
-    ascii_letters = sum(char.isascii() for char in letters)
-    if cjk / len(letters) > 0.25 and ascii_letters / len(letters) < 0.7:
-        return SourceLanguage.CHINESE
-    if ascii_letters / len(letters) > 0.7:
-        return SourceLanguage.ENGLISH
-    return SourceLanguage.MIXED
 
 
 class HTTPXFeedClient:
@@ -94,7 +80,7 @@ class HTTPXFeedClient:
                     content=content,
                     url=link,
                     published_at=published_seconds,
-                    language=_language(f"{title} {summary} {content}"),
+                    language=detect_language(f"{title} {summary} {content}"),
                     content_hash=content_hash,
                 )
             )

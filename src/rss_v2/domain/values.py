@@ -5,6 +5,21 @@ import uuid
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from rss_v2.domain.errors import DomainError
+from rss_v2.domain.models import SourceLanguage
+
+
+def detect_language(text: str) -> SourceLanguage:
+    """用字符比例判定中文、英文或混合语言；无字母时保留未知状态。"""
+    letters = [char for char in text if char.isalpha()]
+    if not letters:
+        return SourceLanguage.AUTO
+    cjk = sum("\u4e00" <= char <= "\u9fff" for char in letters)
+    ascii_letters = sum(char.isascii() for char in letters)
+    if cjk / len(letters) > 0.25 and ascii_letters / len(letters) < 0.7:
+        return SourceLanguage.CHINESE
+    if ascii_letters / len(letters) > 0.7:
+        return SourceLanguage.ENGLISH
+    return SourceLanguage.MIXED
 
 
 def validate_http_url(value: str) -> str:

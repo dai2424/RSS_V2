@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from rss_v2.adapters.llm.openai_compatible import (
     EnvironmentSecretResolver,
@@ -22,6 +23,7 @@ from rss_v2.adapters.sqlite.repositories import (
     SQLiteTaskRepository,
 )
 from rss_v2.adapters.sqlite.translations import SQLiteTranslationRepository
+from rss_v2.adapters.sqlite.v1_import import SQLiteV1Importer
 from rss_v2.domain import Provider
 from rss_v2.services.collection import CollectionService
 from rss_v2.services.messages import MessageService
@@ -63,6 +65,12 @@ class Container:
     def backup(self, destination: Path) -> None:
         """CLI 通过组合根执行可验证的在线备份。"""
         self.database.backup(destination)
+
+    def import_v1(self, source_path: Path, apply: bool = False) -> dict[str, Any]:
+        """CLI 通过组合根预览或应用 v1 RSS 导入；写入前自动备份。"""
+        return SQLiteV1Importer(
+            self.database, self.settings.migrations_dir, self.settings.runtime_dir
+        ).run(source_path, apply)
 
 
 def build_container(settings: Settings | None = None, migrate: bool = True) -> Container:

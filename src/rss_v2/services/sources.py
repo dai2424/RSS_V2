@@ -96,6 +96,8 @@ class SourceService:
 
     def update(self, source_id: str, changes: dict[str, object]) -> Source:
         source = self.get(source_id)
+        if changes.get("enabled"):
+            self._validate_url(str(changes.get("url", source.url)))
         if "url" in changes and isinstance(changes["url"], str):
             self._validate_url(changes["url"])
         if "name" in changes and isinstance(changes["name"], str) and not changes["name"].strip():

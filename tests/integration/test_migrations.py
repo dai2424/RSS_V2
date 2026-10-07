@@ -16,7 +16,7 @@ def test_fresh_database_and_checksum(tmp_path: Path) -> None:
     shutil.copytree("migrations", migrations)
     database = SQLiteDatabase(tmp_path / "rss.db")
     runner = MigrationRunner(database, migrations)
-    assert len(runner.run()) == 4
+    assert len(runner.run()) == 5
     assert runner.run() == []
     path = migrations / "0001_initial.sql"
     path.write_text(path.read_text(encoding="utf-8") + "\n-- mutation\n", encoding="utf-8")
@@ -47,7 +47,7 @@ def test_two_processes_do_not_apply_migration_twice(tmp_path: Path) -> None:
         results = list(
             pool.map(lambda _: MigrationRunner(database, Path("migrations")).run(), range(2))
         )
-    assert sum(len(result) for result in results) == 4
+    assert sum(len(result) for result in results) == 5
 
 
 def test_upgrade_preserves_versions_and_translations(tmp_path: Path) -> None:

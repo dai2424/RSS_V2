@@ -11,6 +11,7 @@ import uvicorn
 
 from rss_v2.api.app import create_app
 from rss_v2.bootstrap import build_container
+from rss_v2.domain import DomainError
 from rss_v2.settings import Settings
 from rss_v2.tasks.worker import Worker
 
@@ -27,6 +28,9 @@ def _parser() -> argparse.ArgumentParser:
     start_parser.add_argument("--no-browser", action="store_true", help="不自动打开浏览器")
     backup_parser = subparsers.add_parser("backup", help="在线备份并检查完整性")
     backup_parser.add_argument("destination", type=Path)
+    import_parser = subparsers.add_parser("import-v1", help="预览 v1 RSS 导入，--apply 才写入")
+    import_parser.add_argument("source", type=Path, help="v1 SQLite 数据库路径")
+    import_parser.add_argument("--apply", action="store_true", help="备份 v2 并应用导入")
     schema_parser = subparsers.add_parser("schema", help="导出 OpenAPI，不创建数据库")
     schema_parser.add_argument("--output", type=Path, default=Path("frontend/openapi.json"))
     worker_parser = subparsers.add_parser("worker", help="运行后台 worker")
@@ -37,7 +41,8 @@ def _parser() -> argparse.ArgumentParser:
 def main() -> None:
     """解析并执行 API、迁移、worker 或一键启动命令。"""
 
-    args = _parser().parse_args()
+    parser = _parser()
+    args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     if args.command == "start":
         from rss_v2.launcher import start
@@ -52,6 +57,13 @@ def main() -> None:
     if args.command == "api":
         settings = Settings()
         uvicorn.run(create_app(settings), host=settings.api_host, port=settings.api_port)
+        return
+    if args.command == "import-v1":
+        try:
+            report = build_container(migrate=False).import_v1(args.source, args.apply)
+        except DomainError as exc:
+            parser.exit(2, f"导入失败 [{exc.code}]：{exc.message}\n")
+        print(json.dumps(report, ensure_ascii=False, indent=2))
         return
     container = build_container(migrate=args.command != "migrate")
     if args.command == "migrate":
