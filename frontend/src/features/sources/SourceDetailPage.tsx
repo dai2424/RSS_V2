@@ -6,6 +6,7 @@ import {
   ErrorState,
   PageHeader,
 } from "../../components/ui";
+import { showToast } from "../../components/Toast";
 import { formatTime, statusLabels } from "../../lib/display";
 import { useSourceDetail } from "./useSourceDetail";
 import { SourceMetadata, SourceHealth } from "./SourceHistory";
@@ -29,6 +30,8 @@ export function SourceDetailPage() {
   const { source: item, health, latest_collection: run } = source.data;
   const busy =
     toggleSource.isPending || testSource.isPending || collect.isPending;
+  const reportError = (error: Error) =>
+    showToast({ type: "error", content: error.message });
   return (
     <div className="page">
       <PageHeader
@@ -61,38 +64,44 @@ export function SourceDetailPage() {
             <div className="toolbar">
               <Button
                 className="secondary"
-                onClick={() => toggleSource.mutate(!item.enabled)}
+                onClick={() =>
+                  toggleSource.mutate(!item.enabled, {
+                    onError: reportError,
+                  })
+                }
                 disabled={busy}
               >
                 {item.enabled ? "停用来源" : "启用来源"}
               </Button>
               <Button
                 className="secondary"
-                onClick={() => testSource.mutate()}
+                onClick={() =>
+                  testSource.mutate(undefined, { onError: reportError })
+                }
                 disabled={busy}
               >
                 {testSource.isPending ? "检查中…" : "测试来源"}
               </Button>
               <Button
-                onClick={() => collect.mutate()}
+                onClick={() =>
+                  collect.mutate(undefined, {
+                    onSuccess: () =>
+                      showToast({
+                        type: "info",
+                        content: (
+                          <>
+                            已创建采集任务，<Link to="/tasks">查看任务</Link>。
+                          </>
+                        ),
+                      }),
+                    onError: reportError,
+                  })
+                }
                 disabled={busy || !item.enabled}
               >
                 {collect.isPending ? "创建任务…" : "立即采集"}
               </Button>
             </div>
-            {[testSource.error, toggleSource.error, collect.error]
-              .filter(Boolean)
-              .map((error, index) => (
-                <ErrorState key={index} message={error!.message} />
-              ))}
-            {collect.data && (
-              <p role="status" className="alert">
-                已创建采集任务。
-                <Link to="/tasks" className="text-link">
-                  查看任务
-                </Link>
-              </p>
-            )}
           </Card>
           <Card className="card-pad">
             <h2>最近采集</h2>

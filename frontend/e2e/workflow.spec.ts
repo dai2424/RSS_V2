@@ -1,8 +1,9 @@
 import { test, expect } from "@playwright/test";
 import { execFileSync } from "node:child_process";
 import { resolve } from "node:path";
+import type { APIRequestContext } from "@playwright/test";
 
-function runWorker() {
+function runWorkerOnce() {
   execFileSync(
     "uv",
     ["run", "python", "-m", "rss_v2.main", "worker", "--once"],
@@ -18,6 +19,16 @@ function runWorker() {
   );
 }
 
+/** 反复执行 worker 直到队列排空，避免历史滞留任务抢占单次执行机会。 */
+async function drainWorker(request: APIRequestContext) {
+  for (let i = 0; i < 20; i += 1) {
+    runWorkerOnce();
+    const queued = await (await request.get("/api/tasks?status=queued")).json();
+    if (!queued.length) return;
+  }
+  throw new Error("任务队列未能排空，可能存在反复失败的任务。");
+}
+
 for (const width of [1440, 768, 390]) {
   test(`RSS 主流程与键盘操作 ${width}px`, async ({
     page,
@@ -29,9 +40,9 @@ for (const width of [1440, 768, 390]) {
     const suffix = String(Date.now());
     await page.goto("/sources");
     await page.getByRole("button", { name: "新增行业", exact: true }).click();
-    const dialog = page.getByRole("dialog", { name: "自定义行业" });
-    await dialog.getByLabel("自定义行业").fill("浏览器验收" + suffix);
-    await dialog.getByRole("button", { name: "新增分类", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "新增行业" });
+    await dialog.getByLabel("行业名称").fill("浏览器验收" + suffix);
+    await dialog.getByRole("button", { name: "新增", exact: true }).click();
     await expect(dialog).toBeHidden();
     await expect(
       page.getByRole("option", { name: "浏览器验收" + suffix }),
@@ -70,9 +81,9 @@ for (const width of [1440, 768, 390]) {
     ).toBeVisible();
     await page.getByRole("button", { name: "立即采集", exact: true }).click();
     await expect(
-      page.getByText("已创建采集任务。", { exact: false }),
+      page.getByText("已创建采集任务", { exact: false }),
     ).toBeVisible();
-    runWorker();
+    await drainWorker(request);
     await page
       .getByRole("link", { name: "查看本来源消息", exact: true })
       .click();
@@ -102,7 +113,7 @@ for (const width of [1440, 768, 390]) {
     await expect(
       page.getByRole("status").filter({ hasText: "翻译任务" }),
     ).toBeVisible();
-    runWorker();
+    await drainWorker(request);
     await page
       .getByRole("tab", { name: "中文版本（机器生成）", exact: true })
       .focus();

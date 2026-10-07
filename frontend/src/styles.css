@@ -291,6 +291,13 @@ a:focus-visible {
   border-color: hsl(var(--destructive-background));
   color: hsl(var(--destructive));
 }
+.button.icon {
+  padding: 0;
+  width: 38px;
+}
+.button.icon svg {
+  flex-shrink: 0;
+}
 .input,
 select,
 textarea {
@@ -320,6 +327,19 @@ textarea {
 .toolbar select {
   width: auto;
   min-width: 140px;
+}
+/* 下拉与其“新增”图标按钮拼成一体控件，中间共用一条边框 */
+.control-group {
+  display: inline-flex;
+}
+.control-group select {
+  border-bottom-right-radius: 0;
+  border-top-right-radius: 0;
+}
+.control-group .button {
+  border-bottom-left-radius: 0;
+  border-top-left-radius: 0;
+  margin-left: -1px;
 }
 .category-form {
   margin-top: 20px;
@@ -677,4 +697,79 @@ tbody tr:hover {
   background: hsl(var(--destructive-background));
   border-color: hsl(var(--destructive));
   color: hsl(var(--destructive));
+}
+
+/* 顶部居中浮层提示（ElementUI Message 风格），不入文档流，自动消失 */
+.toast-host {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  left: 0;
+  pointer-events: none;
+  position: fixed;
+  right: 0;
+  top: 16px;
+  z-index: 60;
+}
+.toast {
+  align-items: flex-start;
+  animation: toast-in 200ms ease;
+  border: 1px solid hsl(var(--border));
+  border-radius: 8px;
+  box-shadow: 0 8px 24px hsl(222 47% 11% / 0.14);
+  display: flex;
+  font-size: 14px;
+  gap: 8px;
+  max-width: min(480px, calc(100vw - 32px));
+  padding: 10px 14px;
+}
+.toast svg {
+  flex: 0 0 auto;
+  margin-top: 2px;
+}
+.toast-content a {
+  pointer-events: auto;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.toast-success {
+  background: hsl(var(--success));
+  border-color: hsl(var(--success-foreground));
+  color: hsl(var(--success-foreground));
+}
+.toast-error {
+  background: hsl(var(--destructive-background));
+  border-color: hsl(var(--destructive));
+  color: hsl(var(--destructive));
+}
+.toast-info {
+  background: hsl(var(--accent));
+  border-color: hsl(var(--primary));
+  color: hsl(var(--accent-foreground));
+}
+.toast-leave {
+  animation: toast-out 200ms ease forwards;
+}
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(-12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes toast-out {
+  to {
+    opacity: 0;
+    transform: translateY(-12px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .toast,
+  .toast-leave {
+    animation: none;
+  }
 }

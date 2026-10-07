@@ -8,6 +8,7 @@ import {
   SheetTrigger,
 } from "./ui/sheet";
 import { Button } from "./ui";
+import { ToastHost } from "./Toast";
 const navigation = [
   ["/sources", "RSS 来源"],
   ["/messages", "消息"],
@@ -64,6 +65,7 @@ export function AppShell() {
           getKey={(location) => location.pathname + location.search}
         />
       </main>
+      <ToastHost />
     </div>
   );
 }

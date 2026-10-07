@@ -8,6 +8,7 @@ import {
   Input,
   PageHeader,
 } from "../../components/ui";
+import { showToast } from "../../components/Toast";
 import { useSourceActions } from "./useSourceActions";
 import { useSourcesList } from "./useSourcesList";
 import { sourceColumns } from "./sourceColumns";
@@ -15,7 +16,7 @@ import { CategoryDialog } from "./CategoryDialog";
 
 const PAGE_SIZE = 25;
 
-/** 来源列表页面：行内启停/测试/采集，筛选与分页保存在 URL。 */
+/** 来源列表页面：行内启停/测试/采集，反馈走顶部浮层提示。 */
 export function SourcesPage() {
   const {
     params,
@@ -40,6 +41,20 @@ export function SourcesPage() {
   );
   const items = sources.data?.items ?? [];
   const total = sources.data?.total ?? 0;
+  const collectAll = () =>
+    collect.mutate(undefined, {
+      onSuccess: (data) =>
+        showToast({
+          type: "info",
+          content: (
+            <>
+              已创建 {data.task_ids.length} 个采集任务，
+              <Link to="/tasks">查看任务</Link>。
+            </>
+          ),
+        }),
+      onError: (error) => showToast({ type: "error", content: error.message }),
+    });
   return (
     <div className="page">
       <PageHeader
@@ -50,7 +65,7 @@ export function SourcesPage() {
             <Button
               className="secondary"
               disabled={collect.isPending}
-              onClick={() => collect.mutate()}
+              onClick={collectAll}
             >
               采集全部启用来源
             </Button>
@@ -60,23 +75,6 @@ export function SourcesPage() {
           </>
         }
       />
-      {collect.data && (
-        <div className="alert" role="status">
-          已创建 {collect.data.task_ids.length} 个采集任务。
-          <Link to="/tasks">查看任务</Link>
-        </div>
-      )}
-      {collect.isError && <ErrorState message={collect.error.message} />}
-      {actions.message &&
-        (actions.message.tone === "error" ? (
-          <div className="alert alert-error" role="alert">
-            {actions.message.text}
-          </div>
-        ) : (
-          <div className="alert" role="status">
-            {actions.message.text}
-          </div>
-        ))}
       <Card>
         <div className="toolbar card-pad">
           <Input
@@ -85,19 +83,21 @@ export function SourcesPage() {
             value={q}
             onChange={(e) => setFilter("q", e.target.value)}
           />
-          <select
-            aria-label="行业分类"
-            value={category}
-            onChange={(e) => setFilter("category", e.target.value)}
-          >
-            <option value="">全部行业</option>
-            {categories.data?.map((item) => (
-              <option value={item.id} key={item.id}>
-                {item.name}
-              </option>
-            ))}
-          </select>
-          <CategoryDialog onSelect={(id) => setFilter("category", id)} />
+          <div className="control-group">
+            <select
+              aria-label="行业分类"
+              value={category}
+              onChange={(e) => setFilter("category", e.target.value)}
+            >
+              <option value="">全部行业</option>
+              {categories.data?.map((item) => (
+                <option value={item.id} key={item.id}>
+                  {item.name}
+                </option>
+              ))}
+            </select>
+            <CategoryDialog onSelect={(id) => setFilter("category", id)} />
+          </div>
           <select
             aria-label="启用状态"
             value={status}

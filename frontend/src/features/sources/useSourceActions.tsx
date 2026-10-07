@@ -1,33 +1,39 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
+import { Link } from "react-router-dom";
 import { api, requireResponse } from "../../api/client";
+import { showToast, type ToastType } from "../../components/Toast";
 import type { components } from "../../api/generated";
 
 type Source = components["schemas"]["SourceResponse"];
 
-/** 行内操作的反馈消息；error 用警告样式并配合 role=alert 播报。 */
-export type RowActionMessage = {
-  text: string;
-  tone: "info" | "error";
-};
+/** 采集类操作的公共提示尾部，链接直达任务页。 */
+function collectNotice(name: string): ReactNode {
+  return (
+    <>
+      已为「{name}」创建采集任务，<Link to="/tasks">查看任务</Link>。
+    </>
+  );
+}
 
-/** 来源列表行内操作：启停、测试、单源采集；结果消息统一显示在表格上方。 */
+/** 来源列表行内操作：启停、测试、单源采集；反馈走顶部浮层提示。 */
 export function useSourceActions() {
   const queryClient = useQueryClient();
-  const [message, setMessage] = useState<RowActionMessage | null>(null);
   const [pendingId, setPendingId] = useState("");
-  const run = (source: Source, action: () => Promise<string>) => {
+  const run = (
+    source: Source,
+    action: () => Promise<{ type: ToastType; content: ReactNode }>,
+  ) => {
     setPendingId(source.id);
-    setMessage(null);
     action()
-      .then((text) => {
-        setMessage({ text, tone: "info" });
+      .then((toast) => {
+        showToast(toast);
         void queryClient.invalidateQueries({ queryKey: ["sources"] });
       })
       .catch((error: unknown) => {
-        setMessage({
-          text: error instanceof Error ? error.message : "操作失败，请重试",
-          tone: "error",
+        showToast({
+          type: "error",
+          content: error instanceof Error ? error.message : "操作失败，请重试",
         });
       })
       .finally(() => setPendingId(""));
@@ -39,7 +45,10 @@ export function useSourceActions() {
         body: { enabled: !source.enabled },
       });
       const updated = requireResponse(r.response, r.data, r.error);
-      return `「${updated.name}」已${updated.enabled ? "启用" : "停用"}。`;
+      return {
+        type: "success" as const,
+        content: `「${updated.name}」已${updated.enabled ? "启用" : "停用"}。`,
+      };
     });
   const test = (source: Source) =>
     run(source, async () => {
@@ -47,15 +56,18 @@ export function useSourceActions() {
         params: { path: { source_id: source.id } },
       });
       const result = requireResponse(r.response, r.data, r.error);
-      return `「${source.name}」测试通过，解析到 ${result.health.entry_count} 条条目。`;
+      return {
+        type: "success" as const,
+        content: `「${source.name}」测试通过，解析到 ${result.health.entry_count} 条条目。`,
+      };
     });
-  const collectOne = (source: Source) =>
+  const collect = (source: Source) =>
     run(source, async () => {
       const r = await api.POST("/api/collection/runs", {
         body: { all_enabled: false, source_ids: [source.id] },
       });
       requireResponse(r.response, r.data, r.error);
-      return `已为「${source.name}」创建采集任务，可在任务页查看进度。`;
+      return { type: "info" as const, content: collectNotice(source.name) };
     });
-  return { message, pendingId, toggle, test, collect: collectOne };
+  return { pendingId, toggle, test, collect };
 }
