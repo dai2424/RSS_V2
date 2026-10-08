@@ -7,7 +7,7 @@ import time
 from dataclasses import dataclass
 
 from rss_v2.bootstrap import Container
-from rss_v2.domain import DomainError, ExternalServiceError, Task, TaskType
+from rss_v2.domain import LLM_TASK_TYPES, DomainError, ExternalServiceError, Task, TaskType
 from rss_v2.tasks.lease import keep_lease
 
 
@@ -23,7 +23,7 @@ class Worker:
         tasks = self.container.tasks
         tasks.reclaim_expired(int(time.time()))
         task = tasks.claim_next(
-            [TaskType.COLLECT_SOURCE.value, TaskType.TRANSLATE_MESSAGE.value],
+            [task_type.value for task_type in TaskType],
             int(time.time()),
             self.container.settings.worker_lease_seconds,
         )
@@ -33,12 +33,12 @@ class Worker:
         try:
             with keep_lease(tasks, task, self.container.settings.worker_lease_seconds):
                 self.execute(task)
-            if task.task_type != TaskType.TRANSLATE_MESSAGE:
+            if task.task_type not in LLM_TASK_TYPES:
                 tasks.complete(task.id, lease_token=task.lease_token)
         except ExternalServiceError as exc:
             delay = (
                 max(60, self.container.settings.llm_retry_cooldown_seconds)
-                if task.task_type == TaskType.TRANSLATE_MESSAGE
+                if task.task_type in LLM_TASK_TYPES
                 else 60
             )
             tasks.fail(task.id, exc.code, exc.message, task.attempts < 3, task.lease_token, delay)
@@ -71,6 +71,9 @@ class Worker:
         elif task.task_type == TaskType.TRANSLATE_MESSAGE:
             translation = self.container.translation_service.run(task)
             self.container.tasks.complete(task.id, translation.id, task.lease_token)
+        elif task.task_type == TaskType.ENRICH_MESSAGE:
+            enrichment = self.container.enrichment_service.run(task)
+            self.container.tasks.complete(task.id, enrichment.id, task.lease_token)
         else:
             raise DomainError("task_type_unsupported", "不支持的任务类型")
 

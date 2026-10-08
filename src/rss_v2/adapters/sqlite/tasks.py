@@ -80,13 +80,15 @@ class SQLiteTaskRepository:
         finally:
             connection.close()
 
-    def latest_for_version(self, version_id: str) -> Task | None:
-        """用于消息列表显示真实翻译排队状态。"""
+    def latest_for_version(self, version_id: str, task_type: TaskType) -> Task | None:
+        """用于消息列表分别显示翻译与内容加工的真实排队状态。"""
+
         connection = self.database.connect()
         try:
             row = connection.execute(
-                "SELECT * FROM tasks WHERE input_version_id=? AND task_type='translate_message' ORDER BY created_at DESC, rowid DESC LIMIT 1",
-                (version_id,),
+                "SELECT * FROM tasks WHERE input_version_id=? AND task_type=?"
+                " ORDER BY created_at DESC, rowid DESC LIMIT 1",
+                (version_id, task_type.value),
             ).fetchone()
             return _task(row) if row else None
         finally:

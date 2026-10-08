@@ -2,7 +2,7 @@
 
 from typing import Protocol
 
-from rss_v2.domain import Provider, TranslationResult
+from rss_v2.domain import EnrichmentResult, Provider, TranslationResult
 
 
 class LLMProvider(Protocol):
@@ -18,3 +18,14 @@ class LLMProvider(Protocol):
         content: str,
         prompt_version: str,
     ) -> tuple[TranslationResult, dict[str, int], int]: ...
+
+    def enrich(
+        self,
+        provider: Provider,
+        model: str,
+        secret: str,
+        title: str,
+        summary: str,
+        content: str,
+        prompt_version: str,
+    ) -> tuple[EnrichmentResult, dict[str, int], int]: ...

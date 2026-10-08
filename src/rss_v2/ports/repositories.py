@@ -7,6 +7,7 @@ from typing import Any, Protocol
 from rss_v2.domain import (
     Category,
     CollectionRun,
+    Enrichment,
     HealthCheck,
     LLMCall,
     Message,
@@ -17,6 +18,7 @@ from rss_v2.domain import (
     Source,
     SourceDeletion,
     Task,
+    TaskType,
     Translation,
 )
 
@@ -149,7 +151,7 @@ class TaskRepository(Protocol):
 
     def get_by_idempotency(self, key: str) -> Task | None: ...
 
-    def latest_for_version(self, version_id: str) -> Task | None: ...
+    def latest_for_version(self, version_id: str, task_type: TaskType) -> Task | None: ...
 
     def claim_next(self, task_types: list[str], now: int, lease_seconds: int) -> Task | None: ...
 
@@ -208,3 +210,23 @@ class LLMCallRepository(Protocol):
     """模型调用审计存取端口。"""
 
     def add(self, call: LLMCall) -> LLMCall: ...
+
+
+class EnrichmentRepository(Protocol):
+    """内容加工结果存取端口。"""
+
+    def get_for_version(
+        self, version_id: str, prompt_version: str, model: str
+    ) -> Enrichment | None: ...
+
+    def list_for_version(self, version_id: str) -> list[Enrichment]: ...
+
+    def save(self, enrichment: Enrichment, lease_token: str | None = None) -> Enrichment: ...
+
+    def get(self, enrichment_id: str) -> Enrichment | None: ...
+
+
+class VersionProcessing(Protocol):
+    """版本入库后的自动处理入口：按语言和长度决定要建哪些任务。"""
+
+    def enqueue(self, version: MessageVersion) -> list[str]: ...

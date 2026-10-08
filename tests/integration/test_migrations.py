@@ -30,7 +30,7 @@ def test_fresh_database_and_checksum(tmp_path: Path) -> None:
     shutil.copytree("migrations", migrations)
     database = SQLiteDatabase(tmp_path / "rss.db")
     runner = MigrationRunner(database, migrations)
-    assert len(runner.run()) == 8
+    assert len(runner.run()) == 9
     assert runner.run() == []
     path = migrations / "0001_initial.sql"
     path.write_text(path.read_text(encoding="utf-8") + "\n-- mutation\n", encoding="utf-8")
@@ -61,7 +61,7 @@ def test_two_processes_do_not_apply_migration_twice(tmp_path: Path) -> None:
         results = list(
             pool.map(lambda _: MigrationRunner(database, Path("migrations")).run(), range(2))
         )
-    assert sum(len(result) for result in results) == 8
+    assert sum(len(result) for result in results) == 9
 
 
 def test_upgrade_preserves_versions_and_translations(tmp_path: Path) -> None:
@@ -175,6 +175,46 @@ def test_provider_model_migration_carries_existing_single_model(tmp_path: Path) 
         model = connection.execute("SELECT * FROM llm_provider_models").fetchone()
         assert model["provider_id"] == "p" and model["model"] == "deepseek-v4.1-flash"
         assert model["enabled"] == 0 and model["priority"] == 100
+        assert not connection.execute("PRAGMA foreign_key_check").fetchall()
+    finally:
+        connection.close()
+
+
+def test_enrichment_migration_extends_tasks_and_preserves_rows(tmp_path: Path) -> None:
+    """加工任务类型加入 CHECK 约束；重建 tasks 表不丢失租约与重试字段。"""
+    migrations = tmp_path / "migrations"
+    migrations.mkdir()
+    for name in MIGRATIONS_BEFORE_CONTENT_NORMALIZATION:
+        shutil.copy(Path("migrations") / name, migrations / name)
+    database = SQLiteDatabase(tmp_path / "rss.db")
+    runner = MigrationRunner(database, migrations)
+    runner.run()
+    with database.transaction() as connection:
+        connection.execute(
+            "INSERT INTO tasks(id,task_type,idempotency_key,status,attempts,lease_until,"
+            "payload_json,created_at,updated_at,lease_token,available_at)"
+            " VALUES('t','translate_message','k','running',2,999,'{}',10,20,'token',30)"
+        )
+    for name in ("0008_normalize_content.sql", "0009_enrichment.sql"):
+        shutil.copy(Path("migrations") / name, migrations / name)
+    assert runner.run() == ["0008_normalize_content.sql", "0009_enrichment.sql"]
+    connection = database.connect()
+    try:
+        task = connection.execute("SELECT * FROM tasks").fetchone()
+        assert task["idempotency_key"] == "k" and task["status"] == "running"
+        assert task["attempts"] == 2 and task["lease_token"] == "token"
+        assert task["available_at"] == 30
+        # 新任务类型能写入；旧约束会拒绝这一行。
+        connection.execute(
+            "INSERT INTO tasks(id,task_type,idempotency_key,status,attempts,payload_json,"
+            "created_at,updated_at) VALUES('e','enrich_message','k2','queued',0,'{}',10,20)"
+        )
+        columns = {
+            row["name"] for row in connection.execute("PRAGMA table_info(message_enrichments)")
+        }
+        assert {"keywords_json", "message_version_id", "prompt_version"} <= columns
+        indexes = {row["name"] for row in connection.execute("PRAGMA index_list(tasks)")}
+        assert {"idx_tasks_claim", "idx_tasks_available"} <= indexes
         assert not connection.execute("PRAGMA foreign_key_check").fetchall()
     finally:
         connection.close()

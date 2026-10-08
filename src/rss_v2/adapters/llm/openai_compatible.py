@@ -5,12 +5,12 @@ from __future__ import annotations
 import logging
 import time
 import uuid
-from typing import Any, cast
+from typing import Any, TypeVar, cast
 
 import httpx
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from rss_v2.domain import ExternalServiceError, Provider, TranslationResult
+from rss_v2.domain import EnrichmentResult, ExternalServiceError, Provider, TranslationResult
 
 
 class TranslationResponse(BaseModel):
@@ -21,6 +21,20 @@ class TranslationResponse(BaseModel):
     title: str = Field(min_length=1)
     summary: str
     content: str
+
+
+class EnrichmentResponse(BaseModel):
+    """模型返回的结构化内容加工结果。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    title: str = Field(min_length=1)
+    summary: str
+    keywords: list[str] = Field(default_factory=list)
+
+
+#: 关键词上限：模型偶尔会多给，超出部分对检索没有额外价值，只增加存储与噪声。
+KEYWORD_LIMIT = 8
 
 
 class ContentPart(BaseModel):
@@ -58,6 +72,9 @@ class ChatResponse(BaseModel):
 
 USER_AGENT = "rss-v2/0.1"  # 上游要求客户端标识自身而非通用库名
 
+#: 兼容协议的结构化响应类型；按 schema 校验是适配器的职责。
+SchemaT = TypeVar("SchemaT", bound=BaseModel)
+
 
 def stable_session_id(provider_id: str) -> str:
     """按 Provider 派生的稳定会话 ID；同一配置跨进程、跨重启保持一致。"""
@@ -65,8 +82,19 @@ def stable_session_id(provider_id: str) -> str:
     return str(uuid.uuid5(uuid.NAMESPACE_URL, f"rss-v2:{provider_id}"))
 
 
+def _keywords(values: list[str]) -> tuple[str, ...]:
+    """去空白、去重并截断关键词；顺序按模型给出的重要性保留。"""
+
+    seen: dict[str, None] = {}
+    for value in values:
+        keyword = " ".join(value.split())
+        if keyword:
+            seen.setdefault(keyword, None)
+    return tuple(list(seen)[:KEYWORD_LIMIT])
+
+
 class OpenAICompatibleProvider:
-    """使用 OpenAI chat completions 协议调用翻译模型。"""
+    """使用 OpenAI chat completions 协议调用翻译与内容加工模型。"""
 
     def translate(
         self,
@@ -78,12 +106,63 @@ class OpenAICompatibleProvider:
         content: str,
         prompt_version: str,
     ) -> tuple[TranslationResult, dict[str, int], int]:
-        endpoint = provider.base_url.rstrip("/") + "/chat/completions"
         prompt = (
             "你是专业科技资讯翻译。请把以下英文 RSS 内容翻译成简洁、准确的简体中文。"
             "必须只返回 JSON 对象，字段严格为 title、summary、content，不要 Markdown 包裹。\n"
             f"标题：{title}\n摘要：{summary}\n正文：{content}"
         )
+        parsed, tokens, duration = self._complete(
+            provider,
+            model,
+            secret,
+            f"translation prompt version: {prompt_version}",
+            prompt,
+            TranslationResponse,
+        )
+        return TranslationResult(parsed.title, parsed.summary, parsed.content), tokens, duration
+
+    def enrich(
+        self,
+        provider: Provider,
+        model: str,
+        secret: str,
+        title: str,
+        summary: str,
+        content: str,
+        prompt_version: str,
+    ) -> tuple[EnrichmentResult, dict[str, int], int]:
+        prompt = (
+            "你是科技资讯编辑。请阅读以下 RSS 内容，用简体中文产出便于浏览和检索的结果：\n"
+            "title 是精简标题，不超过 40 字，保留关键主体，不添加原文没有的信息；\n"
+            "summary 是 1 至 3 句摘要，说明发生了什么；\n"
+            "keywords 是 3 至 8 个检索关键词，可以是中文词或原文专有名词。\n"
+            "必须只返回 JSON 对象，字段严格为 title、summary、keywords（字符串数组），"
+            "不要 Markdown 包裹。\n"
+            f"标题：{title}\n摘要：{summary}\n正文：{content}"
+        )
+        parsed, tokens, duration = self._complete(
+            provider,
+            model,
+            secret,
+            f"enrichment prompt version: {prompt_version}",
+            prompt,
+            EnrichmentResponse,
+        )
+        result = EnrichmentResult(parsed.title, parsed.summary, _keywords(parsed.keywords))
+        return result, tokens, duration
+
+    def _complete(
+        self,
+        provider: Provider,
+        model: str,
+        secret: str,
+        system_prompt: str,
+        prompt: str,
+        schema: type[SchemaT],
+    ) -> tuple[SchemaT, dict[str, int], int]:
+        """发送一次结构化请求并校验响应；翻译与加工共用同一协议边界。"""
+
+        endpoint = provider.base_url.rstrip("/") + "/chat/completions"
         headers = {
             "User-Agent": USER_AGENT,
             **provider.extra_headers,
@@ -95,7 +174,7 @@ class OpenAICompatibleProvider:
             # 用于路由亲和与 prompt 缓存；按 Provider 派生可跨重启保持一致。
             headers[provider.session_header_name] = stable_session_id(provider.id)
         messages = [
-            {"role": "system", "content": f"translation prompt version: {prompt_version}"},
+            {"role": "system", "content": system_prompt},
             {"role": "user", "content": prompt},
         ]
         payload: dict[str, Any] = {
@@ -119,12 +198,8 @@ class OpenAICompatibleProvider:
         duration_ms = int((time.perf_counter() - started) * 1000)
         self._raise_for_status(response, secret)
 
-        parsed, token_usage = self._parse_response(response)
-        return (
-            TranslationResult(parsed.title, parsed.summary, parsed.content),
-            token_usage,
-            duration_ms,
-        )
+        parsed, token_usage = self._parse_response(response, schema)
+        return parsed, token_usage, duration_ms
 
     @staticmethod
     def _post(
@@ -199,14 +274,16 @@ class OpenAICompatibleProvider:
         return detail[:300]
 
     @staticmethod
-    def _parse_response(response: httpx.Response) -> tuple[TranslationResponse, dict[str, int]]:
+    def _parse_response(
+        response: httpx.Response, schema: type[SchemaT]
+    ) -> tuple[SchemaT, dict[str, int]]:
         """校验协议 envelope 与模型 JSON；不记录返回正文。"""
         try:
             body = ChatResponse.model_validate_json(response.content)
             raw = body.choices[0].message.content
             raw_content = raw if isinstance(raw, str) else "".join(item.text for item in raw)
-            parsed = TranslationResponse.model_validate_json(raw_content)
+            parsed = schema.model_validate_json(raw_content)
         except ValidationError as exc:
-            raise ExternalServiceError("llm_invalid_output", "模型返回的翻译结构无法校验") from exc
+            raise ExternalServiceError("llm_invalid_output", "模型返回的结构无法校验") from exc
         token_usage = body.usage.model_dump()
         return parsed, token_usage

@@ -6,6 +6,7 @@ from .external import FeedClient
 from .repositories import (
     CategoryRepository,
     CollectionRunRepository,
+    EnrichmentRepository,
     HealthRepository,
     LLMCallRepository,
     LLMConfigRepository,
@@ -13,11 +14,13 @@ from .repositories import (
     SourceRepository,
     TaskRepository,
     TranslationRepository,
+    VersionProcessing,
 )
 
 __all__ = [
     "CategoryRepository",
     "CollectionRunRepository",
+    "EnrichmentRepository",
     "FeedClient",
     "HealthRepository",
     "LLMCallRepository",
@@ -27,4 +30,5 @@ __all__ = [
     "SourceRepository",
     "TaskRepository",
     "TranslationRepository",
+    "VersionProcessing",
 ]

@@ -6,6 +6,7 @@ from fastapi import Request
 
 from rss_v2.api.schemas import (
     CategoryResponse,
+    EnrichmentResponse,
     HealthResponse,
     MessageVersionResponse,
     ProviderKeyResponse,
@@ -18,6 +19,7 @@ from rss_v2.api.schemas import (
 from rss_v2.bootstrap import Container
 from rss_v2.domain import (
     Category,
+    Enrichment,
     HealthCheck,
     MessageVersion,
     Provider,
@@ -71,8 +73,32 @@ def translation_response(translation: Translation) -> TranslationResponse:
     return TranslationResponse.model_validate(translation, from_attributes=True)
 
 
+def enrichment_response(enrichment: Enrichment) -> EnrichmentResponse:
+    return EnrichmentResponse(
+        id=enrichment.id,
+        message_version_id=enrichment.message_version_id,
+        status=enrichment.status,
+        title=enrichment.title,
+        summary=enrichment.summary,
+        keywords=list(enrichment.keywords),
+        provider_id=enrichment.provider_id,
+        key_masked=enrichment.key_masked,
+        model=enrichment.model,
+        prompt_version=enrichment.prompt_version,
+        task_id=enrichment.task_id,
+        error_code=enrichment.error_code,
+        error_message=enrichment.error_message,
+        created_at=enrichment.created_at,
+        updated_at=enrichment.updated_at,
+    )
+
+
 def version_response(
-    version: MessageVersion, translations: list[Translation], task: Task | None = None
+    version: MessageVersion,
+    translations: list[Translation],
+    enrichments: list[Enrichment] | None = None,
+    translation_task: Task | None = None,
+    enrichment_task: Task | None = None,
 ) -> MessageVersionResponse:
     return MessageVersionResponse(
         id=version.id,
@@ -87,7 +113,9 @@ def version_response(
         language=version.language.value,
         content_hash=version.content_hash,
         translations=[translation_response(item) for item in translations],
-        translation_task=task_response(task) if task else None,
+        enrichments=[enrichment_response(item) for item in (enrichments or [])],
+        translation_task=task_response(translation_task) if translation_task else None,
+        enrichment_task=task_response(enrichment_task) if enrichment_task else None,
     )
 
 

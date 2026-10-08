@@ -73,7 +73,7 @@ def delete_source(database: SQLiteDatabase, source_id: str) -> SourceDeletion:
             placeholders = ",".join("?" for _ in version_ids)
             task_ids += _ids(
                 connection,
-                "SELECT id FROM tasks WHERE task_type = 'translate_message' "
+                "SELECT id FROM tasks WHERE task_type IN ('translate_message', 'enrich_message') "
                 f"AND input_version_id IN ({placeholders})",
                 tuple(version_ids),
             )

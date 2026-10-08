@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 
-from rss_v2.domain import DomainError, Task, TaskStatus
+from rss_v2.domain import DomainError, Task, TaskStatus, TaskType
 from rss_v2.ports import TaskRepository
 
 
@@ -22,9 +22,9 @@ class TaskService:
         """查询任务列表。"""
         return self.tasks.list(status, limit, offset)
 
-    def for_version(self, version_id: str) -> Task | None:
-        """查询版本最近的翻译任务。"""
-        return self.tasks.latest_for_version(version_id)
+    def for_version(self, version_id: str, task_type: TaskType) -> Task | None:
+        """查询版本最近的一类任务；翻译与内容加工分别展示状态。"""
+        return self.tasks.latest_for_version(version_id, task_type)
 
     def retry(self, task_id: str) -> Task:
         """明确重试失败任务。"""

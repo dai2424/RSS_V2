@@ -2,9 +2,12 @@
 
 from .errors import ConflictError, DomainError, ExternalServiceError, NotFoundError
 from .models import (
+    LLM_TASK_TYPES,
     Category,
     CollectionRun,
     ConnectionTest,
+    Enrichment,
+    EnrichmentResult,
     FeedItem,
     FeedSnapshot,
     HealthCheck,
@@ -25,11 +28,14 @@ from .models import (
 )
 
 __all__ = [
+    "LLM_TASK_TYPES",
     "Category",
     "CollectionRun",
     "ConflictError",
     "ConnectionTest",
     "DomainError",
+    "Enrichment",
+    "EnrichmentResult",
     "ExternalServiceError",
     "FeedItem",
     "FeedSnapshot",

@@ -26,10 +26,15 @@ class TaskStatus(StrEnum):
 
 
 class TaskType(StrEnum):
-    """第一版支持的任务类型。"""
+    """后台任务类型。"""
 
     COLLECT_SOURCE = "collect_source"
     TRANSLATE_MESSAGE = "translate_message"
+    ENRICH_MESSAGE = "enrich_message"
+
+
+#: 走 Provider×模型 调度、逐次审计并按冷却重试的任务类型。
+LLM_TASK_TYPES = frozenset({TaskType.TRANSLATE_MESSAGE, TaskType.ENRICH_MESSAGE})
 
 
 @dataclass(frozen=True, slots=True)
@@ -162,6 +167,36 @@ class Translation:
 
 
 @dataclass(frozen=True, slots=True)
+class Enrichment:
+    """一条消息版本的内容加工结果：精简标题、中文摘要和检索关键词。"""
+
+    id: str  # 实体 UUID
+    message_version_id: str  # 加工结果关联的不可变原文版本 UUID
+    status: str  # queued/running/succeeded/failed；译文还允许 pending
+    title: str | None  # 精简后的标题，过长时压缩
+    summary: str | None  # 中文摘要，用于列表展示和检索
+    keywords: tuple[str, ...]  # 检索关键词；空元组表示没有可用关键词
+    provider_id: str | None  # 模型服务 UUID
+    key_masked: str | None  # 所用密钥的掩码标签，禁止保存密钥值
+    model: str | None  # 实际使用的模型标识
+    prompt_version: str  # 提示词契约版本
+    task_id: str | None  # 关联后台任务 UUID
+    error_code: str | None  # 稳定错误分类；成功为空
+    error_message: str | None  # 脱敏后的可读错误信息
+    created_at: int  # 创建时间，UTC 秒
+    updated_at: int  # 最近更新时间，UTC 秒
+
+
+@dataclass(frozen=True, slots=True)
+class EnrichmentResult:
+    """结构化内容加工结果。"""
+
+    title: str  # 精简标题纯文本
+    summary: str  # 摘要纯文本
+    keywords: tuple[str, ...]  # 检索关键词
+
+
+@dataclass(frozen=True, slots=True)
 class CollectionRun:
     """一次采集运行的汇总。"""
 
@@ -189,7 +224,7 @@ class Task:
     """持久化后台任务。"""
 
     id: str  # 实体 UUID
-    task_type: TaskType  # collect_source 采集 / translate_message 翻译
+    task_type: TaskType  # collect_source 采集 / translate_message 翻译 / enrich_message 内容加工
     idempotency_key: str  # 避免重复创建任务的业务键
     status: TaskStatus  # queued/running/succeeded/failed；译文还允许 pending
     attempts: int  # 已领取执行的尝试次数

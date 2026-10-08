@@ -160,9 +160,14 @@ class SQLiteMessageRepository:
             clauses.append("m.source_id = ?")
             args.append(source_id)
         if query:
-            clauses.append("(v.title LIKE ? OR v.summary LIKE ? OR v.content LIKE ?)")
+            # 检索覆盖最新版本原文与最新机器生成内容：中文关键词要能命中英文来源的消息。
+            clauses.append(
+                "(v.title LIKE ? OR v.summary LIKE ? OR v.content LIKE ?"
+                " OR t.title LIKE ? OR t.summary LIKE ? OR t.content LIKE ?"
+                " OR e.title LIKE ? OR e.summary LIKE ? OR e.keywords_json LIKE ?)"
+            )
             pattern = f"%{query.strip()}%"
-            args.extend([pattern, pattern, pattern])
+            args.extend([pattern] * 9)
         where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
         connection = self.database.connect()
         try:
@@ -174,6 +179,16 @@ class SQLiteMessageRepository:
                 LEFT JOIN message_versions v ON v.id = (
                     SELECT v2.id FROM message_versions v2
                     WHERE v2.message_id = m.id ORDER BY v2.version_number DESC LIMIT 1
+                )
+                LEFT JOIN translations t ON t.id = (
+                    SELECT t2.id FROM translations t2
+                    WHERE t2.message_version_id = v.id AND t2.status = 'succeeded'
+                    ORDER BY t2.updated_at DESC LIMIT 1
+                )
+                LEFT JOIN message_enrichments e ON e.id = (
+                    SELECT e2.id FROM message_enrichments e2
+                    WHERE e2.message_version_id = v.id AND e2.status = 'succeeded'
+                    ORDER BY e2.updated_at DESC LIMIT 1
                 )
                 {where}
                 ORDER BY m.updated_at DESC LIMIT ? OFFSET ?

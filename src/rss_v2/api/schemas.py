@@ -169,6 +169,26 @@ class TranslationResponse(BaseModel):
     updated_at: int
 
 
+class EnrichmentResponse(BaseModel):
+    """内容加工结果响应。"""
+
+    id: str
+    message_version_id: str
+    status: str
+    title: str | None
+    summary: str | None
+    keywords: list[str]
+    provider_id: str | None
+    key_masked: str | None
+    model: str | None
+    prompt_version: str
+    task_id: str | None
+    error_code: str | None
+    error_message: str | None
+    created_at: int
+    updated_at: int
+
+
 class MessageVersionResponse(BaseModel):
     """消息版本响应。"""
 
@@ -184,7 +204,9 @@ class MessageVersionResponse(BaseModel):
     language: str
     content_hash: str
     translations: list[TranslationResponse]
+    enrichments: list[EnrichmentResponse]
     translation_task: TaskResponse | None = None
+    enrichment_task: TaskResponse | None = None
 
 
 class MessageResponse(BaseModel):

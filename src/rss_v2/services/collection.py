@@ -25,6 +25,7 @@ from rss_v2.ports import (
     MessageRepository,
     SourceRepository,
     TaskRepository,
+    VersionProcessing,
 )
 
 
@@ -39,6 +40,7 @@ class CollectionService:
     feed_client: FeedClient
     timeout_seconds: float
     tasks: TaskRepository
+    processing: VersionProcessing  # 新版本入库后的自动翻译与内容加工
 
     def collect(self, source_id: str, run_id: str | None = None) -> dict[str, int]:
         source = self.sources.get(source_id)
@@ -140,6 +142,8 @@ class CollectionService:
         self.messages.upsert_message(
             Message(message.id, message.source_id, message.external_id, message.created_at, now())
         )
+        # 只有新版本才需要处理；同内容重复采集已在上面按指纹跳过。
+        self.processing.enqueue(version)
         return "updated" if latest else "created"
 
     def create_run(self, source_ids: list[str]) -> CollectionRun:
