@@ -276,6 +276,60 @@ export interface paths {
     patch: operations["update_provider_api_llm_providers__provider_id__patch"];
     trace?: never;
   };
+  "/api/llm/providers/{provider_id}/test": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Test Provider Connection
+     * @description 试跑一次最小结构化调用，验证 Base URL、模型与 Key 是否可用。
+     */
+    post: operations["test_provider_connection_api_llm_providers__provider_id__test_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/llm/providers/{provider_id}/models": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Create Provider Model */
+    post: operations["create_provider_model_api_llm_providers__provider_id__models_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/llm/providers/{provider_id}/models/{model_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /** Update Provider Model */
+    patch: operations["update_provider_model_api_llm_providers__provider_id__models__model_id__patch"];
+    trace?: never;
+  };
   "/api/llm/providers/{provider_id}/keys": {
     parameters: {
       query?: never;
@@ -414,6 +468,34 @@ export interface components {
       /** Task Ids */
       task_ids: string[];
     };
+    /**
+     * ConnectionTestRequest
+     * @description 连接测试请求；不填模型时使用第一个启用模型。
+     */
+    ConnectionTestRequest: {
+      /** Model */
+      model?: string | null;
+    };
+    /**
+     * ConnectionTestResponse
+     * @description 连接测试响应；只返回密钥掩码，不返回密钥值。
+     */
+    ConnectionTestResponse: {
+      /** Ok */
+      ok: boolean;
+      /** Model */
+      model: string;
+      /** Key Masked */
+      key_masked: string;
+      /** Latency Ms */
+      latency_ms: number;
+      /** Total Tokens */
+      total_tokens: number;
+      /** Error Code */
+      error_code: string | null;
+      /** Error Message */
+      error_message: string | null;
+    };
     /** HTTPValidationError */
     HTTPValidationError: {
       /** Detail */
@@ -516,13 +598,6 @@ export interface components {
       name: string;
       /** Base Url */
       base_url: string;
-      /** Model */
-      model: string;
-      /**
-       * Priority
-       * @default 100
-       */
-      priority: number;
       /**
        * Timeout Seconds
        * @default 60
@@ -537,11 +612,11 @@ export interface components {
     };
     /**
      * ProviderKeyCreateRequest
-     * @description 创建 key 引用请求。
+     * @description 录入 API Key 请求；密钥值只写入本机数据库。
      */
     ProviderKeyCreateRequest: {
-      /** Key Ref */
-      key_ref: string;
+      /** Secret */
+      secret: string;
       /**
        * Priority
        * @default 100
@@ -550,9 +625,11 @@ export interface components {
     };
     /**
      * ProviderKeyPatchRequest
-     * @description 更新 key 引用请求。
+     * @description 更新 API Key 请求。
      */
     ProviderKeyPatchRequest: {
+      /** Secret */
+      secret?: string | null;
       /** Priority */
       priority?: number | null;
       /** Enabled */
@@ -560,15 +637,15 @@ export interface components {
     };
     /**
      * ProviderKeyResponse
-     * @description key 引用响应，不包含密钥值。
+     * @description API Key 响应；只返回掩码，禁止返回密钥值。
      */
     ProviderKeyResponse: {
       /** Id */
       id: string;
       /** Provider Id */
       provider_id: string;
-      /** Key Ref */
-      key_ref: string;
+      /** Masked */
+      masked: string;
       /** Priority */
       priority: number;
       /** Enabled */
@@ -579,6 +656,51 @@ export interface components {
       last_status: string | null;
     };
     /**
+     * ProviderModelCreateRequest
+     * @description 在 provider 下新增模型候选请求。
+     */
+    ProviderModelCreateRequest: {
+      /** Model */
+      model: string;
+      /**
+       * Priority
+       * @default 100
+       */
+      priority: number;
+    };
+    /**
+     * ProviderModelPatchRequest
+     * @description 更新模型候选请求。
+     */
+    ProviderModelPatchRequest: {
+      /** Model */
+      model?: string | null;
+      /** Enabled */
+      enabled?: boolean | null;
+      /** Priority */
+      priority?: number | null;
+    };
+    /**
+     * ProviderModelResponse
+     * @description 模型候选响应。
+     */
+    ProviderModelResponse: {
+      /** Id */
+      id: string;
+      /** Provider Id */
+      provider_id: string;
+      /** Model */
+      model: string;
+      /** Enabled */
+      enabled: boolean;
+      /** Priority */
+      priority: number;
+      /** Created At */
+      created_at: number;
+      /** Updated At */
+      updated_at: number;
+    };
+    /**
      * ProviderPatchRequest
      * @description 更新 provider 请求。
      */
@@ -587,12 +709,8 @@ export interface components {
       name?: string | null;
       /** Base Url */
       base_url?: string | null;
-      /** Model */
-      model?: string | null;
       /** Enabled */
       enabled?: boolean | null;
-      /** Priority */
-      priority?: number | null;
       /** Timeout Seconds */
       timeout_seconds?: number | null;
       /** Session Header Name */
@@ -613,18 +731,16 @@ export interface components {
       name: string;
       /** Base Url */
       base_url: string;
-      /** Model */
-      model: string;
       /** Enabled */
       enabled: boolean;
-      /** Priority */
-      priority: number;
       /** Timeout Seconds */
       timeout_seconds: number;
       /** Session Header Name */
       session_header_name: string | null;
       /** Keys */
       keys: components["schemas"]["ProviderKeyResponse"][];
+      /** Models */
+      models: components["schemas"]["ProviderModelResponse"][];
       /** Extra Headers */
       extra_headers: {
         [key: string]: string;
@@ -815,8 +931,8 @@ export interface components {
       content: string | null;
       /** Provider Id */
       provider_id: string | null;
-      /** Key Ref */
-      key_ref: string | null;
+      /** Key Masked */
+      key_masked: string | null;
       /** Model */
       model: string | null;
       /** Prompt Version */
@@ -1464,6 +1580,112 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["ProviderResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  test_provider_connection_api_llm_providers__provider_id__test_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        provider_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ConnectionTestRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ConnectionTestResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  create_provider_model_api_llm_providers__provider_id__models_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        provider_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ProviderModelCreateRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ProviderModelResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  update_provider_model_api_llm_providers__provider_id__models__model_id__patch: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        provider_id: string;
+        model_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ProviderModelPatchRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ProviderModelResponse"];
         };
       };
       /** @description Validation Error */

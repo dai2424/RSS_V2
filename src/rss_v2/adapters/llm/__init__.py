@@ -1,3 +1,3 @@
-from .openai_compatible import EnvironmentSecretResolver, OpenAICompatibleProvider
+from .openai_compatible import OpenAICompatibleProvider
 
-__all__ = ["EnvironmentSecretResolver", "OpenAICompatibleProvider"]
+__all__ = ["OpenAICompatibleProvider"]

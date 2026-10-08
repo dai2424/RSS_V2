@@ -4,13 +4,13 @@ import { useRef, useState } from "react";
 import { api, requireResponse } from "../../api/client";
 import { Button, Input } from "../../components/ui";
 import { showToast } from "../../components/Toast";
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetTitle,
-} from "../../components/ui/sheet";
 import { UnsavedDialog } from "../../components/UnsavedChanges";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+} from "../../components/ui/dialog";
 
 /**
  * 行业筛选下拉旁的“新增行业”图标按钮：弹层内新建行业，成功后关闭并自动选中新行业。
@@ -31,10 +31,11 @@ export function CategoryDialog({
       const r = await api.POST("/api/categories", { body: { name } });
       return requireResponse(r.response, r.data, r.error);
     },
-    onSuccess: (created) => {
+    onSuccess: async (created) => {
       setName("");
       setOpen(false);
-      void queryClient.invalidateQueries({ queryKey: ["categories"] });
+      // 非受控下拉对暂时不存在的 option 会把值清空，必须等列表刷新后再回填选值。
+      await queryClient.refetchQueries({ queryKey: ["categories"] });
       onSelect(created.id);
       showToast({
         type: "success",
@@ -65,10 +66,12 @@ export function CategoryDialog({
       >
         <Plus size={16} aria-hidden="true" />
       </button>
-      <Sheet open={open} onOpenChange={requestClose}>
-        <SheetContent side="bottom" className="sm:mx-auto sm:max-w-md">
-          <SheetTitle>新增行业</SheetTitle>
-          <SheetDescription>新增后立即可用于来源表单和筛选。</SheetDescription>
+      <Dialog open={open} onOpenChange={requestClose}>
+        <DialogContent className="max-w-md">
+          <DialogTitle>新增行业</DialogTitle>
+          <DialogDescription>
+            新增后立即可用于来源表单和筛选。
+          </DialogDescription>
           <form
             className="inline-form"
             onSubmit={(event) => {
@@ -81,6 +84,7 @@ export function CategoryDialog({
               <Input
                 id="new-category"
                 required
+                autoFocus
                 value={name}
                 onChange={(event) => setName(event.target.value)}
                 placeholder="例如：新能源"
@@ -95,8 +99,8 @@ export function CategoryDialog({
               </span>
             )}
           </form>
-        </SheetContent>
-      </Sheet>
+        </DialogContent>
+      </Dialog>
       <UnsavedDialog
         open={confirming}
         onKeep={() => setConfirming(false)}

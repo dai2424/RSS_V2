@@ -16,18 +16,17 @@ RSS 来源管理 → 独立 worker 采集 → 消息版本 → 英文内容中�
 
 需要单独调试时仍可使用 `uv run python -m rss_v2.main api` 或 `uv run python -m rss_v2.main worker --once`。
 
-操作顺序：创建行业分类 → 新增来源 → 测试来源 → 立即采集 → 查看消息 → 配置 Provider 与 Key 引用 → 生成中文。
+操作顺序：创建行业分类 → 新增来源 → 测试来源 → 立即采集 → 查看消息 → 配置 Provider 与 API Key → 生成中文。
 
 ## 模型与配置
 
-Web 页只填写兼容 API 的 Base URL、模型名、非敏感请求头和 Key 引用名。例如引用名为 `MAIN`，在启动终端设置一次即可，API 和 worker 都会继承：
+在“模型配置”页填写兼容 API 的 Base URL、模型 ID 与 API Key，不需要预先配置环境变量：
 
-```powershell
-$env:RSS_LLM_KEY_MAIN = '<你的密钥>'
-.\start.cmd
-```
+1. 添加 Provider（Base URL）；
+2. 在详情里添加模型 ID（可多个，各自优先级与启停）；
+3. 在“API Key”处直接粘贴密钥（可多枚，各自优先级与启停，用于失败切换）。
 
-不要把真实密钥写入命令示例、仓库配置、请求头配置、截图或提交。引用名中的连字符转换为下划线，再统一转为大写匹配环境变量。可选会话头名称示例：`x-opencode-session`，每次调用自动生成会话 ID。
+密钥只保存在运行目录数据库（默认 `runtime/db`，不入 Git），界面、日志与调用记录只显示末四位掩码；保存后不再提供明文回看，需要更换时使用“替换密钥”。不要把真实密钥写入命令示例、仓库配置、请求头配置、截图或提交；含密钥的数据库备份同样需要按密钥管理。可选会话头名称示例：`x-opencode-session`（opencode.ai 网关必需），请求头取值为按 Provider 派生的稳定会话 ID，用于上游路由与缓存亲和；请求同时带 `User-Agent: rss-v2/0.1`。
 
 可复制 `config/settings.example.toml` 为被忽略的 `config/settings.toml`；也可用 `RSS_CONFIG` 指向仓库外的 TOML。配置优先级：显式参数 > `RSS_` 环境变量 > TOML > 默认值。常用变量：
 

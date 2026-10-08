@@ -11,7 +11,8 @@ class LLMProvider(Protocol):
     def translate(
         self,
         provider: Provider,
-        key_ref: str,
+        model: str,
+        secret: str,
         title: str,
         summary: str,
         content: str,

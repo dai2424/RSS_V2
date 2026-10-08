@@ -6,10 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from rss_v2.adapters.llm.openai_compatible import (
-    EnvironmentSecretResolver,
-    OpenAICompatibleProvider,
-)
+from rss_v2.adapters.llm.openai_compatible import OpenAICompatibleProvider
 from rss_v2.adapters.rss.feedparser_client import HTTPXFeedClient
 from rss_v2.adapters.sqlite.collections import SQLiteCollectionRunRepository
 from rss_v2.adapters.sqlite.connection import SQLiteDatabase
@@ -56,7 +53,6 @@ class Container:
     message_service: MessageService
     task_service: TaskService
     provider_service: ProviderService
-    secrets: EnvironmentSecretResolver
 
     def migrate(self) -> list[str]:
         """CLI 通过组合根执行迁移。"""
@@ -91,8 +87,7 @@ def build_container(settings: Settings | None = None, migrate: bool = True) -> C
     llm_config = SQLiteLLMConfigRepository(database)
     llm_calls = SQLiteLLMCallRepository(database)
     feed_client = HTTPXFeedClient()
-    secrets = EnvironmentSecretResolver()
-    llm_provider = OpenAICompatibleProvider(secrets)
+    llm_provider = OpenAICompatibleProvider()
     category_service = CategoryService(categories)
     source_service = SourceService(
         sources, categories, health, feed_client, actual_settings.rss_timeout_seconds
@@ -115,7 +110,6 @@ def build_container(settings: Settings | None = None, migrate: bool = True) -> C
         llm_provider,
         actual_settings.llm_default_prompt_version,
         actual_settings.llm_retry_cooldown_seconds,
-        secrets.available,
     )
     message_service = MessageService(messages, translations)
     task_service = TaskService(tasks)
@@ -139,7 +133,6 @@ def build_container(settings: Settings | None = None, migrate: bool = True) -> C
         message_service,
         task_service,
         provider_service,
-        secrets,
     )
 
 

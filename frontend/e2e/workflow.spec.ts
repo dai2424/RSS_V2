@@ -12,7 +12,6 @@ function runWorkerOnce() {
       env: {
         ...process.env,
         RSS_RUNTIME_DIR: resolve("../runtime/e2e"),
-        RSS_LLM_KEY_E2E: "fake-e2e-secret",
       },
       stdio: "pipe",
     },
@@ -48,6 +47,15 @@ for (const width of [1280, 1440, 1920]) {
       page.getByRole("option", { name: "浏览器验收" + suffix }),
     ).toBeAttached();
     await page.getByRole("link", { name: "新增来源", exact: true }).click();
+    const categorySelect = page.getByLabel("行业分类", { exact: true });
+    await page.getByRole("button", { name: "新增行业", exact: true }).click();
+    const formDialog = page.getByRole("dialog", { name: "新增行业" });
+    await formDialog.getByLabel("行业名称").fill("表单验收" + suffix);
+    await formDialog.getByRole("button", { name: "新增", exact: true }).click();
+    await expect(formDialog).toBeHidden();
+    await expect(categorySelect.locator("option:checked")).toHaveText(
+      "表单验收" + suffix,
+    );
     await page
       .getByLabel("来源名称", { exact: true })
       .fill("测试来源" + suffix);
@@ -94,20 +102,39 @@ for (const width of [1280, 1440, 1920]) {
       page.getByRole("heading", { name: "New computing platform" }).first(),
     ).toBeVisible();
     const messageUrl = page.url();
+    // 保证存在至少一个带可用 Key 的启用模型，供翻译任务调度。
     const providers = await (await request.get("/api/llm/providers")).json();
-    if (!providers.length) {
-      const provider = await (
-        await request.post("/api/llm/providers", {
-          data: {
-            name: "验收 Provider",
-            base_url: "http://127.0.0.1:8877/fixtures/v1",
-            model: "e2e-model",
-          },
-        })
-      ).json();
-      await request.post(`/api/llm/providers/${provider.id}/keys`, {
-        data: { key_ref: "E2E" },
-      });
+    const usable = providers.find(
+      (item: {
+        enabled: boolean;
+        keys: { enabled: boolean }[];
+        models: unknown[];
+      }) =>
+        item.enabled &&
+        item.keys.some((key) => key.enabled) &&
+        item.models.length,
+    );
+    if (!usable) {
+      const provider =
+        providers[0] ??
+        (await (
+          await request.post("/api/llm/providers", {
+            data: {
+              name: "验收 Provider",
+              base_url: "http://127.0.0.1:8877/fixtures/v1",
+            },
+          })
+        ).json());
+      if (!provider.models?.length) {
+        await request.post(`/api/llm/providers/${provider.id}/models`, {
+          data: { model: "e2e-model" },
+        });
+      }
+      if (!provider.keys?.some((key: { enabled: boolean }) => key.enabled)) {
+        await request.post(`/api/llm/providers/${provider.id}/keys`, {
+          data: { secret: "fake-e2e-secret" },
+        });
+      }
     }
     await page.getByRole("button", { name: "生成中文", exact: true }).click();
     await expect(
@@ -219,46 +246,108 @@ test("保存失败保留表单与未保存离开提示", async ({ page }) => {
   );
 });
 
-test("Provider 与 Key 引用配置，1280px 桌面可操作", async ({
+test("Provider、模型与 API Key 配置，1280px 桌面可操作", async ({
   page,
 }, testInfo) => {
   await page.setViewportSize({ width: 1280, height: 1000 });
   const name = "界面配置验收" + Date.now();
   await page.goto("/settings/providers");
-  const create = page.locator("form").first();
-  await create.getByLabel("名称", { exact: true }).fill(name);
-  await create
-    .getByLabel("兼容 API Base URL", { exact: true })
-    .fill("http://127.0.0.1:8877/fixtures/v1");
-  await create.getByLabel("模型", { exact: true }).fill("ui-test-model");
-  await create
+  await page
     .getByRole("button", { name: "添加 Provider", exact: true })
     .click();
+  const createDialog = page.getByRole("dialog", { name: "添加 Provider" });
+  await createDialog.getByLabel("名称", { exact: true }).fill(name);
+  await createDialog
+    .getByLabel("兼容 API Base URL", { exact: true })
+    .fill("http://127.0.0.1:8877/fixtures/v1");
+  await createDialog
+    .getByRole("button", { name: "添加 Provider", exact: true })
+    .click();
+  await expect(createDialog).toBeHidden();
   const card = page.getByRole("region", { name, exact: true });
   await expect(card.getByRole("heading", { name, exact: true })).toBeVisible();
-  await card.getByLabel("Key 引用名", { exact: true }).fill("UI_" + Date.now());
-  await card.getByRole("button", { name: "添加引用", exact: true }).click();
+  // 新建供应商自动选中；左侧列表行含状态文字。
+  const listItem = page.getByRole("button").filter({ hasText: name }).first();
+  await expect(listItem).toHaveAttribute("aria-current", "true");
   await expect(
-    card.getByRole("button", { name: "停用 Key", exact: true }),
+    page.getByText("未配置 Key", { exact: true }).first(),
   ).toBeVisible();
+
+  // API Key：弹层录入，列表只显示末四位掩码；可编辑替换与启停。
+  await card.getByRole("button", { name: "添加 Key", exact: true }).click();
+  const keyDialog = page.getByRole("dialog", { name: "添加 API Key" });
+  await keyDialog
+    .getByLabel("API Key", { exact: true })
+    .fill("ui-key-9999-abcd");
+  await keyDialog
+    .getByRole("button", { name: "显示 API Key", exact: true })
+    .click();
+  await expect(
+    keyDialog.getByLabel("API Key", { exact: true }),
+  ).toHaveAttribute("type", "text");
+  await keyDialog
+    .getByRole("button", { name: "隐藏 API Key", exact: true })
+    .click();
+  await keyDialog.getByRole("button", { name: "添加", exact: true }).click();
+  await expect(keyDialog).toBeHidden();
+  await expect(card.getByText("••••••••abcd", { exact: true })).toBeVisible();
+  await expect(card.getByText("ui-key-9999-abcd")).toHaveCount(0);
+  await card.getByRole("button", { name: "编辑", exact: true }).click();
+  const keyEdit = page.getByRole("dialog", { name: "编辑 API Key" });
+  await keyEdit
+    .getByLabel("新 API Key（可选）", { exact: true })
+    .fill("ui-key-8888-wxyz");
+  await keyEdit.getByRole("button", { name: "保存", exact: true }).click();
+  await expect(keyEdit).toBeHidden();
+  await expect(card.getByText("••••••••wxyz", { exact: true })).toBeVisible();
   await card.getByRole("button", { name: "停用 Key", exact: true }).click();
   await expect(
     card.getByRole("button", { name: "启用 Key", exact: true }),
   ).toBeVisible();
-  await card.getByRole("button", { name: "编辑", exact: true }).click();
-  await card.getByLabel("模型", { exact: true }).fill("ui-model-updated");
-  await card.getByRole("button", { name: "关闭编辑", exact: true }).click();
+  // 恢复启用，供后续测试连接使用。
+  await card.getByRole("button", { name: "启用 Key", exact: true }).click();
+  await expect(
+    card.getByRole("button", { name: "停用 Key", exact: true }),
+  ).toBeVisible();
+
+  // 模型：弹层添加 → 行内测试连接 → 行内启停 → 编辑弹层带未保存确认。
+  await card.getByRole("button", { name: "添加模型", exact: true }).click();
+  const modelAdd = page.getByRole("dialog", { name: "添加模型" });
+  await modelAdd.getByLabel("模型 ID", { exact: true }).fill("ui-test-model");
+  await modelAdd.getByRole("button", { name: "添加", exact: true }).click();
+  await expect(modelAdd).toBeHidden();
+  const modelRow = card
+    .locator(".provider-row")
+    .filter({ hasText: "ui-test-model" });
+  await expect(modelRow).toBeVisible();
+  // 固定 fixture 返回合法结构化翻译，测试连接应成功并显示延迟。
+  await modelRow.getByRole("button", { name: "测试", exact: true }).click();
+  await expect(
+    card.getByRole("status").filter({ hasText: "连接成功" }),
+  ).toContainText("ui-test-model");
+  await modelRow
+    .getByRole("switch", { name: "启用模型 ui-test-model" })
+    .click();
+  await expect(modelRow.getByText("已停用", { exact: true })).toBeVisible();
+  await modelRow.getByRole("button", { name: "编辑", exact: true }).click();
+  const modelDialog = page.getByRole("dialog", { name: "编辑模型" });
+  await modelDialog
+    .getByLabel("模型 ID", { exact: true })
+    .fill("ui-model-updated");
+  await modelDialog.getByRole("button", { name: "关闭", exact: true }).click();
   await expect(page.getByRole("alertdialog")).toBeVisible();
   await page.keyboard.press("Escape");
-  await expect(card.getByLabel("模型", { exact: true })).toHaveValue(
+  await expect(modelDialog.getByLabel("模型 ID", { exact: true })).toHaveValue(
     "ui-model-updated",
   );
-  await card.getByRole("button", { name: "保存修改", exact: true }).click();
+  await modelDialog
+    .getByRole("button", { name: "保存修改", exact: true })
+    .click();
   await expect(card.getByText(/ui-model-updated/).first()).toBeVisible();
-  await card.getByRole("button", { name: "停用", exact: true }).click();
-  await expect(
-    card.getByRole("button", { name: "启用", exact: true }),
-  ).toBeVisible();
+
+  // 供应商启停开关与状态文字。
+  await card.getByRole("switch", { name: `启用供应商 ${name}` }).click();
+  await expect(card.getByText("已停用", { exact: true }).first()).toBeVisible();
   await expect(page.locator("body")).toHaveJSProperty("scrollWidth", 1280);
   await page.screenshot({
     path: testInfo.outputPath("providers-1280.png"),
@@ -268,12 +357,14 @@ test("Provider 与 Key 引用配置，1280px 桌面可操作", async ({
 
 test("Provider 保存失败保留输入并保护离开", async ({ page }) => {
   await page.goto("/settings/providers");
-  const form = page.locator("form").first();
-  await form.getByLabel("名称", { exact: true }).fill("待保存配置");
-  await form
+  await page
+    .getByRole("button", { name: "添加 Provider", exact: true })
+    .click();
+  const dialog = page.getByRole("dialog", { name: "添加 Provider" });
+  await dialog.getByLabel("名称", { exact: true }).fill("待保存配置");
+  await dialog
     .getByLabel("兼容 API Base URL", { exact: true })
     .fill("https://example.test/v1");
-  await form.getByLabel("模型", { exact: true }).fill("test-model");
   await page.route("**/api/llm/providers", (route) =>
     route.request().method() === "POST"
       ? route.fulfill({
@@ -286,24 +377,45 @@ test("Provider 保存失败保留输入并保护离开", async ({ page }) => {
         })
       : route.continue(),
   );
-  await form
+  await dialog
     .getByRole("button", { name: "添加 Provider", exact: true })
     .click();
-  await expect(form.getByRole("alert")).toContainText("配置保存暂不可用");
-  await expect(form.getByLabel("名称", { exact: true })).toHaveValue(
+  await expect(dialog.getByRole("alert")).toContainText("配置保存暂不可用");
+  await expect(dialog.getByLabel("名称", { exact: true })).toHaveValue(
     "待保存配置",
   );
-  await page.getByRole("link", { name: "RSS 来源", exact: true }).click();
+  // 弹层内关闭需确认；继续编辑后输入仍在。
+  await page.keyboard.press("Escape");
   await expect(page.getByRole("alertdialog")).toBeVisible();
   await page.getByRole("button", { name: "继续编辑", exact: true }).click();
-  await expect(form.getByLabel("模型", { exact: true })).toHaveValue(
-    "test-model",
+  await expect(dialog.getByLabel("名称", { exact: true })).toHaveValue(
+    "待保存配置",
   );
-  await page.getByRole("link", { name: "RSS 来源", exact: true }).click();
+  await page.keyboard.press("Escape");
   await page
     .getByRole("button", { name: "放弃修改并离开", exact: true })
     .click();
-  await expect(
-    page.getByRole("heading", { name: "RSS 来源", exact: true }),
-  ).toBeVisible();
+  await expect(dialog).toBeHidden();
+  // “添加 Key”弹层同样保护未提交密钥：关闭需确认，放弃后清空。
+  await page.getByRole("button", { name: "添加 Key", exact: true }).click();
+  const keyDialog = page.getByRole("dialog", { name: "添加 API Key" });
+  await keyDialog
+    .getByLabel("API Key", { exact: true })
+    .fill("discard-me-1234");
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("alertdialog")).toBeVisible();
+  await page.getByRole("button", { name: "继续编辑", exact: true }).click();
+  await expect(keyDialog.getByLabel("API Key", { exact: true })).toHaveValue(
+    "discard-me-1234",
+  );
+  await page.keyboard.press("Escape");
+  await page
+    .getByRole("button", { name: "放弃修改并离开", exact: true })
+    .click();
+  await expect(keyDialog).toBeHidden();
+  await page.getByRole("button", { name: "添加 Key", exact: true }).click();
+  await expect(keyDialog.getByLabel("API Key", { exact: true })).toHaveValue(
+    "",
+  );
+  await keyDialog.getByRole("button", { name: "关闭", exact: true }).click();
 });

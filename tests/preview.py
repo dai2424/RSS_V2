@@ -1,7 +1,6 @@
 """浏览器验收专用本机服务；fixture 端点不会进入生产应用。"""
 
 import json
-import os
 from pathlib import Path
 
 import uvicorn
@@ -12,7 +11,6 @@ from rss_v2.api.static import FrontendFiles
 from rss_v2.settings import Settings
 
 ROOT = Path(__file__).resolve().parents[1]
-os.environ["RSS_LLM_KEY_E2E"] = "fake-e2e-secret"
 settings = Settings(runtime_dir=ROOT / "runtime/e2e", frontend_dist=ROOT / "runtime/no-dist")
 app = create_app(settings)
 

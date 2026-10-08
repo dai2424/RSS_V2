@@ -1,7 +1,12 @@
 import { useEffect, useRef, type RefObject } from "react";
 import { useBlocker } from "react-router-dom";
 import { Button } from "./ui";
-import { Sheet, SheetContent, SheetTitle, SheetDescription } from "./ui/sheet";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+} from "./ui/dialog";
 
 /** 在路由切换和浏览器关闭时保护输入，保存成功可即时放行导航。 */
 export function UnsavedChanges({
@@ -54,16 +59,15 @@ export function UnsavedDialog({
 }) {
   const keepEditing = useRef<HTMLButtonElement | null>(null);
   return (
-    <Sheet
+    <Dialog
       open={open}
       onOpenChange={(isOpen) => {
         if (!isOpen) onKeep();
       }}
     >
-      <SheetContent
-        side="bottom"
+      <DialogContent
         role="alertdialog"
-        className="sm:mx-auto sm:max-w-lg"
+        className="max-w-lg"
         onOpenAutoFocus={(event) => {
           event.preventDefault();
           keepEditing.current?.focus();
@@ -73,8 +77,8 @@ export function UnsavedDialog({
           returnFocus.current?.focus();
         }}
       >
-        <SheetTitle>未保存的修改</SheetTitle>
-        <SheetDescription>有未保存的修改，确定离开吗？</SheetDescription>
+        <DialogTitle>未保存的修改</DialogTitle>
+        <DialogDescription>有未保存的修改，确定离开吗？</DialogDescription>
         <div className="toolbar">
           <Button ref={keepEditing} onClick={onKeep}>
             继续编辑
@@ -83,7 +87,7 @@ export function UnsavedDialog({
             放弃修改并离开
           </Button>
         </div>
-      </SheetContent>
-    </Sheet>
+      </DialogContent>
+    </Dialog>
   );
 }

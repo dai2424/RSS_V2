@@ -159,7 +159,7 @@ class TranslationResponse(BaseModel):
     summary: str | None
     content: str | None
     provider_id: str | None
-    key_ref: str | None
+    key_masked: str | None
     model: str | None
     prompt_version: str
     task_id: str | None
@@ -230,8 +230,6 @@ class ProviderCreateRequest(BaseModel):
 
     name: str = Field(min_length=1, max_length=100)
     base_url: str = Field(min_length=8, max_length=1000)
-    model: str = Field(min_length=1, max_length=200)
-    priority: int = Field(default=100, ge=0, le=10000)
     timeout_seconds: float = Field(default=60, gt=0, le=600)
     session_header_name: str | None = Field(default=None, max_length=100)
     extra_headers: dict[str, str] = Field(default_factory=dict)
@@ -242,34 +240,78 @@ class ProviderPatchRequest(PatchRequest):
 
     name: str | None = Field(default=None, min_length=1, max_length=100)
     base_url: str | None = Field(default=None, min_length=8, max_length=1000)
-    model: str | None = Field(default=None, min_length=1, max_length=200)
     enabled: bool | None = None
-    priority: int | None = Field(default=None, ge=0, le=10000)
     timeout_seconds: float | None = Field(default=None, gt=0, le=600)
     session_header_name: str | None = Field(default=None, max_length=100)
     extra_headers: dict[str, str] = Field(default_factory=dict)
 
 
-class ProviderKeyCreateRequest(BaseModel):
-    """创建 key 引用请求。"""
+class ConnectionTestRequest(BaseModel):
+    """连接测试请求；不填模型时使用第一个启用模型。"""
 
-    key_ref: str = Field(min_length=1, max_length=100, pattern="^[A-Za-z0-9_-]+$")
+    model: str | None = Field(default=None, max_length=200)
+
+
+class ConnectionTestResponse(BaseModel):
+    """连接测试响应；只返回密钥掩码，不返回密钥值。"""
+
+    ok: bool
+    model: str
+    key_masked: str
+    latency_ms: int
+    total_tokens: int
+    error_code: str | None
+    error_message: str | None
+
+
+class ProviderModelCreateRequest(BaseModel):
+    """在 provider 下新增模型候选请求。"""
+
+    model: str = Field(min_length=1, max_length=200)
+    priority: int = Field(default=100, ge=0, le=10000)
+
+
+class ProviderModelPatchRequest(PatchRequest):
+    """更新模型候选请求。"""
+
+    model: str | None = Field(default=None, min_length=1, max_length=200)
+    enabled: bool | None = None
+    priority: int | None = Field(default=None, ge=0, le=10000)
+
+
+class ProviderModelResponse(BaseModel):
+    """模型候选响应。"""
+
+    id: str
+    provider_id: str
+    model: str
+    enabled: bool
+    priority: int
+    created_at: int
+    updated_at: int
+
+
+class ProviderKeyCreateRequest(BaseModel):
+    """录入 API Key 请求；密钥值只写入本机数据库。"""
+
+    secret: str = Field(min_length=1, max_length=500)
     priority: int = Field(default=100, ge=0, le=10000)
 
 
 class ProviderKeyPatchRequest(PatchRequest):
-    """更新 key 引用请求。"""
+    """更新 API Key 请求。"""
 
+    secret: str | None = Field(default=None, min_length=1, max_length=500)
     priority: int | None = Field(default=None, ge=0, le=10000)
     enabled: bool | None = None
 
 
 class ProviderKeyResponse(BaseModel):
-    """key 引用响应，不包含密钥值。"""
+    """API Key 响应；只返回掩码，禁止返回密钥值。"""
 
     id: str
     provider_id: str
-    key_ref: str
+    masked: str
     priority: int
     enabled: bool
     cooldown_until: int | None
@@ -282,12 +324,11 @@ class ProviderResponse(BaseModel):
     id: str
     name: str
     base_url: str
-    model: str
     enabled: bool
-    priority: int
     timeout_seconds: float
     session_header_name: str | None
     keys: list[ProviderKeyResponse]
+    models: list[ProviderModelResponse]
     extra_headers: dict[str, str]
 
 

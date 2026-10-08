@@ -151,7 +151,7 @@ class Translation:
     summary: str | None  # 摘要纯文本
     content: str | None  # 正文纯文本
     provider_id: str | None  # 模型服务 UUID
-    key_ref: str | None  # 外部环境变量的密钥引用，禁止保存密钥值
+    key_masked: str | None  # 所用密钥的掩码标签，禁止保存密钥值
     model: str | None  # 实际使用的模型标识
     prompt_version: str  # 提示词契约版本
     task_id: str | None  # 关联后台任务 UUID
@@ -207,14 +207,12 @@ class Task:
 
 @dataclass(frozen=True, slots=True)
 class Provider:
-    """LLM provider 的非敏感配置。"""
+    """LLM provider 的非敏感连接配置。"""
 
     id: str  # 实体 UUID
     name: str  # 显示名称
     base_url: str  # 兼容模型服务地址，无认证信息
-    model: str  # 实际使用的模型标识
     enabled: bool  # 是否参与后续处理
-    priority: int  # 数值越小越优先
     timeout_seconds: float  # 单次模型请求超时秒数
     session_header_name: str | None  # 可选的非敏感会话头名称
     created_at: int  # 创建时间，UTC 秒
@@ -225,18 +223,44 @@ class Provider:
 
 
 @dataclass(frozen=True, slots=True)
+class ProviderModel:
+    """Provider 下的一个模型候选；启停与优先级独立于其它模型。"""
+
+    id: str  # 实体 UUID
+    provider_id: str  # 所属模型服务 UUID
+    model: str  # 实际请求的模型标识
+    enabled: bool  # 是否参与翻译调度
+    priority: int  # 数值越小越优先
+    created_at: int  # 创建时间，UTC 秒
+    updated_at: int  # 最近更新时间，UTC 秒
+
+
+@dataclass(frozen=True, slots=True)
 class ProviderKey:
-    """Provider 下的密钥引用，不包含密钥值。"""
+    """Provider 下的一枚 API Key；密钥值只存在本机运行目录数据库。"""
 
     id: str  # 实体 UUID
     provider_id: str  # 模型服务 UUID
-    key_ref: str  # 外部环境变量的密钥引用，禁止保存密钥值
+    secret: str  # 密钥值；禁止写入日志、审计表和 API 响应
     priority: int  # 数值越小越优先
     enabled: bool  # 是否参与后续处理
     cooldown_until: int | None  # 临时错误冷却截止时间，UTC 秒
     last_status: str | None  # 最近调用状态或错误分类
     created_at: int  # 创建时间，UTC 秒
     updated_at: int  # 最近更新时间，UTC 秒
+
+
+@dataclass(frozen=True, slots=True)
+class ConnectionTest:
+    """一次 Provider×模型连接测试的结果。"""
+
+    ok: bool  # 是否成功完成一次结构化调用
+    model: str  # 实际测试的模型标识
+    key_masked: str  # 所用密钥掩码；失败且未发起调用时为空
+    latency_ms: int  # 调用耗时，毫秒；失败时记录最后一次尝试
+    total_tokens: int  # 上游返回的总 token 数；未提供为 0
+    error_code: str | None  # 稳定错误分类；成功为空
+    error_message: str | None  # 脱敏后的可读错误信息
 
 
 @dataclass(frozen=True, slots=True)
@@ -255,7 +279,7 @@ class LLMCall:
     id: str  # 实体 UUID
     task_id: str | None  # 关联后台任务 UUID
     provider_id: str  # 模型服务 UUID
-    key_ref: str  # 外部环境变量的密钥引用，禁止保存密钥值
+    key_masked: str  # 所用密钥的掩码标签，禁止保存密钥值
     model: str  # 实际使用的模型标识
     prompt_version: str  # 提示词契约版本
     input_hash: str  # 完整输入的 SHA-256；不保存 prompt 原文

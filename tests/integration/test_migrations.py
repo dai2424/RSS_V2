@@ -16,7 +16,7 @@ def test_fresh_database_and_checksum(tmp_path: Path) -> None:
     shutil.copytree("migrations", migrations)
     database = SQLiteDatabase(tmp_path / "rss.db")
     runner = MigrationRunner(database, migrations)
-    assert len(runner.run()) == 5
+    assert len(runner.run()) == 7
     assert runner.run() == []
     path = migrations / "0001_initial.sql"
     path.write_text(path.read_text(encoding="utf-8") + "\n-- mutation\n", encoding="utf-8")
@@ -47,7 +47,7 @@ def test_two_processes_do_not_apply_migration_twice(tmp_path: Path) -> None:
         results = list(
             pool.map(lambda _: MigrationRunner(database, Path("migrations")).run(), range(2))
         )
-    assert sum(len(result) for result in results) == 5
+    assert sum(len(result) for result in results) == 7
 
 
 def test_upgrade_preserves_versions_and_translations(tmp_path: Path) -> None:
@@ -80,6 +80,89 @@ def test_upgrade_preserves_versions_and_translations(tmp_path: Path) -> None:
         translation = connection.execute("SELECT * FROM translations").fetchone()
         assert version["published_at"] == 1791331200
         assert translation["message_version_id"] == version["id"] and translation["title"] == "译文"
+        assert not connection.execute("PRAGMA foreign_key_check").fetchall()
+    finally:
+        connection.close()
+
+
+def test_provider_model_migration_carries_existing_single_model(tmp_path: Path) -> None:
+    """旧库 Provider 的单模型字段升级后成为一条模型行，且列被移除。"""
+    migrations = tmp_path / "migrations"
+    migrations.mkdir()
+    for name in ("0001_initial.sql", "0002_task_recovery.sql", "0003_version_and_headers.sql"):
+        shutil.copy(Path("migrations") / name, migrations / name)
+    database = SQLiteDatabase(tmp_path / "rss.db")
+    runner = MigrationRunner(database, migrations)
+    runner.run()
+    with database.transaction() as connection:
+        connection.execute(
+            "INSERT INTO llm_providers(id,name,base_url,model,enabled,priority,timeout_seconds,session_header_name,created_at,updated_at,extra_headers_json)"
+            " VALUES('p','旧服务','https://llm.test/v1','deepseek-v4.1-flash',0,100,60,NULL,10,20,'{}')"
+        )
+    shutil.copy(
+        Path("migrations") / "0006_provider_models.sql", migrations / "0006_provider_models.sql"
+    )
+    assert runner.run() == ["0006_provider_models.sql"]
+    connection = database.connect()
+    try:
+        columns = {row["name"] for row in connection.execute("PRAGMA table_info(llm_providers)")}
+        assert "model" not in columns
+        model = connection.execute("SELECT * FROM llm_provider_models").fetchone()
+        assert model["provider_id"] == "p" and model["model"] == "deepseek-v4.1-flash"
+        assert model["enabled"] == 0 and model["priority"] == 100
+        assert not connection.execute("PRAGMA foreign_key_check").fetchall()
+    finally:
+        connection.close()
+
+
+def test_api_key_migration_rebuilds_keys_and_renames_audit_columns(tmp_path: Path) -> None:
+    """密钥表改为保存密钥值：旧引用行不迁移，审计与译文列改名为掩码列。"""
+    migrations = tmp_path / "migrations"
+    migrations.mkdir()
+    for name in (
+        "0001_initial.sql",
+        "0002_task_recovery.sql",
+        "0003_version_and_headers.sql",
+        "0004_publication_seconds.sql",
+        "0005_v1_import.sql",
+        "0006_provider_models.sql",
+    ):
+        shutil.copy(Path("migrations") / name, migrations / name)
+    database = SQLiteDatabase(tmp_path / "rss.db")
+    runner = MigrationRunner(database, migrations)
+    runner.run()
+    with database.transaction() as connection:
+        connection.execute(
+            "INSERT INTO llm_providers(id,name,base_url,enabled,timeout_seconds,created_at,updated_at,extra_headers_json)"
+            " VALUES('p','服务','https://llm.test/v1',1,60,10,20,'{}')"
+        )
+        connection.execute(
+            "INSERT INTO llm_provider_keys(id,provider_id,key_ref,priority,enabled,created_at,updated_at)"
+            " VALUES('k','p','MAIN',100,1,10,20)"
+        )
+        connection.execute(
+            "INSERT INTO llm_calls(id,task_id,provider_id,key_ref,model,prompt_version,input_hash,duration_ms,token_usage_json,status,created_at)"
+            " VALUES('c',NULL,'p','MAIN','m','v1','hash',1,'{}','succeeded',10)"
+        )
+    shutil.copy(Path("migrations") / "0007_api_keys.sql", migrations / "0007_api_keys.sql")
+    assert runner.run() == ["0007_api_keys.sql"]
+    connection = database.connect()
+    try:
+        key_columns = {
+            row["name"] for row in connection.execute("PRAGMA table_info(llm_provider_keys)")
+        }
+        assert "secret" in key_columns and "key_ref" not in key_columns
+        # 旧引用行没有可兑换的密钥值，迁移后不保留占位数据。
+        assert not connection.execute("SELECT * FROM llm_provider_keys").fetchall()
+        call_columns = {row["name"] for row in connection.execute("PRAGMA table_info(llm_calls)")}
+        assert "key_masked" in call_columns and "key_ref" not in call_columns
+        assert connection.execute("SELECT key_masked FROM llm_calls").fetchone()["key_masked"] == (
+            "MAIN"
+        )
+        translation_columns = {
+            row["name"] for row in connection.execute("PRAGMA table_info(translations)")
+        }
+        assert "key_masked" in translation_columns
         assert not connection.execute("PRAGMA foreign_key_check").fetchall()
     finally:
         connection.close()

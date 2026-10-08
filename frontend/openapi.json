@@ -972,6 +972,172 @@
         }
       }
     },
+    "/api/llm/providers/{provider_id}/test": {
+      "post": {
+        "tags": [
+          "llm"
+        ],
+        "summary": "Test Provider Connection",
+        "description": "试跑一次最小结构化调用，验证 Base URL、模型与 Key 是否可用。",
+        "operationId": "test_provider_connection_api_llm_providers__provider_id__test_post",
+        "parameters": [
+          {
+            "name": "provider_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Provider Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConnectionTestRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectionTestResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/llm/providers/{provider_id}/models": {
+      "post": {
+        "tags": [
+          "llm"
+        ],
+        "summary": "Create Provider Model",
+        "operationId": "create_provider_model_api_llm_providers__provider_id__models_post",
+        "parameters": [
+          {
+            "name": "provider_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Provider Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProviderModelCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderModelResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/llm/providers/{provider_id}/models/{model_id}": {
+      "patch": {
+        "tags": [
+          "llm"
+        ],
+        "summary": "Update Provider Model",
+        "operationId": "update_provider_model_api_llm_providers__provider_id__models__model_id__patch",
+        "parameters": [
+          {
+            "name": "provider_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Provider Id"
+            }
+          },
+          {
+            "name": "model_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Model Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProviderModelPatchRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderModelResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/llm/providers/{provider_id}/keys": {
       "post": {
         "tags": [
@@ -1306,6 +1472,83 @@
         "title": "CollectionRunResponse",
         "description": "采集运行响应。"
       },
+      "ConnectionTestRequest": {
+        "properties": {
+          "model": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          }
+        },
+        "type": "object",
+        "title": "ConnectionTestRequest",
+        "description": "连接测试请求；不填模型时使用第一个启用模型。"
+      },
+      "ConnectionTestResponse": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "title": "Ok"
+          },
+          "model": {
+            "type": "string",
+            "title": "Model"
+          },
+          "key_masked": {
+            "type": "string",
+            "title": "Key Masked"
+          },
+          "latency_ms": {
+            "type": "integer",
+            "title": "Latency Ms"
+          },
+          "total_tokens": {
+            "type": "integer",
+            "title": "Total Tokens"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "error_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ok",
+          "model",
+          "key_masked",
+          "latency_ms",
+          "total_tokens",
+          "error_code",
+          "error_message"
+        ],
+        "title": "ConnectionTestResponse",
+        "description": "连接测试响应；只返回密钥掩码，不返回密钥值。"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -1586,19 +1829,6 @@
             "minLength": 8,
             "title": "Base Url"
           },
-          "model": {
-            "type": "string",
-            "maxLength": 200,
-            "minLength": 1,
-            "title": "Model"
-          },
-          "priority": {
-            "type": "integer",
-            "maximum": 10000.0,
-            "minimum": 0.0,
-            "title": "Priority",
-            "default": 100
-          },
           "timeout_seconds": {
             "type": "number",
             "maximum": 600.0,
@@ -1629,20 +1859,18 @@
         "type": "object",
         "required": [
           "name",
-          "base_url",
-          "model"
+          "base_url"
         ],
         "title": "ProviderCreateRequest",
         "description": "创建 provider 请求。"
       },
       "ProviderKeyCreateRequest": {
         "properties": {
-          "key_ref": {
+          "secret": {
             "type": "string",
-            "maxLength": 100,
+            "maxLength": 500,
             "minLength": 1,
-            "pattern": "^[A-Za-z0-9_-]+$",
-            "title": "Key Ref"
+            "title": "Secret"
           },
           "priority": {
             "type": "integer",
@@ -1654,13 +1882,26 @@
         },
         "type": "object",
         "required": [
-          "key_ref"
+          "secret"
         ],
         "title": "ProviderKeyCreateRequest",
-        "description": "创建 key 引用请求。"
+        "description": "录入 API Key 请求；密钥值只写入本机数据库。"
       },
       "ProviderKeyPatchRequest": {
         "properties": {
+          "secret": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Secret"
+          },
           "priority": {
             "anyOf": [
               {
@@ -1689,7 +1930,7 @@
         "additionalProperties": false,
         "type": "object",
         "title": "ProviderKeyPatchRequest",
-        "description": "更新 key 引用请求。"
+        "description": "更新 API Key 请求。"
       },
       "ProviderKeyResponse": {
         "properties": {
@@ -1701,9 +1942,9 @@
             "type": "string",
             "title": "Provider Id"
           },
-          "key_ref": {
+          "masked": {
             "type": "string",
-            "title": "Key Ref"
+            "title": "Masked"
           },
           "priority": {
             "type": "integer",
@@ -1740,43 +1981,40 @@
         "required": [
           "id",
           "provider_id",
-          "key_ref",
+          "masked",
           "priority",
           "enabled",
           "cooldown_until",
           "last_status"
         ],
         "title": "ProviderKeyResponse",
-        "description": "key 引用响应，不包含密钥值。"
+        "description": "API Key 响应；只返回掩码，禁止返回密钥值。"
       },
-      "ProviderPatchRequest": {
+      "ProviderModelCreateRequest": {
         "properties": {
-          "name": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 100,
-                "minLength": 1
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Name"
+          "model": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Model"
           },
-          "base_url": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 1000,
-                "minLength": 8
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Base Url"
-          },
+          "priority": {
+            "type": "integer",
+            "maximum": 10000.0,
+            "minimum": 0.0,
+            "title": "Priority",
+            "default": 100
+          }
+        },
+        "type": "object",
+        "required": [
+          "model"
+        ],
+        "title": "ProviderModelCreateRequest",
+        "description": "在 provider 下新增模型候选请求。"
+      },
+      "ProviderModelPatchRequest": {
+        "properties": {
           "model": {
             "anyOf": [
               {
@@ -1813,6 +2051,95 @@
               }
             ],
             "title": "Priority"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "ProviderModelPatchRequest",
+        "description": "更新模型候选请求。"
+      },
+      "ProviderModelResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "provider_id": {
+            "type": "string",
+            "title": "Provider Id"
+          },
+          "model": {
+            "type": "string",
+            "title": "Model"
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled"
+          },
+          "priority": {
+            "type": "integer",
+            "title": "Priority"
+          },
+          "created_at": {
+            "type": "integer",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "integer",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "provider_id",
+          "model",
+          "enabled",
+          "priority",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "ProviderModelResponse",
+        "description": "模型候选响应。"
+      },
+      "ProviderPatchRequest": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "base_url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1000,
+                "minLength": 8
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Url"
+          },
+          "enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enabled"
           },
           "timeout_seconds": {
             "anyOf": [
@@ -1866,17 +2193,9 @@
             "type": "string",
             "title": "Base Url"
           },
-          "model": {
-            "type": "string",
-            "title": "Model"
-          },
           "enabled": {
             "type": "boolean",
             "title": "Enabled"
-          },
-          "priority": {
-            "type": "integer",
-            "title": "Priority"
           },
           "timeout_seconds": {
             "type": "number",
@@ -1900,6 +2219,13 @@
             "type": "array",
             "title": "Keys"
           },
+          "models": {
+            "items": {
+              "$ref": "#/components/schemas/ProviderModelResponse"
+            },
+            "type": "array",
+            "title": "Models"
+          },
           "extra_headers": {
             "additionalProperties": {
               "type": "string"
@@ -1913,12 +2239,11 @@
           "id",
           "name",
           "base_url",
-          "model",
           "enabled",
-          "priority",
           "timeout_seconds",
           "session_header_name",
           "keys",
+          "models",
           "extra_headers"
         ],
         "title": "ProviderResponse",
@@ -2479,7 +2804,7 @@
             ],
             "title": "Provider Id"
           },
-          "key_ref": {
+          "key_masked": {
             "anyOf": [
               {
                 "type": "string"
@@ -2488,7 +2813,7 @@
                 "type": "null"
               }
             ],
-            "title": "Key Ref"
+            "title": "Key Masked"
           },
           "model": {
             "anyOf": [
@@ -2556,7 +2881,7 @@
           "summary",
           "content",
           "provider_id",
-          "key_ref",
+          "key_masked",
           "model",
           "prompt_version",
           "task_id",

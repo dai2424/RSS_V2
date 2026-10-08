@@ -1,6 +1,7 @@
 import type { UseFormReturn } from "react-hook-form";
 import type { components } from "../../api/generated";
 import type { Values } from "./useSourceForm";
+import { CategoryDialog } from "./CategoryDialog";
 
 type Category = components["schemas"]["CategoryResponse"];
 
@@ -14,6 +15,10 @@ export function SourceFields({
   form: UseFormReturn<Values>;
   categories?: Category[];
 }) {
+  // 行业用受控 select：新建分类后异步刷新选项，非受控控件对未就绪的值会静默清空。
+  const categoryValue = form.watch("category_id");
+  const setCategory = (value: string) =>
+    form.setValue("category_id", value, { shouldDirty: true });
   return (
     <>
       <Field
@@ -52,16 +57,23 @@ export function SourceFields({
         label="行业分类"
         error={form.formState.errors.category_id?.message}
       >
-        <select id={`${id}-category`} {...form.register("category_id")}>
-          <option value="">请选择</option>
-          {categories
-            ?.filter((item) => item.is_active)
-            .map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.name}
-              </option>
-            ))}
-        </select>
+        <div className="control-group">
+          <select
+            id={`${id}-category`}
+            value={categoryValue}
+            onChange={(event) => setCategory(event.target.value)}
+          >
+            <option value="">请选择</option>
+            {categories
+              ?.filter((item) => item.is_active)
+              .map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name}
+                </option>
+              ))}
+          </select>
+          <CategoryDialog onSelect={setCategory} />
+        </div>
       </Field>
       <Field
         id={`${id}-offset`}

@@ -2,7 +2,7 @@
 
 from rss_v2.llm import LLMProvider
 
-from .external import FeedClient, SecretResolver
+from .external import FeedClient
 from .repositories import (
     CategoryRepository,
     CollectionRunRepository,
@@ -24,7 +24,6 @@ __all__ = [
     "LLMConfigRepository",
     "LLMProvider",
     "MessageRepository",
-    "SecretResolver",
     "SourceRepository",
     "TaskRepository",
     "TranslationRepository",

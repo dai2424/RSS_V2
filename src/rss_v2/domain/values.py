@@ -40,6 +40,14 @@ def new_id() -> str:
     return str(uuid.uuid4())
 
 
+def mask_secret(secret: str) -> str:
+    """把密钥转成可展示的掩码标签；界面、审计与日志禁止出现密钥值。"""
+    value = secret.strip()
+    if len(value) <= 8:
+        return "•" * max(len(value), 4)
+    return "•" * 8 + value[-4:]
+
+
 def now() -> int:
     """返回 UTC Unix 秒。"""
     return int(time.time())

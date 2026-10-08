@@ -13,6 +13,7 @@ from rss_v2.domain import (
     MessageVersion,
     Provider,
     ProviderKey,
+    ProviderModel,
     Source,
     SourceDeletion,
     Task,
@@ -176,7 +177,7 @@ class TaskRepository(Protocol):
 
 
 class LLMConfigRepository(Protocol):
-    """模型 provider 和 key 引用存取端口。"""
+    """模型 provider、模型候选和 API Key 存取端口。"""
 
     def list_providers(self, enabled_only: bool = False) -> list[Provider]: ...
 
@@ -186,13 +187,21 @@ class LLMConfigRepository(Protocol):
 
     def update_provider(self, provider_id: str, changes: dict[str, Any]) -> Provider: ...
 
+    def list_models(self, provider_id: str, enabled_only: bool = False) -> list[ProviderModel]: ...
+
+    def get_model(self, model_id: str) -> ProviderModel | None: ...
+
+    def create_model(self, model: ProviderModel) -> ProviderModel: ...
+
+    def update_model(self, model_id: str, changes: dict[str, Any]) -> ProviderModel: ...
+
     def list_keys(self, provider_id: str, enabled_only: bool = False) -> list[ProviderKey]: ...
 
     def create_key(self, key: ProviderKey) -> ProviderKey: ...
 
     def update_key(self, key_id: str, changes: dict[str, Any]) -> ProviderKey: ...
 
-    def mark_key(self, key_ref: str, status: str, cooldown_until: int | None) -> None: ...
+    def mark_key(self, key_id: str, status: str, cooldown_until: int | None) -> None: ...
 
 
 class LLMCallRepository(Protocol):

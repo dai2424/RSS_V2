@@ -1,14 +1,24 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState, useCallback } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, requireResponse } from "../../api/client";
-import { Card, EmptyState, ErrorState, PageHeader } from "../../components/ui";
+import {
+  Button,
+  EmptyState,
+  ErrorState,
+  PageHeader,
+} from "../../components/ui";
 import { UnsavedChanges } from "../../components/UnsavedChanges";
-import { ProviderForm } from "./ProviderForm";
-import { ProviderCard } from "./ProviderCard";
-import type { DirtyChange } from "./types";
+import { ProviderCreateDialog } from "./ProviderCreateDialog";
+import { ProviderDetail } from "./ProviderDetail";
+import { ProviderList } from "./ProviderList";
+import type { DirtyChange, Provider } from "./types";
 
-/** 读取 Provider 列表并聚合局部表单状态；不接收或显示原始 Key。 */
+/**
+ * 模型配置主页面：左列表选择供应商，右详情编辑连接、模型与 API Key。
+ * 页面只负责选择状态与数据获取，具体编辑在各子组件内完成。
+ */
 export function ProvidersPage() {
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [dirtyForms, setDirtyForms] = useState(new Set<string>());
   const onDirtyChange = useCallback<DirtyChange>((id, dirty) => {
     setDirtyForms((previous) => {
@@ -30,39 +40,84 @@ export function ProvidersPage() {
       return requireResponse(r.response, r.data, r.error);
     },
   });
+  const list: Provider[] = providers.data ?? [];
+  // 新建供应商是显式选择：等它出现在列表前不覆盖，避免轮询数据落后导致跳回第一个。
+  const pendingSelection = useRef<string | null>(null);
+  const selectProvider = useCallback((id: string) => {
+    pendingSelection.current = id;
+    setSelectedId(id);
+  }, []);
+  useEffect(() => {
+    if (list.length === 0) {
+      if (selectedId !== null) setSelectedId(null);
+      return;
+    }
+    if (
+      pendingSelection.current &&
+      list.some((item) => item.id === pendingSelection.current)
+    ) {
+      pendingSelection.current = null;
+    }
+    if (pendingSelection.current) return;
+    if (!selectedId || !list.some((item) => item.id === selectedId)) {
+      setSelectedId(list[0].id);
+    }
+  }, [list, selectedId]);
+  const selected = useMemo(
+    () => list.find((item) => item.id === selectedId) ?? null,
+    [list, selectedId],
+  );
   return (
     <div className="page">
       <PageHeader
         title="模型配置"
-        description="API Key 只保存引用；数值越小，优先级越高。"
+        description="管理兼容模型服务：连接、模型列表与 API Key；数值越小，优先级越高。"
+        action={
+          <>
+            <Button
+              className="secondary"
+              onClick={refresh}
+              disabled={providers.isFetching}
+            >
+              刷新
+            </Button>
+            <ProviderCreateDialog
+              onSaved={refresh}
+              onCreated={selectProvider}
+              onDirtyChange={onDirtyChange}
+            />
+          </>
+        }
       />
-      <div className="stack">
-        <Card className="card-pad">
-          <h2>添加 Provider</h2>
-          <ProviderForm onSaved={refresh} onDirtyChange={onDirtyChange} />
-        </Card>
-        {providers.isLoading && <div className="loading">正在加载配置…</div>}
-        {providers.isError && (
-          <ErrorState
-            message={providers.error.message}
-            onRetry={() => void providers.refetch()}
+      {providers.isLoading && <div className="loading">正在加载配置…</div>}
+      {providers.isError && (
+        <ErrorState
+          message={providers.error.message}
+          onRetry={() => void providers.refetch()}
+        />
+      )}
+      {providers.data && list.length === 0 && (
+        <EmptyState
+          title="暂无 Provider"
+          description="添加兼容服务并配置模型与 API Key 后，即可创建翻译任务。"
+        />
+      )}
+      {providers.data && list.length > 0 && (
+        <div className="provider-layout">
+          <ProviderList
+            providers={list}
+            selectedId={selected?.id ?? null}
+            onSelect={setSelectedId}
           />
-        )}
-        {providers.data?.length === 0 && (
-          <EmptyState
-            title="暂无 Provider"
-            description="添加兼容服务，配置 Key 引用后即可创建翻译任务。"
-          />
-        )}
-        {providers.data?.map((provider) => (
-          <ProviderCard
-            key={provider.id}
-            provider={provider}
-            onSaved={refresh}
-            onDirtyChange={onDirtyChange}
-          />
-        ))}
-      </div>
+          {selected && (
+            <ProviderDetail
+              provider={selected}
+              onSaved={refresh}
+              onDirtyChange={onDirtyChange}
+            />
+          )}
+        </div>
+      )}
       <UnsavedChanges dirty={dirtyForms.size > 0} />
     </div>
   );

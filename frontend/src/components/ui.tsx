@@ -86,6 +86,10 @@ export function EmptyState({
     </div>
   );
 }
+/** 区块内的小号空态提示，不占用整页空态样式。 */
+export function EmptyHint({ text }: { text: string }) {
+  return <p className="muted">{text}</p>;
+}
 export function ErrorState({
   message,
   onRetry,

@@ -11,9 +11,3 @@ class FeedClient(Protocol):
     """RSS 获取和解析端口。"""
 
     def fetch(self, url: str, timeout_seconds: float) -> FeedSnapshot: ...
-
-
-class SecretResolver(Protocol):
-    """根据引用名解析外部密钥。"""
-
-    def resolve(self, key_ref: str) -> str: ...

@@ -9,6 +9,7 @@ from rss_v2.api.schemas import (
     HealthResponse,
     MessageVersionResponse,
     ProviderKeyResponse,
+    ProviderModelResponse,
     ProviderResponse,
     SourceResponse,
     TaskResponse,
@@ -21,10 +22,12 @@ from rss_v2.domain import (
     MessageVersion,
     Provider,
     ProviderKey,
+    ProviderModel,
     Source,
     Task,
     Translation,
 )
+from rss_v2.domain.values import mask_secret
 
 
 def container(request: Request) -> Container:
@@ -96,7 +99,7 @@ def provider_key_response(key: ProviderKey) -> ProviderKeyResponse:
     return ProviderKeyResponse(
         id=key.id,
         provider_id=key.provider_id,
-        key_ref=key.key_ref,
+        masked=mask_secret(key.secret),
         priority=key.priority,
         enabled=key.enabled,
         cooldown_until=key.cooldown_until,
@@ -104,16 +107,21 @@ def provider_key_response(key: ProviderKey) -> ProviderKeyResponse:
     )
 
 
-def provider_response(provider: Provider, keys: list[ProviderKey]) -> ProviderResponse:
+def provider_model_response(model: ProviderModel) -> ProviderModelResponse:
+    return ProviderModelResponse.model_validate(model, from_attributes=True)
+
+
+def provider_response(
+    provider: Provider, models: list[ProviderModel], keys: list[ProviderKey]
+) -> ProviderResponse:
     return ProviderResponse(
         id=provider.id,
         name=provider.name,
         base_url=provider.base_url,
-        model=provider.model,
         enabled=provider.enabled,
-        priority=provider.priority,
         timeout_seconds=provider.timeout_seconds,
         session_header_name=provider.session_header_name,
         keys=[provider_key_response(key) for key in keys],
+        models=[provider_model_response(model) for model in models],
         extra_headers=provider.extra_headers,
     )

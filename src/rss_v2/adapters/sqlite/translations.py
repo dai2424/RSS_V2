@@ -20,7 +20,7 @@ def _translation(row: sqlite3.Row) -> Translation:
         summary=row["summary"],
         content=row["content"],
         provider_id=row["provider_id"],
-        key_ref=row["key_ref"],
+        key_masked=row["key_masked"],
         model=row["model"],
         prompt_version=row["prompt_version"],
         task_id=row["task_id"],
@@ -73,11 +73,11 @@ class SQLiteTranslationRepository:
                     raise DomainError("task_lease_lost", "任务租约已被回收，当前结果不再写入")
             connection.execute(
                 """
-                INSERT INTO translations(id,message_version_id,status,title,summary,content,provider_id,key_ref,model,prompt_version,task_id,error_code,error_message,created_at,updated_at)
+                INSERT INTO translations(id,message_version_id,status,title,summary,content,provider_id,key_masked,model,prompt_version,task_id,error_code,error_message,created_at,updated_at)
                 VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                 ON CONFLICT(message_version_id,prompt_version,model) DO UPDATE SET
                     status=excluded.status,title=excluded.title,summary=excluded.summary,content=excluded.content,
-                    provider_id=excluded.provider_id,key_ref=excluded.key_ref,task_id=excluded.task_id,
+                    provider_id=excluded.provider_id,key_masked=excluded.key_masked,task_id=excluded.task_id,
                     error_code=excluded.error_code,error_message=excluded.error_message,updated_at=excluded.updated_at
                 """,
                 (
@@ -88,7 +88,7 @@ class SQLiteTranslationRepository:
                     translation.summary,
                     translation.content,
                     translation.provider_id,
-                    translation.key_ref,
+                    translation.key_masked,
                     translation.model,
                     translation.prompt_version,
                     translation.task_id,
