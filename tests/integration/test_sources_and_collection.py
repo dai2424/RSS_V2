@@ -50,6 +50,9 @@ def test_source_create_test_and_collection_are_idempotent(client: TestClient) ->
     messages = client.get("/api/messages").json()
     assert len(messages) == 1
     assert messages[0]["latest_version"]["title"] == "New computing platform"
+    # 来源只有 description 时正文留空，界面不会把同一段文字展示两次。
+    assert messages[0]["latest_version"]["summary"] == "A new computing platform is available."
+    assert messages[0]["latest_version"]["content"] == ""
 
     second_run = client.post("/api/collection/runs", json={"source_ids": [source_id]})
     assert second_run.status_code == 202

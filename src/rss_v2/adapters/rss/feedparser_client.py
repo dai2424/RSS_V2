@@ -14,7 +14,7 @@ import httpx
 from bs4 import BeautifulSoup
 
 from rss_v2.domain import ExternalServiceError, FeedItem, FeedSnapshot
-from rss_v2.domain.values import detect_language
+from rss_v2.domain.values import detect_language, message_content_hash
 
 
 def _text(value: Any) -> str:
@@ -61,7 +61,9 @@ class HTTPXFeedClient:
             title = _text(entry.get("title"))
             summary = _text(entry.get("summary"))
             content_values = cast(list[dict[str, Any]], entry.get("content") or [])
-            content = _text(content_values[0].get("value")) if content_values else summary
+            # 来源只提供 description/summary 时正文留空，不再复制摘要：详情页据此
+            # 只展示一份文字，并说明该来源没有独立正文。
+            content = _text(content_values[0].get("value")) if content_values else ""
             link = str(entry.get("link") or "")
             external_id = str(
                 entry.get("id")
@@ -71,7 +73,7 @@ class HTTPXFeedClient:
             )
             published = entry.get("published_parsed") or entry.get("updated_parsed")
             published_seconds = calendar.timegm(published) if published else None
-            content_hash = hashlib.sha256(f"{title}\n{summary}\n{content}".encode()).hexdigest()
+            content_hash = message_content_hash(title, summary, content if content_values else None)
             items.append(
                 FeedItem(
                     external_id=external_id,

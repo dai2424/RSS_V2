@@ -152,10 +152,22 @@ function VersionCard({ version }: { version: Version }) {
         <TabsContent value="original">
           <article className="prose">
             <h2>{version.title}</h2>
-            <h3>摘要</h3>
-            <p>{version.summary || "无摘要"}</p>
-            <h3>正文</h3>
-            <p>{version.content || "无正文"}</p>
+            {version.summary && (
+              <>
+                <h3>摘要</h3>
+                <p>{version.summary}</p>
+              </>
+            )}
+            {version.content && (
+              <>
+                <h3>正文</h3>
+                <p>{version.content}</p>
+              </>
+            )}
+            {!version.summary && !version.content && <p>该版本没有摘要或正文。</p>}
+            {version.summary && !version.content && (
+              <p className="muted">该来源未提供独立正文，以上为来源给出的描述。</p>
+            )}
           </article>
         </TabsContent>
         <TabsContent value="chinese">

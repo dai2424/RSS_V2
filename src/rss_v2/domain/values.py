@@ -1,11 +1,23 @@
-"""领域值规范化：标识、UTC 秒和稳定 URL。"""
+"""领域值规范化：标识、UTC 秒、稳定 URL 和内容指纹。"""
 
+import hashlib
 import time
 import uuid
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from rss_v2.domain.errors import DomainError
 from rss_v2.domain.models import SourceLanguage
+
+
+def message_content_hash(title: str, summary: str, content: str | None) -> str:
+    """计算消息版本的内容指纹。
+
+    content 为 ``None`` 表示来源没有提供独立正文（只有描述或摘要），此时用摘要作为
+    指纹依据。这样"来源后来补上正文"才会改变指纹，"采集器不再把摘要复制进正文"不会，
+    归一历史数据时存量消息不会被判定为内容变化而生成假新版本。
+    """
+    basis = summary if content is None else content
+    return hashlib.sha256(f"{title}\n{summary}\n{basis}".encode()).hexdigest()
 
 
 def detect_language(text: str) -> SourceLanguage:

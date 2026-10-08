@@ -1,14 +1,28 @@
 """迁移原子性、历史校验和与并发启动验收。"""
 
+import hashlib
 import shutil
 import sqlite3
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import pytest
+import respx
+from httpx import Response
 
+from rss_v2.adapters.rss.feedparser_client import HTTPXFeedClient
 from rss_v2.adapters.sqlite.connection import SQLiteDatabase
 from rss_v2.adapters.sqlite.migrations import MigrationRunner
+
+MIGRATIONS_BEFORE_CONTENT_NORMALIZATION = (
+    "0001_initial.sql",
+    "0002_task_recovery.sql",
+    "0003_version_and_headers.sql",
+    "0004_publication_seconds.sql",
+    "0005_v1_import.sql",
+    "0006_provider_models.sql",
+    "0007_api_keys.sql",
+)
 
 
 def test_fresh_database_and_checksum(tmp_path: Path) -> None:
@@ -16,7 +30,7 @@ def test_fresh_database_and_checksum(tmp_path: Path) -> None:
     shutil.copytree("migrations", migrations)
     database = SQLiteDatabase(tmp_path / "rss.db")
     runner = MigrationRunner(database, migrations)
-    assert len(runner.run()) == 7
+    assert len(runner.run()) == 8
     assert runner.run() == []
     path = migrations / "0001_initial.sql"
     path.write_text(path.read_text(encoding="utf-8") + "\n-- mutation\n", encoding="utf-8")
@@ -47,7 +61,7 @@ def test_two_processes_do_not_apply_migration_twice(tmp_path: Path) -> None:
         results = list(
             pool.map(lambda _: MigrationRunner(database, Path("migrations")).run(), range(2))
         )
-    assert sum(len(result) for result in results) == 7
+    assert sum(len(result) for result in results) == 8
 
 
 def test_upgrade_preserves_versions_and_translations(tmp_path: Path) -> None:
@@ -81,6 +95,57 @@ def test_upgrade_preserves_versions_and_translations(tmp_path: Path) -> None:
         assert version["published_at"] == 1791331200
         assert translation["message_version_id"] == version["id"] and translation["title"] == "译文"
         assert not connection.execute("PRAGMA foreign_key_check").fetchall()
+    finally:
+        connection.close()
+
+
+@respx.mock
+def test_content_normalization_keeps_recollection_idempotent(tmp_path: Path) -> None:
+    """归一"摘要复制到正文"的历史数据后，同一来源重新采集不会产生假新版本。
+
+    迁移只清空正文、不重算指纹；指纹口径仍按摘要兜底，因此升级前写入的指纹与
+    升级后采集器算出的指纹逐字节相同，`_store_item` 会把它判为未变化。
+    """
+    migrations = tmp_path / "migrations"
+    migrations.mkdir()
+    for name in MIGRATIONS_BEFORE_CONTENT_NORMALIZATION:
+        shutil.copy(Path("migrations") / name, migrations / name)
+    database = SQLiteDatabase(tmp_path / "rss.db")
+    runner = MigrationRunner(database, migrations)
+    runner.run()
+    title = "New computing platform"
+    summary = "A new computing platform is available."
+    with database.transaction() as connection:
+        category = connection.execute("SELECT id FROM categories LIMIT 1").fetchone()[0]
+        connection.execute(
+            "INSERT INTO rss_sources(id,name,url,language,category_id,created_at,updated_at)"
+            " VALUES('s','Example Tech','https://example.test/feed.xml','en',?,1,1)",
+            (category,),
+        )
+        connection.execute("INSERT INTO messages VALUES('m','s','entry-1',1,1)")
+        connection.execute(
+            "INSERT INTO message_versions VALUES('v','m',1,?,?,?,'https://example.test/entry-1',"
+            "1791331200,1,'en',?)",
+            (
+                title,
+                summary,
+                summary,
+                hashlib.sha256(f"{title}\n{summary}\n{summary}".encode()).hexdigest(),
+            ),
+        )
+    shutil.copy(
+        Path("migrations") / "0008_normalize_content.sql", migrations / "0008_normalize_content.sql"
+    )
+    assert runner.run() == ["0008_normalize_content.sql"]
+    feed = Path("tests/fixtures/sample_feed.xml").read_bytes()
+    respx.get("https://example.test/feed.xml").mock(return_value=Response(200, content=feed))
+    item = HTTPXFeedClient().fetch("https://example.test/feed.xml", 20.0).items[0]
+    connection = database.connect()
+    try:
+        version = connection.execute("SELECT * FROM message_versions").fetchone()
+        assert item.title == title and item.summary == summary
+        assert version["content"] == ""
+        assert version["content_hash"] == item.content_hash
     finally:
         connection.close()
 

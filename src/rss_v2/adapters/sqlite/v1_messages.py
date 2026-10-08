@@ -6,7 +6,7 @@ import hashlib
 import sqlite3
 
 from rss_v2.adapters.sqlite.v1_common import legacy_uuid, mapped, record, remember
-from rss_v2.domain.values import detect_language, normalize_url
+from rss_v2.domain.values import detect_language, message_content_hash, normalize_url
 
 
 def _values(
@@ -41,6 +41,8 @@ def _version(
     if existing:
         return existing, False
     title, summary, content, url, published, collected = values
+    # 与采集器同一口径：正文只是摘要的副本时留空，避免详情页重复展示。
+    content = "" if content == summary else content
     version_id = legacy_uuid("version", legacy_id)
     number = target.execute(
         "SELECT coalesce(max(version_number),0)+1 FROM message_versions WHERE message_id=?",
@@ -61,7 +63,7 @@ def _version(
             language
             if language in {"en", "zh", "mixed"}
             else detect_language(f"{title} {summary} {content}").value,
-            hashlib.sha256(f"{title}\n{summary}\n{content}".encode()).hexdigest(),
+            message_content_hash(title, summary, content),
         ),
     )
     remember(target, "version", legacy_id, version_id)
