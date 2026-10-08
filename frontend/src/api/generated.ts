@@ -184,6 +184,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/messages/{message_id}/enrich": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Enrich Message */
+    post: operations["enrich_message_api_messages__message_id__enrich_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/tasks/{task_id}": {
     parameters: {
       query?: never;
@@ -496,6 +513,42 @@ export interface components {
       /** Error Message */
       error_message: string | null;
     };
+    /**
+     * EnrichmentResponse
+     * @description 内容加工结果响应。
+     */
+    EnrichmentResponse: {
+      /** Id */
+      id: string;
+      /** Message Version Id */
+      message_version_id: string;
+      /** Status */
+      status: string;
+      /** Title */
+      title: string | null;
+      /** Summary */
+      summary: string | null;
+      /** Keywords */
+      keywords: string[];
+      /** Provider Id */
+      provider_id: string | null;
+      /** Key Masked */
+      key_masked: string | null;
+      /** Model */
+      model: string | null;
+      /** Prompt Version */
+      prompt_version: string;
+      /** Task Id */
+      task_id: string | null;
+      /** Error Code */
+      error_code: string | null;
+      /** Error Message */
+      error_message: string | null;
+      /** Created At */
+      created_at: number;
+      /** Updated At */
+      updated_at: number;
+    };
     /** HTTPValidationError */
     HTTPValidationError: {
       /** Detail */
@@ -587,7 +640,10 @@ export interface components {
       content_hash: string;
       /** Translations */
       translations: components["schemas"]["TranslationResponse"][];
+      /** Enrichments */
+      enrichments: components["schemas"]["EnrichmentResponse"][];
       translation_task?: components["schemas"]["TaskResponse"] | null;
+      enrichment_task?: components["schemas"]["TaskResponse"] | null;
     };
     /**
      * ProviderCreateRequest
@@ -1380,6 +1436,37 @@ export interface operations {
     };
   };
   translate_message_api_messages__message_id__translate_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        message_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["TaskResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  enrich_message_api_messages__message_id__enrich_post: {
     parameters: {
       query?: never;
       header?: never;

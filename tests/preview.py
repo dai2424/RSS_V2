@@ -2,8 +2,10 @@
 
 import json
 from pathlib import Path
+from typing import Any
 
 import uvicorn
+from fastapi import Request
 from fastapi.responses import Response
 
 from rss_v2.api.app import create_app
@@ -23,24 +25,38 @@ def feed() -> Response:
     )
 
 
+def _system_prompt(body: dict[str, Any]) -> str:
+    """读取请求里的系统提示，用于区分翻译与内容加工两条链路。"""
+
+    messages = body.get("messages")
+    if not isinstance(messages, list):
+        return ""
+    return " ".join(
+        str(item.get("content", ""))
+        for item in messages
+        if isinstance(item, dict) and item.get("role") == "system"
+    )
+
+
 @app.post("/fixtures/v1/chat/completions")
-def completion() -> dict[str, object]:
-    """模拟兼容协议，不调用真实模型。"""
+async def completion(request: Request) -> dict[str, object]:
+    """模拟兼容协议，按任务类型返回对应结构，不调用真实模型。"""
+    payload: object = await request.json()
+    body = payload if isinstance(payload, dict) else {}
+    if "enrichment" in _system_prompt(body):
+        content = {
+            "title": "精简标题",
+            "summary": "计算平台已经发布，适合检索归档。",
+            "keywords": ["计算平台", "发布"],
+        }
+    else:
+        content = {
+            "title": "新计算平台",
+            "summary": "计算平台已发布。",
+            "content": "这是中文正文。",
+        }
     return {
-        "choices": [
-            {
-                "message": {
-                    "content": json.dumps(
-                        {
-                            "title": "新计算平台",
-                            "summary": "计算平台已发布。",
-                            "content": "这是中文正文。",
-                        },
-                        ensure_ascii=False,
-                    )
-                }
-            }
-        ],
+        "choices": [{"message": {"content": json.dumps(content, ensure_ascii=False)}}],
         "usage": {"total_tokens": 3},
     }
 

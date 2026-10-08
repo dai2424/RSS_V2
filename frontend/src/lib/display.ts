@@ -37,3 +37,24 @@ export function domainOf(url: string): string {
     return url;
   }
 }
+type GeneratedText = {
+  status: string;
+  title: string | null;
+  summary: string | null;
+};
+/**
+ * 列表展示文本：加工结果优先于译文，都不可用时回退原文。
+ * machine 用于标记内容由模型生成，避免与原文混淆。
+ */
+export function preferredText(
+  field: "title" | "summary",
+  enrichment: GeneratedText | undefined,
+  translation: GeneratedText | undefined,
+  fallback: string | null | undefined,
+): { text: string; machine: boolean } {
+  for (const source of [enrichment, translation]) {
+    const value = source?.status === "succeeded" ? source[field]?.trim() : "";
+    if (value) return { text: value, machine: true };
+  }
+  return { text: (fallback ?? "").trim(), machine: false };
+}

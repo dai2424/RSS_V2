@@ -95,46 +95,39 @@ for (const width of [1280, 1440, 1920]) {
     await page
       .getByRole("link", { name: "查看本来源消息", exact: true })
       .click();
-    await page
-      .getByRole("link", { name: "New computing platform", exact: true })
-      .click();
+    // 采集后可能已自动生成中文，列表标题会变，因此按第一行数据取消息。
+    await page.locator("tbody tr").first().getByRole("link").first().click();
     await expect(
       page.getByRole("heading", { name: "New computing platform" }).first(),
     ).toBeVisible();
     const messageUrl = page.url();
-    // 保证存在至少一个带可用 Key 的启用模型，供翻译任务调度。
+    // 保证存在至少一个可用的启用模型：没有就新建，避免改到已停用的历史 Provider。
     const providers = await (await request.get("/api/llm/providers")).json();
     const usable = providers.find(
       (item: {
         enabled: boolean;
         keys: { enabled: boolean }[];
-        models: unknown[];
+        models: { enabled: boolean }[];
       }) =>
         item.enabled &&
         item.keys.some((key) => key.enabled) &&
-        item.models.length,
+        item.models.some((model) => model.enabled),
     );
     if (!usable) {
-      const provider =
-        providers[0] ??
-        (await (
-          await request.post("/api/llm/providers", {
-            data: {
-              name: "验收 Provider",
-              base_url: "http://127.0.0.1:8877/fixtures/v1",
-            },
-          })
-        ).json());
-      if (!provider.models?.length) {
-        await request.post(`/api/llm/providers/${provider.id}/models`, {
-          data: { model: "e2e-model" },
-        });
-      }
-      if (!provider.keys?.some((key: { enabled: boolean }) => key.enabled)) {
-        await request.post(`/api/llm/providers/${provider.id}/keys`, {
-          data: { secret: "fake-e2e-secret" },
-        });
-      }
+      const provider = await (
+        await request.post("/api/llm/providers", {
+          data: {
+            name: "验收 Provider " + suffix,
+            base_url: "http://127.0.0.1:8877/fixtures/v1",
+          },
+        })
+      ).json();
+      await request.post(`/api/llm/providers/${provider.id}/models`, {
+        data: { model: "e2e-model" },
+      });
+      await request.post(`/api/llm/providers/${provider.id}/keys`, {
+        data: { secret: "fake-e2e-secret" },
+      });
     }
     await page.getByRole("button", { name: "生成中文", exact: true }).click();
     await expect(
@@ -148,11 +141,33 @@ for (const width of [1280, 1440, 1920]) {
     await expect(
       page.getByRole("heading", { name: "新计算平台", exact: true }),
     ).toBeVisible({ timeout: 15000 });
+    // 内容加工：手动生成摘要后，摘要标签页展示精简标题与关键词。
+    await page.getByRole("button", { name: "生成摘要", exact: true }).click();
+    await expect(
+      page.getByRole("status").filter({ hasText: "加工任务" }),
+    ).toBeVisible();
+    await drainWorker(request);
+    await page
+      .getByRole("tab", { name: "内容摘要（机器生成）", exact: true })
+      .focus();
+    await page.keyboard.press("Enter");
+    await expect(
+      page.getByRole("heading", { name: "精简标题", exact: true }),
+    ).toBeVisible({ timeout: 15000 });
+    await expect(
+      page.getByRole("tabpanel").getByText("计算平台", { exact: true }),
+    ).toBeVisible();
     await page.screenshot({
       path: testInfo.outputPath(`message-${width}.png`),
       fullPage: true,
     });
     await expect(page.locator("body")).toHaveJSProperty("scrollWidth", width);
+    // 中文关键词能命中机器生成的摘要与关键词，而不只是原文。
+    await page.goto("/messages");
+    await page.getByLabel("搜索消息").fill("检索归档");
+    await expect(
+      page.getByRole("row").filter({ hasText: "精简标题" }).first(),
+    ).toBeVisible();
     const sidebar = page.getByRole("complementary", { name: "主导航" });
     await expect(sidebar).toBeVisible();
     await sidebar.getByRole("link", { name: "任务", exact: true }).focus();

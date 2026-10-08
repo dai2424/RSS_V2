@@ -390,6 +390,25 @@ tbody tr:hover {
   font-size: 12px;
   margin-top: 4px;
 }
+/* 列表摘要截断到两行，完整内容在详情页阅读。 */
+.clamp-2 {
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  display: -webkit-box;
+  line-clamp: 2;
+  overflow: hidden;
+}
+.badge-stack {
+  align-items: flex-start;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.badge-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
 .badge {
   border-radius: 99px;
   display: inline-flex;

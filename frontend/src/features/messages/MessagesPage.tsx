@@ -10,7 +10,44 @@ import {
   Input,
   PageHeader,
 } from "../../components/ui";
-import { formatTime, statusLabels } from "../../lib/display";
+import { formatTime, preferredText, statusLabels } from "../../lib/display";
+
+type TaskStatus = "queued" | "running" | "succeeded" | "failed";
+
+const SUMMARY_PLACEHOLDER = "（无摘要）";
+
+/** 处理状态同时用文字和颜色表达，不依赖颜色区分。 */
+function ProcessingBadges({
+  translationStatus,
+  enrichmentStatus,
+}: {
+  translationStatus?: string;
+  enrichmentStatus?: string;
+}) {
+  const items = [
+    ["译", translationStatus, "未翻译"],
+    ["摘", enrichmentStatus, "未加工"],
+  ] as const;
+  return (
+    <div className="badge-stack">
+      {items.map(([label, status, empty]) => (
+        <Badge
+          key={label}
+          tone={
+            status === "succeeded"
+              ? "success"
+              : status === "failed"
+                ? "danger"
+                : "neutral"
+          }
+        >
+          {label} {status ? statusLabels[status as TaskStatus] : empty}
+        </Badge>
+      ))}
+    </div>
+  );
+}
+
 export function MessagesPage() {
   const [params, setParams] = useSearchParams();
   const q = params.get("q") || "";
@@ -63,7 +100,7 @@ export function MessagesPage() {
             aria-label="搜索消息"
             value={q}
             onChange={(e) => filter("q", e.target.value)}
-            placeholder="搜索标题、摘要、正文"
+            placeholder="搜索标题、摘要、正文、译文和关键词"
           />
           <select
             aria-label="来源筛选"
@@ -109,21 +146,38 @@ export function MessagesPage() {
                   <th>来源</th>
                   <th>语言</th>
                   <th>版本</th>
-                  <th>中文化</th>
+                  <th>处理</th>
                   <th>发布时间</th>
                 </tr>
               </thead>
               <tbody>
                 {messages.data.map((message) => {
                   const v = message.latest_version;
-                  const t = v?.translations[0];
-                  const translationStatus =
-                    v?.translation_task?.status ?? t?.status;
+                  const enrichment = v?.enrichments.find(
+                    (item) => item.status === "succeeded",
+                  );
+                  const translation = v?.translations.find(
+                    (item) => item.status === "succeeded",
+                  );
+                  // 有中文机器内容时优先展示，机器生成必须标记出来。
+                  const title = preferredText(
+                    "title",
+                    enrichment,
+                    translation,
+                    v?.title,
+                  );
+                  const summary = preferredText(
+                    "summary",
+                    enrichment,
+                    translation,
+                    v?.summary,
+                  );
                   return (
                     <tr key={message.id}>
                       <td>
                         <Link
                           className="cell-title"
+                          title={v?.title || undefined}
                           onClick={() =>
                             sessionStorage.setItem(
                               "messages-return",
@@ -132,27 +186,26 @@ export function MessagesPage() {
                           }
                           to={"/messages/" + message.id}
                         >
-                          {v?.title || "无标题"}
+                          {title.text || "无标题"}
                         </Link>
-                        <div className="cell-subtitle">{v?.summary}</div>
+                        {title.machine && <Badge tone="neutral">机器</Badge>}
+                        <div className="cell-subtitle clamp-2">
+                          {summary.text || SUMMARY_PLACEHOLDER}
+                          {summary.machine && "（机器生成）"}
+                        </div>
                       </td>
                       <td>{names.get(message.source_id) || "未知"}</td>
                       <td>{statusLabels[v?.language || "auto"]}</td>
                       <td>v{v?.version_number}</td>
                       <td>
-                        <Badge
-                          tone={
-                            translationStatus === "succeeded"
-                              ? "success"
-                              : translationStatus === "failed"
-                                ? "danger"
-                                : "neutral"
+                        <ProcessingBadges
+                          translationStatus={
+                            v?.translation_task?.status ?? translation?.status
                           }
-                        >
-                          {translationStatus
-                            ? statusLabels[translationStatus]
-                            : "未翻译"}
-                        </Badge>
+                          enrichmentStatus={
+                            v?.enrichment_task?.status ?? enrichment?.status
+                          }
+                        />
                       </td>
                       <td>{formatTime(v?.published_at)}</td>
                     </tr>

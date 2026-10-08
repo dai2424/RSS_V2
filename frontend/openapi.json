@@ -693,6 +693,48 @@
         }
       }
     },
+    "/api/messages/{message_id}/enrich": {
+      "post": {
+        "tags": [
+          "messages"
+        ],
+        "summary": "Enrich Message",
+        "operationId": "enrich_message_api_messages__message_id__enrich_post",
+        "parameters": [
+          {
+            "name": "message_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Message Id"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/tasks/{task_id}": {
       "get": {
         "tags": [
@@ -1549,6 +1591,149 @@
         "title": "ConnectionTestResponse",
         "description": "连接测试响应；只返回密钥掩码，不返回密钥值。"
       },
+      "EnrichmentResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "message_version_id": {
+            "type": "string",
+            "title": "Message Version Id"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary"
+          },
+          "keywords": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Keywords"
+          },
+          "provider_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Id"
+          },
+          "key_masked": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Key Masked"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "prompt_version": {
+            "type": "string",
+            "title": "Prompt Version"
+          },
+          "task_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Task Id"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "error_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Message"
+          },
+          "created_at": {
+            "type": "integer",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "integer",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "message_version_id",
+          "status",
+          "title",
+          "summary",
+          "keywords",
+          "provider_id",
+          "key_masked",
+          "model",
+          "prompt_version",
+          "task_id",
+          "error_code",
+          "error_message",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "EnrichmentResponse",
+        "description": "内容加工结果响应。"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -1786,7 +1971,24 @@
             "type": "array",
             "title": "Translations"
           },
+          "enrichments": {
+            "items": {
+              "$ref": "#/components/schemas/EnrichmentResponse"
+            },
+            "type": "array",
+            "title": "Enrichments"
+          },
           "translation_task": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TaskResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "enrichment_task": {
             "anyOf": [
               {
                 "$ref": "#/components/schemas/TaskResponse"
@@ -1810,7 +2012,8 @@
           "collected_at",
           "language",
           "content_hash",
-          "translations"
+          "translations",
+          "enrichments"
         ],
         "title": "MessageVersionResponse",
         "description": "消息版本响应。"
