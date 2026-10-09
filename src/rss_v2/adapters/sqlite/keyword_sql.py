@@ -57,3 +57,30 @@ def prefix_pattern(value: str) -> str:
     """
 
     return f"{escape_like(value)}%"
+
+
+#: 没有时间范围限制时用的边界：SQLite 能表示的最小/最大整数，避免查询里多一个分支。
+MIN_TIME = -9223372036854775808
+MAX_TIME = 9223372036854775807
+
+#: 词条聚合：一行一个规范词，含出现次数、覆盖来源数、首末出现时间与裁决后的类型。
+#: 词表与概览共用它；外层再套一层子查询才能按类型与频次过滤。
+KEY_AGGREGATE = f"""
+SELECT {RESOLVED_KEY} AS keyword_key,
+       COUNT(DISTINCT k.message_version_id) AS mentions,
+       COUNT(DISTINCT m.source_id) AS sources,
+       MIN(COALESCE(v.published_at, v.collected_at)) AS first_seen,
+       MAX(COALESCE(v.published_at, v.collected_at)) AS last_seen,
+       CASE WHEN SUM(k.kind = 'entity') > 0 THEN 'entity'
+            WHEN SUM(k.kind = 'topic') > 0 THEN 'topic'
+            ELSE 'event' END AS keyword_kind
+FROM enrichment_keywords k
+JOIN message_versions v ON v.id = k.message_version_id
+JOIN messages m ON m.id = v.message_id
+LEFT JOIN keyword_aliases a ON a.alias_norm = k.normalized
+WHERE k.enrichment_id = {CURRENT_ENRICHMENT}
+  AND v.id = {LATEST_VERSION}
+  AND COALESCE(v.published_at, v.collected_at) >= ?
+  AND COALESCE(v.published_at, v.collected_at) <= ?
+GROUP BY keyword_key
+"""

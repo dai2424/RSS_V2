@@ -9,6 +9,8 @@ from rss_v2.domain import (
     CollectionRun,
     Enrichment,
     HealthCheck,
+    KeywordEntry,
+    KeywordOverview,
     LLMCall,
     MergePreview,
     MergeRecord,
@@ -255,6 +257,37 @@ class KeywordRepository(Protocol):
 
     def messages_missing_enrichment(self, source_id: str | None, limit: int) -> list[str]:
         """还没有成功加工结果的消息 id，按发布时间从新到旧。"""
+        ...
+
+    def vocabulary(
+        self,
+        query: str | None,
+        kind: str | None,
+        min_count: int,
+        since: int | None,
+        until: int | None,
+        limit: int,
+        offset: int,
+    ) -> list[KeywordEntry]:
+        """词表一页：按频次排序的规范词，含覆盖来源数与首末出现时间。
+
+        min_count 用于折叠只出现一次的词；since/until 按最近出现时间过滤。
+        """
+        ...
+
+    def count_vocabulary(
+        self,
+        query: str | None,
+        kind: str | None,
+        min_count: int,
+        since: int | None,
+        until: int | None,
+    ) -> int:
+        """与词表同一筛选条件的总数。"""
+        ...
+
+    def overview(self, days: int, top_sources: int) -> KeywordOverview:
+        """概览：规模、类型构成、长尾、近 N 天趋势、来源分布与覆盖情况。"""
         ...
 
     def resolve_key(self, key: str) -> str:

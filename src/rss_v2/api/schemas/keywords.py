@@ -71,3 +71,78 @@ class KeywordUndoResponse(BaseModel):
     """撤销结果：恢复的别名行数。"""
 
     restored: int
+
+
+class KeywordEntryResponse(BaseModel):
+    """词表一行：规范词、展示写法、规模与首末出现时间。"""
+
+    key: str
+    text: str
+    kind: str
+    mentions: int
+    sources: int
+    first_seen_at: int
+    last_seen_at: int
+    aliases: list[str]
+
+
+class KeywordListResponse(BaseModel):
+    """词表分页结果。"""
+
+    items: list[KeywordEntryResponse]
+    total: int
+
+
+class KeywordKindStatResponse(BaseModel):
+    """某一类型的关键词规模。"""
+
+    kind: str
+    terms: int
+    mentions: int
+
+
+class KeywordBucketResponse(BaseModel):
+    """长尾分布的一档。"""
+
+    label: str
+    terms: int
+
+
+class KeywordTrendPointResponse(BaseModel):
+    """某一天的关键词产出。"""
+
+    day: str
+    mentions: int
+    new_terms: int
+
+
+class KeywordSourceStatResponse(BaseModel):
+    """来源维度的关键词规模。"""
+
+    source_id: str
+    source_name: str
+    terms: int
+    mentions: int
+    top: list[KeywordResponse]
+
+
+class KeywordOverviewResponse(BaseModel):
+    """概览：规模、分布与覆盖；字段含义见 KeywordOverview。"""
+
+    messages: int
+    enriched: int
+    pending: int
+    terms: int
+    mentions: int
+    singletons: int
+    average_per_message: float
+    aliases: int
+    merges: int
+    kinds: list[KeywordKindStatResponse]
+    long_tail: list[KeywordBucketResponse]
+    trend: list[KeywordTrendPointResponse]
+    sources: list[KeywordSourceStatResponse]
+    tasks_queued: int
+    tasks_running: int
+    tasks_succeeded: int
+    tasks_failed: int

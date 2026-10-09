@@ -91,7 +91,7 @@ def _affected_messages(connection: sqlite3.Connection, keys: list[str]) -> int:
     return int(row["total"]) if row else 0
 
 
-def _pick_display(forms: list[tuple[str, str, str, int]]) -> tuple[str, str]:
+def pick_display(forms: list[tuple[str, str, str, int]]) -> tuple[str, str]:
     """词条的展示写法与类型：取覆盖消息数最多的写法，类型按实体优先裁决。"""
 
     if not forms:
@@ -99,6 +99,18 @@ def _pick_display(forms: list[tuple[str, str, str, int]]) -> tuple[str, str]:
     order = {KeywordKind.ENTITY.value: 0, KeywordKind.TOPIC.value: 1, KeywordKind.EVENT.value: 2}
     ordered = sorted(forms, key=lambda item: (-item[3], order.get(item[2], 3), item[1]))
     return ordered[0][1], ordered[0][2]
+
+
+def forms(database: SQLiteDatabase, keys: list[str]) -> list[tuple[str, str, str, int]]:
+    """取这些规范词键下的全部写法；词表与合并影响面共用同一份查询。"""
+
+    if not keys:
+        return []
+    connection = database.connect()
+    try:
+        return _forms(connection, keys)
+    finally:
+        connection.close()
 
 
 def preview(database: SQLiteDatabase, sources: list[str], target: str) -> MergePreview:
@@ -128,7 +140,7 @@ def _target_row(connection: sqlite3.Connection, target: str) -> tuple[str, str]:
     rows = _forms(connection, [target])
     if not rows:
         raise DomainError("keyword_target_unknown", "目标词在词表里不存在，先确认它已经有加工结果")
-    return _pick_display(rows)
+    return pick_display(rows)
 
 
 def merge(database: SQLiteDatabase, sources: list[str], target: str) -> MergeRecord:

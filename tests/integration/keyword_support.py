@@ -89,6 +89,25 @@ def disable_enrich(client: TestClient, source_id: str) -> None:
     assert response.status_code == 200, response.text
 
 
+def stub_providers(client: TestClient, fake: KeywordProvider) -> None:
+    """把翻译与加工都指向假 provider；必须在跑 worker 之前调用。
+
+    多来源场景下 worker 会先抢到上一个来源的加工任务，因此打桩不能等到采集之后。
+    """
+
+    container: Container = client.app.state.container
+    container.translation_service.provider = fake
+    container.enrichment_service.provider = fake
+
+
+def drain_worker(client: TestClient) -> None:
+    """执行到没有可认领的任务为止；临时错误进入冷却后 run_once 会返回 False。"""
+
+    worker = Worker(client.app.state.container)
+    while worker.run_once():
+        pass
+
+
 def collect(client: TestClient, source_id: str) -> Worker:
     """触发采集并执行采集任务，返回可继续执行后续任务的 worker。"""
 
@@ -150,9 +169,8 @@ class KeywordProvider:
 def enrich_all(client: TestClient, fake: KeywordProvider) -> None:
     """逐条入队并执行，直到没有排队的模型任务。"""
 
-    container: Container = client.app.state.container
-    container.enrichment_service.provider = fake
-    worker = Worker(container)
+    stub_providers(client, fake)
+    worker = Worker(client.app.state.container)
     for message in client.get("/api/messages").json():
         created = client.post(f"/api/messages/{message['id']}/enrich")
         assert created.status_code == 202, created.text

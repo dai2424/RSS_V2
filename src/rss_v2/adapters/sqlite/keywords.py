@@ -14,6 +14,7 @@ import json
 import sqlite3
 from typing import Any, cast
 
+from rss_v2.adapters.sqlite import keyword_overview, keyword_stats
 from rss_v2.adapters.sqlite.connection import SQLiteDatabase
 from rss_v2.adapters.sqlite.keyword_aliases import history, merge, preview, resolve_key, undo
 from rss_v2.adapters.sqlite.keyword_sql import (
@@ -23,7 +24,15 @@ from rss_v2.adapters.sqlite.keyword_sql import (
     LATEST_VERSION_OF_MESSAGE,
     RESOLVED_KEY,
 )
-from rss_v2.domain import Keyword, KeywordKind, MergePreview, MergeRecord, RelatedMessage
+from rss_v2.domain import (
+    Keyword,
+    KeywordEntry,
+    KeywordKind,
+    KeywordOverview,
+    MergePreview,
+    MergeRecord,
+    RelatedMessage,
+)
 
 
 def parse_keywords(value: str) -> tuple[Keyword, ...]:
@@ -212,6 +221,39 @@ class SQLiteKeywordRepository:
                 )
             )
         return result
+
+    def vocabulary(
+        self,
+        query: str | None,
+        kind: str | None,
+        min_count: int,
+        since: int | None,
+        until: int | None,
+        limit: int,
+        offset: int,
+    ) -> list[KeywordEntry]:
+        """词表一页；统计口径见 keyword_stats。"""
+
+        return keyword_stats.vocabulary(
+            self.database, query, kind, min_count, since, until, limit, offset
+        )
+
+    def count_vocabulary(
+        self,
+        query: str | None,
+        kind: str | None,
+        min_count: int,
+        since: int | None,
+        until: int | None,
+    ) -> int:
+        """与词表同一条件的总数。"""
+
+        return keyword_stats.count_vocabulary(self.database, query, kind, min_count, since, until)
+
+    def overview(self, days: int, top_sources: int) -> KeywordOverview:
+        """概览、类型构成、长尾、趋势、来源分布与覆盖。"""
+
+        return keyword_overview.overview(self.database, days, top_sources)
 
     def resolve_key(self, key: str) -> str:
         """把输入键解析到规范词；不是别名时原样返回。"""

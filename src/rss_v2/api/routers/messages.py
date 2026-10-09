@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Query, Request, status
 
+from rss_v2.api.keyword_presenters import related_message_response
 from rss_v2.api.presenters import (
     container,
-    related_message_response,
     task_response,
     version_response,
 )

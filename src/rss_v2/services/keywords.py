@@ -8,6 +8,8 @@ from dataclasses import dataclass
 
 from rss_v2.domain import (
     DomainError,
+    KeywordEntry,
+    KeywordOverview,
     MergePreview,
     MergeRecord,
     RelatedMessage,
@@ -68,6 +70,27 @@ class KeywordService:
                 skipped += 1
                 reasons.setdefault(exc.message, None)
         return BackfillResult(len(candidates), enqueued, skipped, tuple(reasons))
+
+    def vocabulary(
+        self,
+        query: str | None,
+        kind: str | None,
+        min_count: int,
+        since: int | None,
+        until: int | None,
+        limit: int,
+        offset: int,
+    ) -> tuple[list[KeywordEntry], int]:
+        """词表一页与总数；两者必须用同一套筛选条件，否则分页会对不上。"""
+
+        items = self.keywords.vocabulary(query, kind, min_count, since, until, limit, offset)
+        total = self.keywords.count_vocabulary(query, kind, min_count, since, until)
+        return items, total
+
+    def overview(self, days: int = 14, top_sources: int = 10) -> KeywordOverview:
+        """概览与分布；所有数字都从库里算出来。"""
+
+        return self.keywords.overview(days, top_sources)
 
     def merge_preview(self, keys: list[str], target: str) -> MergePreview:
         """合并影响面；输入统一归一化，界面传回的词表键与手工输入都能用。"""
