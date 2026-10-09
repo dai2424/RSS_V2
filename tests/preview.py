@@ -43,7 +43,7 @@ async def completion(request: Request) -> dict[str, object]:
     """模拟兼容协议，按任务类型返回对应结构，不调用真实模型。"""
     payload: object = await request.json()
     body = payload if isinstance(payload, dict) else {}
-    if "[task: enrich_message]" in _system_prompt(body):
+    if "[task: enrich_message" in _system_prompt(body):
         content = {
             "title": "精简标题",
             "summary": "计算平台已经发布，适合检索归档。",
