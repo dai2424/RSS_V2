@@ -350,7 +350,12 @@ test("Provider、模型与 API Key 配置，1280px 桌面可操作", async ({
     .getByLabel("模型 ID", { exact: true })
     .fill("ui-model-updated");
   await modelDialog.getByRole("button", { name: "关闭", exact: true }).click();
-  await expect(page.getByRole("alertdialog")).toBeVisible();
+  const confirmLeave = page.getByRole("alertdialog", { name: "未保存的修改" });
+  await expect(confirmLeave).toBeVisible();
+  // 等焦点进入确认弹层再按 Escape：焦点陷阱未就绪时按键会丢失，导致偶发失败。
+  await expect(
+    confirmLeave.getByRole("button", { name: "继续编辑", exact: true }),
+  ).toBeFocused();
   await page.keyboard.press("Escape");
   await expect(modelDialog.getByLabel("模型 ID", { exact: true })).toHaveValue(
     "ui-model-updated",

@@ -11,30 +11,48 @@ import { formatTime, safeLink, statusLabels } from "../../lib/display";
 type Version = components["schemas"]["MessageVersionResponse"];
 type Generated = NonNullable<Version["enrichments"]>[number];
 
+/** 任务仍在排队或运行时，失败只是上一次尝试，避免与「任务已排队」看起来矛盾。 */
+function isRetrying(status?: string): boolean {
+  return status === "queued" || status === "running";
+}
+
 /** 机器生成结果的状态说明：成功给正文，其余显示状态和失败原因。 */
 function GeneratedAlert({
   kind,
   message,
   error,
+  retrying,
 }: {
   kind: string;
   message: string;
   error?: string | null;
+  retrying?: boolean;
 }) {
+  const label = retrying
+    ? `上次尝试：${statusLabels[message]}，任务已排队自动重试`
+    : `${kind}状态：${statusLabels[message]}`;
   return (
     <div className="alert">
-      {kind}状态：{statusLabels[message]} {error || ""}
+      {label}
+      {error ? `：${error}` : ""}
     </div>
   );
 }
 
-function EnrichmentPanel({ enrichment }: { enrichment?: Generated }) {
+function EnrichmentPanel({
+  enrichment,
+  retrying,
+}: {
+  enrichment?: Generated;
+  retrying?: boolean;
+}) {
   if (enrichment?.status !== "succeeded") {
     return enrichment ? (
       <GeneratedAlert
         kind="加工"
         message={enrichment.status}
         error={enrichment.error_message}
+        retrying={retrying}
       />
     ) : (
       <div className="alert">
@@ -158,11 +176,15 @@ export function VersionCard({ version }: { version: Version }) {
               kind="翻译"
               message={translation?.status ?? "pending"}
               error={translation?.error_message}
+              retrying={isRetrying(version.translation_task?.status)}
             />
           )}
         </TabsContent>
         <TabsContent value="enrichment">
-          <EnrichmentPanel enrichment={enrichment} />
+          <EnrichmentPanel
+            enrichment={enrichment}
+            retrying={isRetrying(version.enrichment_task?.status)}
+          />
         </TabsContent>
       </Tabs>
     </Card>

@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import logging
+import re
 import time
 import uuid
 from typing import Any, TypeVar, cast
 
 import httpx
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
 from rss_v2.domain import EnrichmentResult, ExternalServiceError, Provider, TranslationResult
 
@@ -32,6 +33,15 @@ class EnrichmentResponse(BaseModel):
     summary: str
     keywords: list[str] = Field(default_factory=list)
 
+    @field_validator("keywords", mode="before")
+    @classmethod
+    def _split_keywords(cls, value: object) -> object:
+        """模型偶尔把关键词写成顿号或逗号分隔的字符串，这里折算成列表。"""
+
+        if isinstance(value, str):
+            return [item for item in re.split(r"[,，、;；]", value)]
+        return value
+
 
 #: 关键词上限：模型偶尔会多给，超出部分对检索没有额外价值，只增加存储与噪声。
 KEYWORD_LIMIT = 8
@@ -53,6 +63,7 @@ class ChatChoice(BaseModel):
     """候选模型响应。"""
 
     message: ChatMessage
+    finish_reason: str | None = None  # stop 正常结束；length 表示被输出上限截断
 
 
 class Usage(BaseModel):
@@ -91,6 +102,43 @@ def _keywords(values: list[str]) -> tuple[str, ...]:
         if keyword:
             seen.setdefault(keyword, None)
     return tuple(list(seen)[:KEYWORD_LIMIT])
+
+
+def _redact(text: str, secret: str, limit: int = 300) -> str:
+    """压成单行、替换密钥并限制长度；异常信息进入界面或日志前必须经过它。"""
+
+    if secret:
+        text = text.replace(secret, "***")
+    return " ".join(text.split())[:limit]
+
+
+def _json_object(raw: str) -> str:
+    """截取模型输出里的 JSON 对象。
+
+    推理模型和部分网关会在 JSON 前后加说明文字或 Markdown 围栏，直接解析会失败；
+    这里只取首尾大括号之间的内容。截取不到时原样返回，仍由 schema 校验兜底。
+    """
+
+    start = raw.find("{")
+    end = raw.rfind("}")
+    if start == -1 or end <= start:
+        return raw
+    return raw[start : end + 1]
+
+
+def _validation_detail(error: ValidationError, raw: str, secret: str, finish_reason: str) -> str:
+    """结构化输出失败的可见说明：失败字段、结束原因和返回片段。"""
+
+    errors = error.errors()
+    if errors:
+        first = errors[0]
+        location = ".".join(str(part) for part in first["loc"]) or "根"
+        reason = f"{location}（{first['type']}）"
+    else:
+        reason = "未提供字段信息"
+    if finish_reason and finish_reason != "stop":
+        reason = f"{reason}，结束原因 {finish_reason}"
+    return f"{reason}；返回片段：{_redact(raw, secret, 200)}"
 
 
 class OpenAICompatibleProvider:
@@ -198,7 +246,7 @@ class OpenAICompatibleProvider:
         duration_ms = int((time.perf_counter() - started) * 1000)
         self._raise_for_status(response, secret)
 
-        parsed, token_usage = self._parse_response(response, schema)
+        parsed, token_usage = self._parse_response(response, schema, secret)
         return parsed, token_usage, duration_ms
 
     @staticmethod
@@ -268,22 +316,27 @@ class OpenAICompatibleProvider:
                 detail = str(payload.get("message") or payload.get("detail") or "")
         if not detail:
             detail = response.text
-        if secret:
-            detail = detail.replace(secret, "***")
-        detail = " ".join(detail.split())
-        return detail[:300]
+        return _redact(detail, secret)
 
     @staticmethod
     def _parse_response(
-        response: httpx.Response, schema: type[SchemaT]
+        response: httpx.Response, schema: type[SchemaT], secret: str
     ) -> tuple[SchemaT, dict[str, int]]:
-        """校验协议 envelope 与模型 JSON；不记录返回正文。"""
+        """校验协议 envelope 与模型 JSON；失败时留下字段与返回片段供排查。"""
+
+        raw_content = ""
+        finish_reason = ""
         try:
             body = ChatResponse.model_validate_json(response.content)
-            raw = body.choices[0].message.content
+            choice = body.choices[0]
+            finish_reason = choice.finish_reason or ""
+            raw = choice.message.content
             raw_content = raw if isinstance(raw, str) else "".join(item.text for item in raw)
-            parsed = schema.model_validate_json(raw_content)
+            parsed = schema.model_validate_json(_json_object(raw_content))
         except ValidationError as exc:
-            raise ExternalServiceError("llm_invalid_output", "模型返回的结构无法校验") from exc
+            detail = _validation_detail(exc, raw_content or response.text, secret, finish_reason)
+            raise ExternalServiceError(
+                "llm_invalid_output", f"模型返回的结构无法校验：{detail}"
+            ) from exc
         token_usage = body.usage.model_dump()
         return parsed, token_usage

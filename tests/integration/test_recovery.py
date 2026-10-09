@@ -543,6 +543,119 @@ def test_compatible_adapter_rejects_malformed_translation(
     assert version["translations"][0]["status"] == "failed"
 
 
+@pytest.mark.parametrize(
+    ("content", "expected_keywords"),
+    [
+        # 推理模型和部分网关会给 JSON 加 Markdown 围栏或前后说明文字。
+        (
+            '```json\n{"title":"精简标题","summary":"摘要","keywords":["甲","乙"]}\n```',
+            ["甲", "乙"],
+        ),
+        (
+            '好的：\n{"title":"精简标题","summary":"摘要","keywords":["甲","乙"]}\n希望有帮助。',
+            ["甲", "乙"],
+        ),
+        # 关键词偶尔被写成顿号或逗号分隔的字符串。
+        ('{"title":"精简标题","summary":"摘要","keywords":"甲, 乙、丙"}', ["甲", "乙", "丙"]),
+    ],
+)
+@respx.mock
+def test_compatible_adapter_accepts_recoverable_enrichment_shapes(
+    client: TestClient, content: str, expected_keywords: list[str]
+) -> None:
+    """可恢复的输出形状不应让加工任务失败。"""
+    respx.get("https://one.test/feed").mock(return_value=httpx.Response(200, text=FEED))
+    source_id = source(client)
+    container: Container = client.app.state.container
+    collect(client, source_id, Worker(container))
+    provider(client)
+    respx.post("https://llm.test/v1/chat/completions").mock(
+        return_value=httpx.Response(
+            200,
+            json={"choices": [{"finish_reason": "stop", "message": {"content": content}}]},
+        )
+    )
+    message_id = client.get("/api/messages").json()[0]["id"]
+    task = client.post(f"/api/messages/{message_id}/enrich").json()
+    assert Worker(container).run_once()
+    assert client.get(f"/api/tasks/{task['id']}").json()["status"] == "succeeded"
+    enrichment = client.get(f"/api/messages/{message_id}").json()["versions"][0]["enrichments"][0]
+    assert enrichment["title"] == "精简标题"
+    assert enrichment["keywords"] == expected_keywords
+
+
+@pytest.mark.parametrize(
+    ("content", "finish_reason", "fragments"),
+    [
+        # 字段类型不符：错误信息要指出具体字段。
+        (
+            '{"title":4,"summary":"摘要","keywords":[]}',
+            "stop",
+            ("title（string_type）", "返回片段"),
+        ),
+        # 被输出上限截断：错误信息要带上结束原因和残缺片段。
+        (
+            '{"title":"精简标题","summary":"摘要","keywords":["甲"',
+            "length",
+            ("json_invalid", "结束原因 length", "精简标题"),
+        ),
+    ],
+)
+@respx.mock
+def test_invalid_output_reports_field_and_snippet(
+    client: TestClient, content: str, finish_reason: str, fragments: tuple[str, ...]
+) -> None:
+    """结构校验失败必须能定位：给出失败字段、结束原因和返回片段。"""
+    respx.get("https://one.test/feed").mock(return_value=httpx.Response(200, text=FEED))
+    source_id = source(client)
+    container: Container = client.app.state.container
+    collect(client, source_id, Worker(container))
+    provider(client)
+    respx.post("https://llm.test/v1/chat/completions").mock(
+        return_value=httpx.Response(
+            200,
+            json={"choices": [{"finish_reason": finish_reason, "message": {"content": content}}]},
+        )
+    )
+    message_id = client.get("/api/messages").json()[0]["id"]
+    task = client.post(f"/api/messages/{message_id}/enrich").json()
+    assert Worker(container).run_once()
+    status = client.get(f"/api/tasks/{task['id']}").json()
+    assert status["error_code"] == "llm_invalid_output"
+    assert status["error_message"].startswith("模型返回的结构无法校验：")
+    for fragment in fragments:
+        assert fragment in status["error_message"]
+
+
+@respx.mock
+def test_invalid_output_never_leaks_api_key(client: TestClient) -> None:
+    """上游把请求内容回显进返回片段时，错误信息仍不能出现密钥值。"""
+    respx.get("https://one.test/feed").mock(return_value=httpx.Response(200, text=FEED))
+    source_id = source(client)
+    container: Container = client.app.state.container
+    collect(client, source_id, Worker(container))
+    provider(client, secrets=("secret-main",))
+    respx.post("https://llm.test/v1/chat/completions").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "choices": [
+                    {
+                        "message": {
+                            "content": '{"title":4,"summary":"secret-main 回显","keywords":[]}'
+                        }
+                    }
+                ]
+            },
+        )
+    )
+    message_id = client.get("/api/messages").json()[0]["id"]
+    task = client.post(f"/api/messages/{message_id}/enrich").json()
+    assert Worker(container).run_once()
+    message = client.get(f"/api/tasks/{task['id']}").json()["error_message"]
+    assert "secret-main" not in message and "***" in message
+
+
 @respx.mock
 def test_gateway_rejecting_optional_params_falls_back_to_minimal_payload(
     client: TestClient,
