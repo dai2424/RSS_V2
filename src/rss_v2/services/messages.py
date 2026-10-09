@@ -4,7 +4,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from rss_v2.domain import DomainError, Enrichment, Message, MessageVersion, Translation
+from rss_v2.domain import (
+    DomainError,
+    Enrichment,
+    Message,
+    MessageVersion,
+    PromptSample,
+    Translation,
+)
 from rss_v2.ports import EnrichmentRepository, MessageRepository, TranslationRepository
 
 
@@ -37,6 +44,14 @@ class MessageService:
             self._row(message, version)
             for message, version in self.messages.list_messages(query, source_id, limit, offset)
         ]
+
+    def version_sample(self, version_id: str) -> PromptSample:
+        """把某个消息版本转成提示词试跑样例。"""
+
+        version = self.messages.get_version(version_id)
+        if version is None:
+            raise DomainError("version_not_found", "消息版本不存在")
+        return PromptSample(version.title, version.summary, version.content)
 
     def count_for_source(self, source_id: str) -> int:
         """来源下的消息条数，用于删除确认中的影响说明。"""

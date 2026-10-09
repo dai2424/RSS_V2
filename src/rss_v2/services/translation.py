@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import time
 from dataclasses import dataclass
 
@@ -11,6 +10,7 @@ from rss_v2.domain import (
     DomainError,
     ExternalServiceError,
     MessageVersion,
+    Prompt,
     Provider,
     ProviderKey,
     Task,
@@ -20,14 +20,18 @@ from rss_v2.domain import (
     TranslationResult,
 )
 from rss_v2.domain.values import mask_secret, new_id, now
-from rss_v2.llm import LLMProvider
+from rss_v2.llm import LLMProvider, PromptPayload
 from rss_v2.ports import (
     LLMConfigRepository,
     MessageRepository,
     TaskRepository,
     TranslationRepository,
 )
-from rss_v2.services.llm_failover import LLMFailover
+from rss_v2.services.llm_failover import LLMFailover, input_hash
+from rss_v2.services.prompt_resolver import PromptResolver
+
+#: 连接测试的固定探测文本；它只验证连通性，不使用用户提示词。
+PROBE = PromptPayload(system="", user="Reply that the connection works.")
 
 
 @dataclass(slots=True)
@@ -40,7 +44,7 @@ class TranslationService:
     llm_config: LLMConfigRepository  # Provider、模型候选与 Key
     provider: LLMProvider  # 唯一模型调用协议
     failover: LLMFailover  # 候选回退、Key 冷却与调用审计
-    prompt_version: str  # 当前提示词版本标识
+    prompts: PromptResolver  # 提示词与任务分配解析
     cooldown_seconds: int  # 临时错误冷却秒数
 
     def create_task(self, message_id: str) -> Task:
@@ -53,13 +57,16 @@ class TranslationService:
             raise DomainError("message_empty", "消息没有可翻译版本")
         if version.language.value != "en":
             raise DomainError("not_english", "只有英文消息可以创建中文翻译")
-        return self.create_task_for_version(version)
+        return self.create_task_for_version(version, message.source_id)
 
-    def create_task_for_version(self, version: MessageVersion) -> Task:
+    def create_task_for_version(self, version: MessageVersion, source_id: str) -> Task:
         """为指定版本入队；采集后自动翻译与手动翻译共用同一幂等规则。"""
+        prompt = self.prompt_for(source_id)
         # 已有任务的读取不依赖当前 Key 的冷却或环境变量。
         for model in self.failover.model_names():
-            existing = self.tasks.get_by_idempotency(self.idempotency_key(version, model))
+            existing = self.tasks.get_by_idempotency(
+                self.idempotency_key(version, model, prompt.version_string)
+            )
             if existing is not None:
                 return existing
         candidate = self.failover.first_available()
@@ -70,7 +77,7 @@ class TranslationService:
             Task(
                 id=new_id(),
                 task_type=TaskType.TRANSLATE_MESSAGE,
-                idempotency_key=self.idempotency_key(version, model.model),
+                idempotency_key=self.idempotency_key(version, model.model, prompt.version_string),
                 status=TaskStatus.QUEUED,
                 attempts=0,
                 lease_until=None,
@@ -80,7 +87,8 @@ class TranslationService:
                     "message_id": version.message_id,
                     "provider_id": provider.id,
                     "model": model.model,
-                    "prompt_version": self.prompt_version,
+                    "prompt_id": prompt.id,
+                    "prompt_version": prompt.version_string,
                 },
                 error_code=None,
                 error_message=None,
@@ -89,16 +97,27 @@ class TranslationService:
             )
         )
 
-    def idempotency_key(self, version: MessageVersion, model: str) -> str:
+    def prompt_for(self, source_id: str) -> Prompt:
+        """按来源配置取提示词；没有可用提示词时明确失败。"""
+
+        resolved = self.prompts.resolve(source_id, TaskType.TRANSLATE_MESSAGE.value)
+        if resolved.prompt is None:
+            raise DomainError("prompt_not_configured", "没有可用的翻译提示词")
+        return resolved.prompt
+
+    def idempotency_key(self, version: MessageVersion, model: str, prompt_version: str) -> str:
         """同一版本、同一模型、同一提示词版本只调用一次模型。"""
 
-        return f"translate:{version.id}:{model}:{self.prompt_version}"
+        return f"translate:{version.id}:{model}:{prompt_version}"
 
     def run(self, task: Task) -> Translation:
         """执行任务的历史版本；成功结果可复用，依次切换 Key 与 Provider×模型。"""
 
         version = self._input_version(task)
-        prompt = str(task.payload.get("prompt_version", self.prompt_version))
+        prompt_version = str(task.payload.get("prompt_version", ""))
+        payload = self.prompts.payload(
+            self.prompts.snapshot(str(task.payload.get("prompt_id", ""))), version
+        )
         completed = next(
             (
                 item
@@ -108,29 +127,46 @@ class TranslationService:
             None,
         )
         existing = completed or self.translations.get_for_version(
-            version.id, prompt, str(task.payload.get("model", ""))
+            version.id, prompt_version, str(task.payload.get("model", ""))
         )
         if existing is not None and existing.status == "succeeded":
             return existing
 
         def save(
-            provider: Provider, model_name: str, key: ProviderKey, result: TranslationResult
+            provider: Provider,
+            model_name: str,
+            key: ProviderKey,
+            result: TranslationResult,
+            tokens: dict[str, int],
+            duration_ms: int,
         ) -> Translation:
-            return self._save_result(task, version, provider, model_name, key, prompt, result, None)
+            return self._save_result(
+                task, version, provider, model_name, key, prompt_version, result, None
+            )
+
+        def invoke(
+            provider: Provider, model_name: str, secret: str
+        ) -> tuple[TranslationResult, dict[str, int], int]:
+            return self.provider.translate(provider, model_name, secret, payload, prompt_version)
 
         try:
             return self.failover.execute(
-                task, version, prompt, self.cooldown_seconds, self.provider.translate, save
+                task.id,
+                input_hash(payload.system, payload.user),
+                prompt_version,
+                self.cooldown_seconds,
+                invoke,
+                save,
             )
         except DomainError as exc:
             provider, model_name = self.failure_pair(task)
-            self._save_result(task, version, provider, model_name, None, prompt, None, exc)
+            self._save_result(task, version, provider, model_name, None, prompt_version, None, exc)
             raise
 
     def failure_pair(self, task: Task) -> tuple[Provider, str]:
         """失败记录沿用首选候选，与排队时的配置快照保持一致。"""
 
-        candidates = self.failover.candidates(task)
+        candidates = self.failover.candidates(task.id)
         if candidates:
             return candidates[0]
         return (
@@ -141,8 +177,8 @@ class TranslationService:
     def test_connection(self, provider_id: str, model: str | None = None) -> ConnectionTest:
         """用一枚可用 Key 试跑一次最小结构化调用，返回延迟或错误。
 
-        与真实翻译共用候选与冷却规则：失败会更新 Key 状态并在审计表留痕，
-        方便在界面确认 Base URL、模型与密钥是否真的可用。
+        探测文本固定，只验证连通性；版本串取全局默认翻译提示词并带可区分后缀，
+        因此审计里能一眼认出这不是真实翻译。
         """
         provider = self.llm_config.get_provider(provider_id)
         if provider is None:
@@ -154,20 +190,15 @@ class TranslationService:
         keys = self.failover.keys(provider)
         if not keys:
             raise DomainError("llm_key_not_configured", "没有启用且未冷却的 Key，请先添加 API Key")
-        prompt = f"{self.prompt_version}+connection-test"
-        probe_hash = hashlib.sha256(b"connection-test").hexdigest()
+        active = self.prompts.active(TaskType.TRANSLATE_MESSAGE.value)
+        prompt_version = f"{active.version_string}+connection-test" if active else "connection-test"
+        probe_hash = input_hash(PROBE.system, PROBE.user)
         last_error = DomainError("llm_key_not_configured", "没有可用的模型 API Key")
         for key in keys:
             started = time.perf_counter()
             try:
                 _, tokens, duration = self.provider.translate(
-                    provider,
-                    chosen.model,
-                    key.secret,
-                    "Connection test",
-                    "",
-                    "Reply that the connection works.",
-                    prompt,
+                    provider, chosen.model, key.secret, PROBE, prompt_version
                 )
             except Exception as exc:
                 error = (
@@ -180,7 +211,7 @@ class TranslationService:
                     provider,
                     chosen.model,
                     key,
-                    prompt,
+                    prompt_version,
                     probe_hash,
                     int((time.perf_counter() - started) * 1000),
                     {},
@@ -192,7 +223,15 @@ class TranslationService:
                 last_error = error
                 continue
             self.failover.record_call(
-                None, provider, chosen.model, key, prompt, probe_hash, duration, tokens, None
+                None,
+                provider,
+                chosen.model,
+                key,
+                prompt_version,
+                probe_hash,
+                duration,
+                tokens,
+                None,
             )
             self.llm_config.mark_key(key.id, "succeeded", None)
             return ConnectionTest(
@@ -225,7 +264,7 @@ class TranslationService:
         provider: Provider,
         model_name: str,
         key: ProviderKey | None,
-        prompt: str,
+        prompt_version: str,
         result: TranslationResult | None,
         error: DomainError | None,
     ) -> Translation:
@@ -241,7 +280,7 @@ class TranslationService:
                 provider_id=provider.id,
                 key_masked=mask_secret(key.secret) if key else None,
                 model=model_name,
-                prompt_version=prompt,
+                prompt_version=prompt_version,
                 task_id=task.id,
                 error_code=error.code if error else None,
                 error_message=error.message if error else None,

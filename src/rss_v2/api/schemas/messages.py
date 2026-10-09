@@ -1,0 +1,103 @@
+"""消息、译文、加工结果与任务的响应模型。"""
+
+from __future__ import annotations
+
+from pydantic import BaseModel
+
+
+class TranslationResponse(BaseModel):
+    """翻译结果响应。"""
+
+    id: str
+    message_version_id: str
+    status: str
+    title: str | None
+    summary: str | None
+    content: str | None
+    provider_id: str | None
+    key_masked: str | None
+    model: str | None
+    prompt_version: str
+    task_id: str | None
+    error_code: str | None
+    error_message: str | None
+    created_at: int
+    updated_at: int
+
+
+class EnrichmentResponse(BaseModel):
+    """内容加工结果响应。"""
+
+    id: str
+    message_version_id: str
+    status: str
+    title: str | None
+    summary: str | None
+    keywords: list[str]
+    provider_id: str | None
+    key_masked: str | None
+    model: str | None
+    prompt_version: str
+    task_id: str | None
+    error_code: str | None
+    error_message: str | None
+    created_at: int
+    updated_at: int
+
+
+class MessageVersionResponse(BaseModel):
+    """消息版本响应。"""
+
+    id: str
+    message_id: str
+    version_number: int
+    title: str
+    summary: str
+    content: str
+    url: str
+    published_at: int | None
+    collected_at: int
+    language: str
+    content_hash: str
+    translations: list[TranslationResponse]
+    enrichments: list[EnrichmentResponse]
+    translation_task: TaskResponse | None = None
+    enrichment_task: TaskResponse | None = None
+
+
+class MessageResponse(BaseModel):
+    """消息列表响应。"""
+
+    id: str
+    source_id: str
+    external_id: str
+    updated_at: int
+    latest_version: MessageVersionResponse | None
+
+
+class MessageDetailResponse(BaseModel):
+    """消息详情响应。"""
+
+    id: str
+    source_id: str
+    external_id: str
+    created_at: int
+    updated_at: int
+    versions: list[MessageVersionResponse]
+
+
+class TaskResponse(BaseModel):
+    """任务状态响应。"""
+
+    id: str
+    task_type: str
+    idempotency_key: str
+    status: str
+    attempts: int
+    lease_until: int | None
+    input_version_id: str | None
+    output_version_id: str | None
+    error_code: str | None
+    error_message: str | None
+    created_at: int
+    updated_at: int

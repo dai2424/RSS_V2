@@ -5,5 +5,7 @@ api_port = 8000
 rss_timeout_seconds = 20.0
 worker_lease_seconds = 300
 worker_poll_seconds = 2.0
-llm_default_prompt_version = "translation-v1"
 
+llm_retry_cooldown_seconds = 60
+llm_enrich_title_threshold = 40
+llm_enrich_text_threshold = 300

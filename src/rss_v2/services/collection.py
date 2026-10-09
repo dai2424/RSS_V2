@@ -143,7 +143,7 @@ class CollectionService:
             Message(message.id, message.source_id, message.external_id, message.created_at, now())
         )
         # 只有新版本才需要处理；同内容重复采集已在上面按指纹跳过。
-        self.processing.enqueue(version)
+        self.processing.enqueue(version, source)
         return "updated" if latest else "created"
 
     def create_run(self, source_ids: list[str]) -> CollectionRun:

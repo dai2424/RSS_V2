@@ -17,14 +17,12 @@ from rss_v2.domain import (
     DomainError,
     ExternalServiceError,
     LLMCall,
-    MessageVersion,
     Provider,
     ProviderKey,
     ProviderModel,
-    Task,
 )
 from rss_v2.domain.values import mask_secret, new_id, now
-from rss_v2.ports import LLMCallRepository, LLMConfigRepository
+from rss_v2.ports import LLMCallRepository, LLMConfigRepository, TaskRepository
 
 ResultT = TypeVar("ResultT")
 RecordT = TypeVar("RecordT")
@@ -42,12 +40,13 @@ def _classified(error: Exception) -> DomainError:
     return ExternalServiceError("llm_internal_error", "模型适配器发生内部错误")
 
 
-def _input_hash(version: MessageVersion) -> str:
-    """模型输入的 SHA-256；审计只保存摘要哈希，不保存 prompt 原文。"""
+def input_hash(system: str, user: str) -> str:
+    """模型输入的 SHA-256；审计只保存摘要哈希，不保存提示词原文。
 
-    return hashlib.sha256(
-        f"{version.title}\n{version.summary}\n{version.content}".encode()
-    ).hexdigest()
+    哈希对象是渲染后的系统提示与用户提示，因此换提示词版本一定会换哈希。
+    """
+
+    return hashlib.sha256(f"{system}\n{user}".encode()).hexdigest()
 
 
 @dataclass(frozen=True, slots=True)
@@ -56,6 +55,7 @@ class LLMFailover:
 
     llm_config: LLMConfigRepository  # Provider、模型候选与 Key
     llm_calls: LLMCallRepository  # 调用元数据审计
+    tasks: TaskRepository  # 读取任务快照的候选顺序
 
     def enabled_pairs(self) -> list[tuple[Provider, ProviderModel]]:
         """当前启用的 Provider×模型候选，仓储顺序已稳定。"""
@@ -76,11 +76,14 @@ class LLMFailover:
 
         return next((item for item in self.enabled_pairs() if self.keys(item[0])), None)
 
-    def candidates(self, task: Task) -> list[tuple[Provider, str]]:
-        """首选组合在入队时快照；修改配置不改变已排队任务的模型名。"""
+    def candidates(self, task_id: str | None) -> list[tuple[Provider, str]]:
+        """首选组合在入队时快照；修改配置不改变已排队任务的模型名。
 
-        preferred_provider = str(task.payload.get("provider_id", ""))
-        preferred_model = str(task.payload.get("model", ""))
+        试跑等没有任务的场景传 None，只按优先级排序。
+        """
+        task = self.tasks.get(task_id) if task_id else None
+        preferred_provider = str(task.payload.get("provider_id", "")) if task else ""
+        preferred_model = str(task.payload.get("model", "")) if task else ""
         rest = sorted(
             (
                 (provider, model)
@@ -153,22 +156,20 @@ class LLMFailover:
 
     def execute(
         self,
-        task: Task,
-        version: MessageVersion,
-        prompt: str,
+        task_id: str | None,
+        input_digest: str,
+        prompt_version: str,
         cooldown_seconds: int,
-        invoke: Callable[
-            [Provider, str, str, str, str, str, str], tuple[ResultT, dict[str, int], int]
-        ],
-        persist: Callable[[Provider, str, ProviderKey, ResultT], RecordT],
+        invoke: Callable[[Provider, str, str], tuple[ResultT, dict[str, int], int]],
+        persist: Callable[[Provider, str, ProviderKey, ResultT, dict[str, int], int], RecordT],
     ) -> RecordT:
         """逐 Provider×模型×Key 调用模型，成功后交给调用方持久化。
 
-        invoke 的签名与 `LLMProvider` 的方法一致，服务层直接传绑定方法即可。
+        invoke 只接收 Provider、模型与密钥，提示词由调用方闭包携带。
         每次尝试都写审计并更新 Key 冷却；候选耗尽后抛出最后一个错误，
         由调用方写入失败记录，因此这里不捕获最终异常。
         """
-        candidates = self.candidates(task)
+        candidates = self.candidates(task_id)
         if not candidates:
             raise DomainError("llm_not_configured", "没有启用的模型")
         last_error = DomainError("llm_key_not_configured", "没有可用的模型 API Key")
@@ -176,24 +177,16 @@ class LLMFailover:
             for key in self.keys(provider):
                 started = time.perf_counter()
                 try:
-                    result, tokens, duration = invoke(
-                        provider,
-                        model_name,
-                        key.secret,
-                        version.title,
-                        version.summary,
-                        version.content,
-                        prompt,
-                    )
+                    result, tokens, duration = invoke(provider, model_name, key.secret)
                 except Exception as exc:
                     error = _classified(exc)
                     self.record_call(
-                        task.id,
+                        task_id,
                         provider,
                         model_name,
                         key,
-                        prompt,
-                        _input_hash(version),
+                        prompt_version,
+                        input_digest,
                         int((time.perf_counter() - started) * 1000),
                         {},
                         error,
@@ -206,16 +199,16 @@ class LLMFailover:
                     last_error = error
                     continue
                 self.record_call(
-                    task.id,
+                    task_id,
                     provider,
                     model_name,
                     key,
-                    prompt,
-                    _input_hash(version),
+                    prompt_version,
+                    input_digest,
                     duration,
                     tokens,
                     None,
                 )
                 self.llm_config.mark_key(key.id, "succeeded", None)
-                return persist(provider, model_name, key, result)
+                return persist(provider, model_name, key, result, tokens, duration)
         raise last_error from None

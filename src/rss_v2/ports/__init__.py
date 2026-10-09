@@ -11,8 +11,10 @@ from .repositories import (
     LLMCallRepository,
     LLMConfigRepository,
     MessageRepository,
+    PromptRepository,
     SourceRepository,
     TaskRepository,
+    TaskSettingRepository,
     TranslationRepository,
     VersionProcessing,
 )
@@ -27,8 +29,10 @@ __all__ = [
     "LLMConfigRepository",
     "LLMProvider",
     "MessageRepository",
+    "PromptRepository",
     "SourceRepository",
     "TaskRepository",
+    "TaskSettingRepository",
     "TranslationRepository",
     "VersionProcessing",
 ]

@@ -11,7 +11,14 @@ from typing import Any, TypeVar, cast
 import httpx
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
-from rss_v2.domain import EnrichmentResult, ExternalServiceError, Provider, TranslationResult
+from rss_v2.domain import (
+    EnrichmentResult,
+    ExternalServiceError,
+    Provider,
+    TaskType,
+    TranslationResult,
+)
+from rss_v2.llm import PromptPayload
 
 
 class TranslationResponse(BaseModel):
@@ -112,6 +119,17 @@ def _redact(text: str, secret: str, limit: int = 300) -> str:
     return " ".join(text.split())[:limit]
 
 
+def _system_message(prompt: PromptPayload, task_kind: str, prompt_version: str) -> str:
+    """系统消息 = 适配器标记 + 用户编写的系统提示。
+
+    标记是协议层的稳定标识，供网关、假端点与日志识别任务类型与提示词版本；
+    它不属于用户可编辑内容，也不随模板变化。
+    """
+
+    marker = f"[task: {task_kind}, prompt: {prompt_version}]"
+    return f"{marker}\n{prompt.system}" if prompt.system.strip() else marker
+
+
 def _json_object(raw: str) -> str:
     """截取模型输出里的 JSON 对象。
 
@@ -149,22 +167,16 @@ class OpenAICompatibleProvider:
         provider: Provider,
         model: str,
         secret: str,
-        title: str,
-        summary: str,
-        content: str,
+        prompt: PromptPayload,
         prompt_version: str,
     ) -> tuple[TranslationResult, dict[str, int], int]:
-        prompt = (
-            "你是专业科技资讯翻译。请把以下英文 RSS 内容翻译成简洁、准确的简体中文。"
-            "必须只返回 JSON 对象，字段严格为 title、summary、content，不要 Markdown 包裹。\n"
-            f"标题：{title}\n摘要：{summary}\n正文：{content}"
-        )
         parsed, tokens, duration = self._complete(
             provider,
             model,
             secret,
-            f"translation prompt version: {prompt_version}",
             prompt,
+            TaskType.TRANSLATE_MESSAGE.value,
+            prompt_version,
             TranslationResponse,
         )
         return TranslationResult(parsed.title, parsed.summary, parsed.content), tokens, duration
@@ -174,26 +186,16 @@ class OpenAICompatibleProvider:
         provider: Provider,
         model: str,
         secret: str,
-        title: str,
-        summary: str,
-        content: str,
+        prompt: PromptPayload,
         prompt_version: str,
     ) -> tuple[EnrichmentResult, dict[str, int], int]:
-        prompt = (
-            "你是科技资讯编辑。请阅读以下 RSS 内容，用简体中文产出便于浏览和检索的结果：\n"
-            "title 是精简标题，不超过 40 字，保留关键主体，不添加原文没有的信息；\n"
-            "summary 是 1 至 3 句摘要，说明发生了什么；\n"
-            "keywords 是 3 至 8 个检索关键词，可以是中文词或原文专有名词。\n"
-            "必须只返回 JSON 对象，字段严格为 title、summary、keywords（字符串数组），"
-            "不要 Markdown 包裹。\n"
-            f"标题：{title}\n摘要：{summary}\n正文：{content}"
-        )
         parsed, tokens, duration = self._complete(
             provider,
             model,
             secret,
-            f"enrichment prompt version: {prompt_version}",
             prompt,
+            TaskType.ENRICH_MESSAGE.value,
+            prompt_version,
             EnrichmentResponse,
         )
         result = EnrichmentResult(parsed.title, parsed.summary, _keywords(parsed.keywords))
@@ -204,8 +206,9 @@ class OpenAICompatibleProvider:
         provider: Provider,
         model: str,
         secret: str,
-        system_prompt: str,
-        prompt: str,
+        prompt: PromptPayload,
+        task_kind: str,
+        prompt_version: str,
         schema: type[SchemaT],
     ) -> tuple[SchemaT, dict[str, int], int]:
         """发送一次结构化请求并校验响应；翻译与加工共用同一协议边界。"""
@@ -222,8 +225,8 @@ class OpenAICompatibleProvider:
             # 用于路由亲和与 prompt 缓存；按 Provider 派生可跨重启保持一致。
             headers[provider.session_header_name] = stable_session_id(provider.id)
         messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": prompt},
+            {"role": "system", "content": _system_message(prompt, task_kind, prompt_version)},
+            {"role": "user", "content": prompt.user},
         ]
         payload: dict[str, Any] = {
             "model": model,

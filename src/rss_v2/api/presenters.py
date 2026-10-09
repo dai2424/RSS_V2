@@ -9,11 +9,16 @@ from rss_v2.api.schemas import (
     EnrichmentResponse,
     HealthResponse,
     MessageVersionResponse,
+    PromptCompileIssue,
+    PromptCompileResponse,
+    PromptResponse,
+    PromptTestResponse,
     ProviderKeyResponse,
     ProviderModelResponse,
     ProviderResponse,
     SourceResponse,
     TaskResponse,
+    TaskSettingResponse,
     TranslationResponse,
 )
 from rss_v2.bootstrap import Container
@@ -22,13 +27,17 @@ from rss_v2.domain import (
     Enrichment,
     HealthCheck,
     MessageVersion,
+    Prompt,
+    PromptTest,
     Provider,
     ProviderKey,
     ProviderModel,
     Source,
     Task,
+    TaskSettingView,
     Translation,
 )
+from rss_v2.domain.prompts import CompiledPrompt, spec_for
 from rss_v2.domain.values import mask_secret
 
 
@@ -152,4 +161,67 @@ def provider_response(
         keys=[provider_key_response(key) for key in keys],
         models=[provider_model_response(model) for model in models],
         extra_headers=provider.extra_headers,
+    )
+
+
+def prompt_response(prompt: Prompt) -> PromptResponse:
+    return PromptResponse(
+        id=prompt.id,
+        task_kind=prompt.task_kind,
+        prompt_key=prompt.prompt_key,
+        version=prompt.version,
+        version_string=prompt.version_string,
+        name=prompt.name,
+        status=prompt.status,
+        system_template=prompt.system_template,
+        user_template=prompt.user_template,
+        note=prompt.note,
+        created_at=prompt.created_at,
+        updated_at=prompt.updated_at,
+    )
+
+
+def compile_response(compiled: CompiledPrompt, task_kind: str) -> PromptCompileResponse:
+    """编译结果加上该任务类型的可用占位符，界面据此给出提示。"""
+
+    spec = spec_for(task_kind)
+    return PromptCompileResponse(
+        ok=compiled.ok,
+        errors=[
+            PromptCompileIssue(field=item.field, message=item.message) for item in compiled.errors
+        ],
+        warnings=[
+            PromptCompileIssue(field=item.field, message=item.message) for item in compiled.warnings
+        ],
+        system=compiled.system,
+        user=compiled.user,
+        variables=list(spec.variables),
+    )
+
+
+def prompt_test_response(result: PromptTest) -> PromptTestResponse:
+    return PromptTestResponse(
+        ok=result.ok,
+        model=result.model,
+        key_masked=result.key_masked,
+        latency_ms=result.latency_ms,
+        total_tokens=result.total_tokens,
+        system=result.system,
+        user=result.user,
+        output=result.output,
+        error_code=result.error_code,
+        error_message=result.error_message,
+    )
+
+
+def task_setting_response(view: TaskSettingView) -> TaskSettingResponse:
+    return TaskSettingResponse(
+        task_kind=view.task_kind,
+        label=view.label,
+        enabled=view.enabled,
+        prompt_id=view.prompt_id,
+        effective_enabled=view.effective_enabled,
+        effective_prompt_id=view.effective_prompt_id,
+        effective_prompt_version=view.effective_prompt_version,
+        scope=view.scope,
     )

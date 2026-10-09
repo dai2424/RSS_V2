@@ -12,6 +12,7 @@ from fastapi.testclient import TestClient
 from rss_v2.bootstrap import Container, build_container
 from rss_v2.domain import DomainError, ExternalServiceError, Provider, TaskStatus, TranslationResult
 from rss_v2.domain.values import now
+from rss_v2.llm import PromptPayload
 from rss_v2.tasks.worker import Worker
 
 FEED = Path("tests/fixtures/sample_feed.xml").read_text(encoding="utf-8")
@@ -75,12 +76,10 @@ class FakeProvider:
         provider: Provider,
         model: str,
         secret: str,
-        title: str,
-        summary: str,
-        content: str,
+        prompt: PromptPayload,
         prompt_version: str,
     ) -> tuple[TranslationResult, dict[str, int], int]:
-        self.inputs.append((model, secret, title))
+        self.inputs.append((model, secret, prompt.user))
         if code := self.model_failures.get(model):
             raise ExternalServiceError(code, "模拟失败")
         if code := self.failures.get(secret):
@@ -136,7 +135,9 @@ def test_versions_a_b_a_and_translation_uses_queued_version(
     assert worker.run_once()
     detail = client.get(f"/api/messages/{message['id']}").json()
     assert [item["version_number"] for item in detail["versions"]] == [3, 2, 1]
-    assert fake.inputs == [("test-model", "secret-main", "New computing platform")]
+    assert [item[0] for item in fake.inputs] == ["test-model"]
+    assert [item[1] for item in fake.inputs] == ["secret-main"]
+    assert "New computing platform" in fake.inputs[0][2]
     assert not detail["versions"][0]["translations"]
     assert (
         detail["versions"][2]["translations"][0]["message_version_id"] == queued["input_version_id"]

@@ -14,6 +14,10 @@ from rss_v2.adapters.sqlite.enrichments import SQLiteEnrichmentRepository
 from rss_v2.adapters.sqlite.llm import SQLiteLLMCallRepository, SQLiteLLMConfigRepository
 from rss_v2.adapters.sqlite.messages import SQLiteMessageRepository
 from rss_v2.adapters.sqlite.migrations import MigrationRunner
+from rss_v2.adapters.sqlite.prompts import (
+    SQLitePromptRepository,
+    SQLiteTaskSettingRepository,
+)
 from rss_v2.adapters.sqlite.repositories import (
     SQLiteCategoryRepository,
     SQLiteHealthRepository,
@@ -28,8 +32,11 @@ from rss_v2.services.enrichment import EnrichmentService
 from rss_v2.services.llm_failover import LLMFailover
 from rss_v2.services.messages import MessageService
 from rss_v2.services.processing import ProcessingService
+from rss_v2.services.prompt_resolver import PromptResolver
+from rss_v2.services.prompts import PromptService
 from rss_v2.services.providers import ProviderService
 from rss_v2.services.sources import CategoryService, SourceService
+from rss_v2.services.task_settings import TaskSettingService
 from rss_v2.services.tasks import TaskService
 from rss_v2.services.translation import TranslationService
 from rss_v2.settings import Settings
@@ -51,12 +58,16 @@ class Container:
     enrichments: SQLiteEnrichmentRepository
     llm_config: SQLiteLLMConfigRepository
     llm_calls: SQLiteLLMCallRepository
+    prompts: SQLitePromptRepository
+    task_settings: SQLiteTaskSettingRepository
     category_service: CategoryService
     source_service: SourceService
     collection_service: CollectionService
     translation_service: TranslationService
     enrichment_service: EnrichmentService
     processing_service: ProcessingService
+    prompt_service: PromptService
+    task_setting_service: TaskSettingService
     message_service: MessageService
     task_service: TaskService
     provider_service: ProviderService
@@ -94,9 +105,12 @@ def build_container(settings: Settings | None = None, migrate: bool = True) -> C
     enrichments = SQLiteEnrichmentRepository(database)
     llm_config = SQLiteLLMConfigRepository(database)
     llm_calls = SQLiteLLMCallRepository(database)
+    prompts = SQLitePromptRepository(database)
+    task_settings = SQLiteTaskSettingRepository(database)
     feed_client = HTTPXFeedClient()
     llm_provider = OpenAICompatibleProvider()
-    failover = LLMFailover(llm_config, llm_calls)
+    failover = LLMFailover(llm_config, llm_calls, tasks)
+    resolver = PromptResolver(prompts, task_settings, sources)
     category_service = CategoryService(categories)
     source_service = SourceService(
         sources, categories, health, feed_client, actual_settings.rss_timeout_seconds
@@ -108,7 +122,7 @@ def build_container(settings: Settings | None = None, migrate: bool = True) -> C
         llm_config,
         llm_provider,
         failover,
-        actual_settings.llm_default_prompt_version,
+        resolver,
         actual_settings.llm_retry_cooldown_seconds,
     )
     enrichment_service = EnrichmentService(
@@ -117,12 +131,13 @@ def build_container(settings: Settings | None = None, migrate: bool = True) -> C
         tasks,
         llm_provider,
         failover,
-        actual_settings.llm_enrich_prompt_version,
+        resolver,
         actual_settings.llm_retry_cooldown_seconds,
     )
     processing_service = ProcessingService(
         translation_service.create_task_for_version,
         enrichment_service.create_task_for_version,
+        resolver,
         actual_settings.llm_enrich_title_threshold,
         actual_settings.llm_enrich_text_threshold,
     )
@@ -136,6 +151,10 @@ def build_container(settings: Settings | None = None, migrate: bool = True) -> C
         tasks,
         processing_service,
     )
+    prompt_service = PromptService(
+        prompts, llm_provider, failover, actual_settings.llm_retry_cooldown_seconds
+    )
+    task_setting_service = TaskSettingService(task_settings, resolver)
     message_service = MessageService(messages, translations, enrichments)
     task_service = TaskService(tasks)
     provider_service = ProviderService(llm_config)
@@ -152,12 +171,16 @@ def build_container(settings: Settings | None = None, migrate: bool = True) -> C
         enrichments,
         llm_config,
         llm_calls,
+        prompts,
+        task_settings,
         category_service,
         source_service,
         collection_service,
         translation_service,
         enrichment_service,
         processing_service,
+        prompt_service,
+        task_setting_service,
         message_service,
         task_service,
         provider_service,

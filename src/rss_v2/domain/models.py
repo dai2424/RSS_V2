@@ -146,6 +146,94 @@ class MessageVersion:
 
 
 @dataclass(frozen=True, slots=True)
+class Prompt:
+    """一条提示词版本；版本不可变，修改等于新建版本。"""
+
+    id: str  # 实体 UUID
+    task_kind: str  # 目标任务类型，取值由 domain.prompts.TASK_SPECS 校验
+    prompt_key: str  # 稳定业务键，同一键的多条记录构成版本历史
+    version: int  # 同一业务键内单调递增的版本号
+    name: str  # 显示名
+    status: str  # draft 草稿 / active 启用 / archived 归档
+    system_template: str  # 系统提示模板，可为空
+    user_template: str  # 用户提示模板，不能为空
+    note: str  # 版本说明，记录这次改了什么
+    created_at: int  # 创建时间，UTC 秒
+    updated_at: int  # 最近更新时间，UTC 秒
+
+    @property
+    def version_string(self) -> str:
+        """审计与幂等键使用的稳定版本串，例如 translation-v1。"""
+
+        return f"{self.prompt_key}-v{self.version}"
+
+
+@dataclass(frozen=True, slots=True)
+class TaskSetting:
+    """任务分配：某个来源或行业分类对一类任务的覆盖配置。
+
+    enabled 与 prompt_id 为空表示继承上一层，因此"只改开关不动提示词"是自然行为。
+    """
+
+    scope: str  # source 来源 / category 行业分类
+    scope_id: str  # 来源或分类 UUID
+    task_kind: str  # 任务类型
+    enabled: bool | None  # 是否自动创建该类任务；空表示继承
+    prompt_id: str | None  # 指定提示词；空表示继承
+    created_at: int  # 创建时间，UTC 秒
+    updated_at: int  # 最近更新时间，UTC 秒
+
+
+@dataclass(frozen=True, slots=True)
+class TaskSettingView:
+    """任务分配的展示视图：原始覆盖值与生效值一起给出。"""
+
+    task_kind: str  # 任务类型
+    label: str  # 任务类型显示名
+    enabled: bool | None  # 本层设置的开关；空表示继承
+    prompt_id: str | None  # 本层指定的提示词；空表示继承
+    effective_enabled: bool  # 解析后的开关
+    effective_prompt_id: str | None  # 解析后的提示词 UUID
+    effective_prompt_version: str | None  # 解析后的提示词版本串
+    scope: str  # 生效提示词来自哪一层：source / category / default
+
+
+@dataclass(frozen=True, slots=True)
+class ResolvedTask:
+    """解析后的任务配置：该跑哪类任务、用哪条提示词。"""
+
+    task_kind: str  # 任务类型
+    enabled: bool  # 是否自动创建任务
+    prompt: Prompt | None  # 生效的提示词；没有可用提示词时为空
+    scope: str  # 提示词来自哪一层：source / category / default
+
+
+@dataclass(frozen=True, slots=True)
+class PromptSample:
+    """提示词编译预览与试跑使用的样例输入。"""
+
+    title: str  # 样例标题
+    summary: str  # 样例摘要
+    content: str  # 样例正文
+
+
+@dataclass(frozen=True, slots=True)
+class PromptTest:
+    """一次提示词试跑的结果；成功带结构化输出，失败带错误分类。"""
+
+    ok: bool  # 是否成功拿到结构化输出
+    model: str  # 实际请求的模型标识
+    key_masked: str  # 所用密钥掩码；失败且未发起调用时为空
+    latency_ms: int  # 调用耗时，毫秒
+    total_tokens: int  # 上游返回的总 token 数；未提供为 0
+    system: str  # 实际发送的系统提示（渲染后）
+    user: str  # 实际发送的用户提示（渲染后）
+    output: dict[str, Any]  # 结构化输出字段；失败时为空字典
+    error_code: str | None  # 稳定错误分类；成功为空
+    error_message: str | None  # 脱敏后的可读错误信息
+
+
+@dataclass(frozen=True, slots=True)
 class Translation:
     """一条消息版本的中文翻译。"""
 

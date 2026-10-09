@@ -12,12 +12,14 @@ from rss_v2.domain import (
     LLMCall,
     Message,
     MessageVersion,
+    Prompt,
     Provider,
     ProviderKey,
     ProviderModel,
     Source,
     SourceDeletion,
     Task,
+    TaskSetting,
     TaskType,
     Translation,
 )
@@ -227,6 +229,36 @@ class EnrichmentRepository(Protocol):
 
 
 class VersionProcessing(Protocol):
-    """版本入库后的自动处理入口：按语言和长度决定要建哪些任务。"""
+    """版本入库后的自动处理入口：按来源配置和内容特征决定要建哪些任务。"""
 
-    def enqueue(self, version: MessageVersion) -> list[str]: ...
+    def enqueue(self, version: MessageVersion, source: Source) -> list[str]: ...
+
+
+class PromptRepository(Protocol):
+    """提示词版本存取端口；版本不可变，只新增、启用与归档。"""
+
+    def list(self, task_kind: str | None = None) -> list[Prompt]: ...
+
+    def get(self, prompt_id: str) -> Prompt | None: ...
+
+    def active_for(self, task_kind: str) -> Prompt | None: ...
+
+    def next_version(self, prompt_key: str) -> int: ...
+
+    def create(self, prompt: Prompt) -> Prompt: ...
+
+    def set_status(self, prompt_id: str, status: str) -> Prompt: ...
+
+    def archive_kind(self, task_kind: str, keep_id: str) -> None: ...
+
+
+class TaskSettingRepository(Protocol):
+    """任务分配存取端口：来源与行业分类对某类任务的覆盖配置。"""
+
+    def list_for(self, scope: str, scope_id: str) -> list[TaskSetting]: ...
+
+    def get(self, scope: str, scope_id: str, task_kind: str) -> TaskSetting | None: ...
+
+    def replace(self, settings: list[TaskSetting]) -> list[TaskSetting]: ...
+
+    def delete_for(self, scope: str, scope_id: str) -> None: ...

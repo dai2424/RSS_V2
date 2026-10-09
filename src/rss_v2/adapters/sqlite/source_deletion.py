@@ -94,6 +94,10 @@ def delete_source(database: SQLiteDatabase, source_id: str) -> SourceDeletion:
         _delete_import_map(connection, "health", health_ids)
 
         connection.execute("DELETE FROM collection_results WHERE source_id = ?", (source_id,))
+        # 任务分配按作用域存储，没有外键，需要显式清理
+        connection.execute(
+            "DELETE FROM task_settings WHERE scope = 'source' AND scope_id = ?", (source_id,)
+        )
         connection.execute("DELETE FROM messages WHERE source_id = ?", (source_id,))
         cursor = connection.execute("DELETE FROM rss_sources WHERE id = ?", (source_id,))
         if cursor.rowcount == 0:

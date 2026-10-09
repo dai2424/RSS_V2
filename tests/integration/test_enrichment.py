@@ -6,6 +6,7 @@ from httpx import Response
 
 from rss_v2.bootstrap import Container
 from rss_v2.domain import EnrichmentResult, ExternalServiceError, Provider, TranslationResult
+from rss_v2.llm import PromptPayload
 from rss_v2.tasks.worker import Worker
 
 CATEGORY_ID = "8cabd1f6-c0c3-4b32-863d-3836cf5a8171"
@@ -83,9 +84,7 @@ class FakeProvider:
         provider: Provider,
         model: str,
         secret: str,
-        title: str,
-        summary: str,
-        content: str,
+        prompt: PromptPayload,
         prompt_version: str,
     ) -> tuple[TranslationResult, dict[str, int], int]:
         self._check("translate", model, secret)
@@ -96,9 +95,7 @@ class FakeProvider:
         provider: Provider,
         model: str,
         secret: str,
-        title: str,
-        summary: str,
-        content: str,
+        prompt: PromptPayload,
         prompt_version: str,
     ) -> tuple[EnrichmentResult, dict[str, int], int]:
         self._check("enrich", model, secret)

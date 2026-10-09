@@ -17,8 +17,10 @@ from rss_v2.api.routes import (
     categories_router,
     collection_router,
     messages_router,
+    prompts_router,
     providers_router,
     sources_router,
+    task_settings_router,
     tasks_router,
 )
 from rss_v2.api.static import FrontendFiles
@@ -48,6 +50,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(messages_router)
     app.include_router(tasks_router)
     app.include_router(providers_router)
+    app.include_router(prompts_router)
+    app.include_router(task_settings_router)
 
     @app.get("/api/health")
     def health() -> dict[str, str]:

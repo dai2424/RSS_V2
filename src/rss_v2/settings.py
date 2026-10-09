@@ -29,8 +29,6 @@ class Settings(BaseSettings):
     rss_timeout_seconds: float = Field(default=20.0, gt=0, le=120)
     worker_lease_seconds: int = Field(default=300, gt=10, le=3600)
     worker_poll_seconds: float = Field(default=2.0, gt=0, le=60)
-    llm_default_prompt_version: str = "translation-v1"
-    llm_enrich_prompt_version: str = "enrich-v1"
     # 标题超过该字符数、或摘要与正文超过该字符数时才做内容加工，避免为短消息多花一次调用。
     llm_enrich_title_threshold: int = Field(default=40, ge=1, le=500)
     llm_enrich_text_threshold: int = Field(default=300, ge=1, le=20000)
