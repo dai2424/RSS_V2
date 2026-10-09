@@ -38,6 +38,18 @@ def _system_prompt(body: dict[str, Any]) -> str:
     )
 
 
+#: 探测请求的标记与固定回复：真实模型对"回一句连接正常"只会回普通文本，
+#: 这里照实模拟，避免假端点比真实上游"更配合"，掩盖连接测试的判断口径。
+PROBE_MARKER = "[task: probe"
+PROBE_REPLY = "The connection works."
+
+
+def _probe_text(system_prompt: str) -> str | None:
+    """探测请求返回普通文本；业务请求返回 None 交给下面的结构化分支。"""
+
+    return PROBE_REPLY if PROBE_MARKER in system_prompt else None
+
+
 def _fixture_content(system_prompt: str) -> dict[str, object]:
     """按任务类型标记返回对应结构；两种协议的假端点共用它。"""
 
@@ -59,9 +71,11 @@ async def completion(request: Request) -> dict[str, object]:
     """模拟兼容协议，按任务类型返回对应结构，不调用真实模型。"""
     payload: object = await request.json()
     body = payload if isinstance(payload, dict) else {}
-    content = _fixture_content(_system_prompt(body))
+    prompt = _system_prompt(body)
+    text = _probe_text(prompt)
+    reply = text if text is not None else json.dumps(_fixture_content(prompt), ensure_ascii=False)
     return {
-        "choices": [{"message": {"content": json.dumps(content, ensure_ascii=False)}}],
+        "choices": [{"message": {"content": reply}}],
         "usage": {"total_tokens": 3},
     }
 
@@ -71,9 +85,11 @@ async def messages(request: Request) -> dict[str, object]:
     """模拟 Anthropic Messages 协议：系统提示在请求顶层，文本在 content 数组里。"""
     payload: object = await request.json()
     body = payload if isinstance(payload, dict) else {}
-    content = _fixture_content(str(body.get("system") or ""))
+    prompt = str(body.get("system") or "")
+    text = _probe_text(prompt)
+    reply = text if text is not None else json.dumps(_fixture_content(prompt), ensure_ascii=False)
     return {
-        "content": [{"type": "text", "text": json.dumps(content, ensure_ascii=False)}],
+        "content": [{"type": "text", "text": reply}],
         "stop_reason": "end_turn",
         "usage": {"input_tokens": 5, "output_tokens": 3},
     }

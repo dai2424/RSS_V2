@@ -90,6 +90,18 @@ class FakeProvider:
         self._check("translate", model, secret)
         return TranslationResult("中文标题", "中文摘要", "中文正文"), {"total_tokens": 3}, 1
 
+    def probe(
+        self,
+        provider: Provider,
+        model: str,
+        secret: str,
+        prompt: PromptPayload,
+    ) -> tuple[str, dict[str, int], int]:
+        """连接探测只回一句话，不参与结构化输出校验。"""
+
+        self._check("probe", model, secret)
+        return "The connection works.", {"total_tokens": 3}, 1
+
     def enrich(
         self,
         provider: Provider,

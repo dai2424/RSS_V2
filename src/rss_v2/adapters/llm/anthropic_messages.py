@@ -16,6 +16,8 @@ import httpx
 from pydantic import BaseModel, Field, ValidationError
 
 from rss_v2.adapters.llm.boundary import (
+    PROBE_TASK,
+    PROBE_VERSION,
     USER_AGENT,
     EnrichmentResponse,
     SchemaT,
@@ -23,8 +25,10 @@ from rss_v2.adapters.llm.boundary import (
     error_detail,
     json_output,
     keywords,
+    parse_envelope,
     post_json,
     raise_for_status,
+    reply_snippet,
     stable_session_id,
     system_message,
     validation_detail,
@@ -47,6 +51,9 @@ MAX_OUTPUT_TOKENS = 8192
 
 #: 协议里"正常结束"的取值；其余（如 max_tokens）说明输出被截断，需要写进错误信息。
 NORMAL_STOP = "end_turn"
+
+#: 探测请求的输出上限：只要一句话，开小一点更快也更省。
+PROBE_MAX_TOKENS = 64
 
 
 class TextBlock(BaseModel):
@@ -79,6 +86,15 @@ def _token_usage(usage: MessagesUsage) -> dict[str, int]:
         "completion_tokens": usage.output_tokens,
         "total_tokens": usage.input_tokens + usage.output_tokens,
     }
+
+
+def _truncation(stop_reason: str) -> str:
+    """把协议里"正常结束"折算成空串，其余取值原样交给错误信息。
+
+    `validation_detail` 只关心"是不是被截断"，两种协议的正常结束标记不同。
+    """
+
+    return "" if stop_reason in {"", NORMAL_STOP} else stop_reason
 
 
 class AnthropicMessagesProvider:
@@ -123,19 +139,36 @@ class AnthropicMessagesProvider:
         result = EnrichmentResult(parsed.title, parsed.summary, keywords(parsed.keywords))
         return result, tokens, duration
 
-    def _complete(
+    def probe(
         self,
         provider: Provider,
         model: str,
         secret: str,
         prompt: PromptPayload,
-        task_kind: str,
-        prompt_version: str,
-        schema: type[SchemaT],
-    ) -> tuple[SchemaT, dict[str, int], int]:
-        """发送一次结构化请求并校验响应；翻译与加工共用同一协议边界。"""
+    ) -> tuple[str, dict[str, int], int]:
+        """连通性探测：最小请求 + 只校验 Messages envelope，不要求结构化输出。"""
 
         endpoint = provider.base_url.rstrip("/") + "/messages"
+        payload: dict[str, Any] = {
+            "model": model,
+            "max_tokens": PROBE_MAX_TOKENS,
+            "system": system_message(prompt, PROBE_TASK, PROBE_VERSION),
+            "messages": [{"role": "user", "content": prompt.user}],
+        }
+        started = time.perf_counter()
+        response = post_json(
+            endpoint, self._headers(provider, secret), payload, provider.timeout_seconds
+        )
+        duration_ms = int((time.perf_counter() - started) * 1000)
+        raise_for_status(response, secret)
+        body = parse_envelope(response, MessagesResponse, secret)
+        text = "".join(block.text for block in body.content)
+        return reply_snippet(text), _token_usage(body.usage), duration_ms
+
+    @staticmethod
+    def _headers(provider: Provider, secret: str) -> dict[str, str]:
+        """请求头：认证、协议版本、自定义头与会话头。"""
+
         headers = {
             "User-Agent": USER_AGENT,
             **provider.extra_headers,
@@ -150,6 +183,22 @@ class AnthropicMessagesProvider:
             # 兼容网关（如 opencode.ai/zen）要求会话 ID 在会话内稳定，
             # 用于路由亲和与 prompt 缓存；按 Provider 派生可跨重启保持一致。
             headers[provider.session_header_name] = stable_session_id(provider.id)
+        return headers
+
+    def _complete(
+        self,
+        provider: Provider,
+        model: str,
+        secret: str,
+        prompt: PromptPayload,
+        task_kind: str,
+        prompt_version: str,
+        schema: type[SchemaT],
+    ) -> tuple[SchemaT, dict[str, int], int]:
+        """发送一次结构化请求并校验响应；翻译与加工共用同一协议边界。"""
+
+        endpoint = provider.base_url.rstrip("/") + "/messages"
+        headers = self._headers(provider, secret)
         payload: dict[str, Any] = {
             "model": model,
             "max_tokens": MAX_OUTPUT_TOKENS,
@@ -196,12 +245,3 @@ class AnthropicMessagesProvider:
                 "llm_invalid_output", f"模型返回的结构无法校验：{detail}"
             ) from exc
         return parsed, _token_usage(body.usage)
-
-
-def _truncation(stop_reason: str) -> str:
-    """把协议里"正常结束"折算成空串，其余取值原样交给错误信息。
-
-    `validation_detail` 只关心"是不是被截断"，两种协议的正常结束标记不同。
-    """
-
-    return "" if stop_reason in {"", NORMAL_STOP} else stop_reason

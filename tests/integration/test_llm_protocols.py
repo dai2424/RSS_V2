@@ -264,3 +264,72 @@ def test_protocol_router_dispatches_and_rejects_unknown() -> None:
     with pytest.raises(ExternalServiceError) as excinfo:
         router.translate(unregistered, "model", "secret", payload, "translation-v1")
     assert excinfo.value.code == "llm_protocol_unsupported"
+
+
+@respx.mock
+def test_probe_accepts_plain_text_reply_over_messages(client: TestClient) -> None:
+    """连接测试只要求上游按协议回话：模型回一句话就算连通（线上故障的回归）。"""
+
+    route = respx.post("https://llm.test/v1/messages").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "content": [{"type": "text", "text": "The connection works."}],
+                "stop_reason": "end_turn",
+                "usage": {"input_tokens": 9, "output_tokens": 4},
+            },
+        )
+    )
+    provider_id = api_provider(client)
+    tested = client.post(f"/api/llm/providers/{provider_id}/test", json={})
+    assert tested.status_code == 200, tested.text
+    body = tested.json()
+    assert body["ok"] is True
+    assert body["reply"] == "The connection works."
+    assert body["total_tokens"] == 13
+
+    sent = json.loads(route.calls[0].request.content)
+    assert "[task: probe," in sent["system"]
+    assert sent["max_tokens"] <= 64
+    # 探测不要求结构化输出，因此不带 json 相关参数。
+    assert "response_format" not in sent
+    assert "temperature" not in sent
+
+
+@respx.mock
+def test_probe_accepts_plain_text_reply_over_chat_completions(client: TestClient) -> None:
+    """OpenAI 兼容协议同样只校验 envelope：探测不再依赖模型返回 JSON。"""
+
+    respx.post("https://llm.test/v1/chat/completions").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "choices": [
+                    {"message": {"content": "The connection works."}, "finish_reason": "stop"}
+                ],
+                "usage": {"prompt_tokens": 9, "completion_tokens": 4, "total_tokens": 13},
+            },
+        )
+    )
+    provider_id = api_provider(client, name="chat", protocol="chat_completions")
+    tested = client.post(f"/api/llm/providers/{provider_id}/test", json={})
+    assert tested.status_code == 200, tested.text
+    body = tested.json()
+    assert body["ok"] is True
+    assert body["reply"] == "The connection works."
+    assert body["total_tokens"] == 13
+
+
+@respx.mock
+def test_probe_still_rejects_broken_envelope(client: TestClient) -> None:
+    """放开的只是业务结构：上游回 200 但不是协议形状时，探测仍然判失败。"""
+
+    respx.post("https://llm.test/v1/messages").mock(
+        return_value=httpx.Response(200, json={"reply": "not an anthropic envelope"})
+    )
+    provider_id = api_provider(client)
+    body = client.post(f"/api/llm/providers/{provider_id}/test", json={}).json()
+    assert body["ok"] is False
+    assert body["error_code"] == "llm_invalid_output"
+    assert body["reply"] == ""
+    assert "secret-main" not in json.dumps(body, ensure_ascii=False)

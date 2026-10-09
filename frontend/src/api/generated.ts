@@ -685,7 +685,7 @@ export interface components {
     };
     /**
      * ConnectionTestResponse
-     * @description 连接测试响应；只返回密钥掩码，不返回密钥值。
+     * @description 连接测试响应；只返回密钥掩码与模型回复片段，不返回密钥值。
      */
     ConnectionTestResponse: {
       /** Ok */
@@ -702,6 +702,11 @@ export interface components {
       error_code: string | null;
       /** Error Message */
       error_message: string | null;
+      /**
+       * Reply
+       * @default
+       */
+      reply: string;
     };
     /**
      * EnrichmentResponse

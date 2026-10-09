@@ -55,6 +55,33 @@ USER_AGENT = "rss-v2/0.1"  # 上游要求客户端标识自身而非通用库名
 #: 结构化响应类型；按 schema 校验是适配器的职责。
 SchemaT = TypeVar("SchemaT", bound=BaseModel)
 
+#: 探测请求的标记：不属于任何业务任务，日志与假端点据此认出连接测试。
+PROBE_TASK = "probe"
+PROBE_VERSION = "connection-test"
+
+#: 回复片段上限：连接测试只把模型的一句话带回界面，不需要完整正文。
+REPLY_LIMIT = 120
+
+
+def reply_snippet(text: str) -> str:
+    """压成单行并截断，作为连接测试的结果展示。"""
+
+    return " ".join(text.split())[:REPLY_LIMIT]
+
+
+def parse_envelope[T: BaseModel](response: httpx.Response, model: type[T], secret: str) -> T:
+    """只校验协议 envelope，不校验业务结构。
+
+    连接测试用它判断"上游是否按协议回话"；失败时给出脱敏片段，
+    上层据此区分"连不通"与"连得通但输出不合业务 schema"。
+    """
+
+    try:
+        return model.model_validate_json(response.content)
+    except ValidationError as exc:
+        detail = validation_detail(exc, response.text, secret, "")
+        raise ExternalServiceError("llm_invalid_output", f"模型响应不符合协议：{detail}") from exc
+
 
 def keywords(values: list[str]) -> tuple[str, ...]:
     """去空白、去重并截断关键词；顺序按模型给出的重要性保留。"""

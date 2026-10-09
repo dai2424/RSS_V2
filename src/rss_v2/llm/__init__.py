@@ -38,3 +38,17 @@ class LLMProvider(Protocol):
         prompt: PromptPayload,
         prompt_version: str,
     ) -> tuple[EnrichmentResult, dict[str, int], int]: ...
+
+    def probe(
+        self,
+        provider: Provider,
+        model: str,
+        secret: str,
+        prompt: PromptPayload,
+    ) -> tuple[str, dict[str, int], int]:
+        """连通性探测：返回 (模型回复文本, token 用量, 耗时毫秒)。
+
+        只校验协议 envelope 与错误分类，**不要求结构化输出**——连接是否可用与
+        模型会不会按 JSON 指令作答是两件事，探测不该因为后者判定失败。
+        """
+        ...

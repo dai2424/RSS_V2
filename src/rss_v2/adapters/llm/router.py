@@ -43,6 +43,15 @@ class ProtocolRouter:
     ) -> tuple[EnrichmentResult, dict[str, int], int]:
         return self._for(provider).enrich(provider, model, secret, prompt, prompt_version)
 
+    def probe(
+        self,
+        provider: Provider,
+        model: str,
+        secret: str,
+        prompt: PromptPayload,
+    ) -> tuple[str, dict[str, int], int]:
+        return self._for(provider).probe(provider, model, secret, prompt)
+
     def _for(self, provider: Provider) -> LLMProvider:
         implementation = self.protocols.get(provider.protocol)
         if implementation is None:

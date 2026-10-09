@@ -69,6 +69,18 @@ class FakeProvider:
         self._check(prompt, secret)
         return EnrichmentResult("精简标题", "摘要", ("关键词",)), {"total_tokens": 5}, 9
 
+    def probe(
+        self,
+        provider: Provider,
+        model: str,
+        secret: str,
+        prompt: PromptPayload,
+    ) -> tuple[str, dict[str, int], int]:
+        """连接探测只回一句话，不参与结构化输出校验。"""
+
+        self._check(prompt, secret)
+        return "The connection works.", {"total_tokens": 3}, 7
+
 
 def create_source(client: TestClient, url: str, name: str = "来源") -> str:
     response = client.post(

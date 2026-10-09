@@ -107,7 +107,9 @@ export function ProviderDetail({
           role="status"
         >
           {tested.ok
-            ? `连接成功：${tested.model} · ${tested.latency_ms} ms · ${tested.total_tokens} tokens`
+            ? `连接成功：${tested.model} · ${tested.latency_ms} ms · ${tested.total_tokens} tokens${
+                tested.reply ? ` · 回复：${tested.reply}` : ""
+              }`
             : `连接失败（${tested.model}）：${tested.error_message}`}
         </p>
       )}

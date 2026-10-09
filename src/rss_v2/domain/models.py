@@ -410,13 +410,14 @@ class ProviderKey:
 class ConnectionTest:
     """一次 Provider×模型连接测试的结果。"""
 
-    ok: bool  # 是否成功完成一次结构化调用
+    ok: bool  # 是否成功完成一次协议探测
     model: str  # 实际测试的模型标识
     key_masked: str  # 所用密钥掩码；失败且未发起调用时为空
     latency_ms: int  # 调用耗时，毫秒；失败时记录最后一次尝试
     total_tokens: int  # 上游返回的总 token 数；未提供为 0
     error_code: str | None  # 稳定错误分类；成功为空
     error_message: str | None  # 脱敏后的可读错误信息
+    reply: str = ""  # 模型回复片段（压单行并截断）；失败为空
 
 
 @dataclass(frozen=True, slots=True)

@@ -48,6 +48,7 @@
 
 - 模型访问可选协议（迁移 0011）：`llm_providers.protocol` 取 `chat_completions`（默认）或 `anthropic_messages`；`adapters/llm/router.py` 按配置分发，`adapters/llm/boundary.py` 承担两种协议共用的结构化 schema、错误分类与脱敏，Messages 适配器只负责端点、认证头、请求体与响应包装。界面在新建与编辑连接弹层选择「API 格式」，详情页显示当前协议。理由与形状细节见决策记录[《2026-10-09-Provider协议可选》](../决策记录/2026-10-09-Provider协议可选.md)。
 - 两种协议共用一个边界层：错误分类、密钥脱敏、结构化输出 schema 与 JSON 截取只有一份实现，因此 429、认证失败、超时与结构不符在两条链路上得到相同错误码；Anthropic 的 token 字段折算成 `prompt_tokens`/`completion_tokens`/`total_tokens`，`llm_calls` 里的用量可以直接比较。
+- 连接探测只校验协议 envelope（`LLMProvider.probe`）：模型回一句普通文本就算连通，只有连不通、认证/限流/5xx，或上游回的不是该协议形状才判失败；结果把模型回复片段带回界面。假端点的探测请求同样返回普通文本，避免比真实上游更配合。
 - 界面「API 格式」下拉与详情行显示当前协议；顺带修掉 `ProviderEditDialog` 表单初值不随供应商切换重挂、会把上一个供应商的地址写到当前记录上的既有缺陷。
 
 ## 实现边界与评审

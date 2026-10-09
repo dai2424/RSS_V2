@@ -86,6 +86,22 @@ class FakeProvider:
             raise ExternalServiceError(code, "模拟失败")
         return TranslationResult("中文标题", "中文摘要", "中文正文"), {"total_tokens": 3}, 1
 
+    def probe(
+        self,
+        provider: Provider,
+        model: str,
+        secret: str,
+        prompt: PromptPayload,
+    ) -> tuple[str, dict[str, int], int]:
+        """连接探测：只回一句话，失败注入与 translate 一致。"""
+
+        self.inputs.append((model, secret, prompt.user))
+        if code := self.model_failures.get(model):
+            raise ExternalServiceError(code, "模拟失败")
+        if code := self.failures.get(secret):
+            raise ExternalServiceError(code, "模拟失败")
+        return "The connection works.", {"total_tokens": 3}, 1
+
 
 @respx.mock
 def test_expired_worker_cannot_persist_translation(

@@ -10,6 +10,8 @@ import httpx
 from pydantic import BaseModel, Field, ValidationError
 
 from rss_v2.adapters.llm.boundary import (
+    PROBE_TASK,
+    PROBE_VERSION,
     USER_AGENT,
     EnrichmentResponse,
     SchemaT,
@@ -17,8 +19,10 @@ from rss_v2.adapters.llm.boundary import (
     error_detail,
     json_output,
     keywords,
+    parse_envelope,
     post_json,
     raise_for_status,
+    reply_snippet,
     stable_session_id,
     system_message,
     validation_detail,
@@ -109,6 +113,50 @@ class OpenAICompatibleProvider:
         result = EnrichmentResult(parsed.title, parsed.summary, keywords(parsed.keywords))
         return result, tokens, duration
 
+    def probe(
+        self,
+        provider: Provider,
+        model: str,
+        secret: str,
+        prompt: PromptPayload,
+    ) -> tuple[str, dict[str, int], int]:
+        """连通性探测：最小请求 + 只校验协议 envelope，不要求结构化输出。"""
+
+        endpoint = provider.base_url.rstrip("/") + "/chat/completions"
+        payload: dict[str, Any] = {
+            "model": model,
+            "messages": [
+                {"role": "system", "content": system_message(prompt, PROBE_TASK, PROBE_VERSION)},
+                {"role": "user", "content": prompt.user},
+            ],
+        }
+        started = time.perf_counter()
+        response = post_json(
+            endpoint, self._headers(provider, secret), payload, provider.timeout_seconds
+        )
+        duration_ms = int((time.perf_counter() - started) * 1000)
+        raise_for_status(response, secret)
+        body = parse_envelope(response, ChatResponse, secret)
+        raw = body.choices[0].message.content
+        text = raw if isinstance(raw, str) else "".join(item.text for item in raw)
+        return reply_snippet(text), body.usage.model_dump(), duration_ms
+
+    @staticmethod
+    def _headers(provider: Provider, secret: str) -> dict[str, str]:
+        """请求头：认证、用户代理、自定义头与会话头。"""
+
+        headers = {
+            "User-Agent": USER_AGENT,
+            **provider.extra_headers,
+            "Authorization": f"Bearer {secret}",
+            "Content-Type": "application/json",
+        }
+        if provider.session_header_name:
+            # 兼容网关（如 opencode.ai/zen）要求会话 ID 在会话内稳定，
+            # 用于路由亲和与 prompt 缓存；按 Provider 派生可跨重启保持一致。
+            headers[provider.session_header_name] = stable_session_id(provider.id)
+        return headers
+
     def _complete(
         self,
         provider: Provider,
@@ -122,16 +170,7 @@ class OpenAICompatibleProvider:
         """发送一次结构化请求并校验响应；翻译与加工共用同一协议边界。"""
 
         endpoint = provider.base_url.rstrip("/") + "/chat/completions"
-        headers = {
-            "User-Agent": USER_AGENT,
-            **provider.extra_headers,
-            "Authorization": f"Bearer {secret}",
-            "Content-Type": "application/json",
-        }
-        if provider.session_header_name:
-            # 兼容网关（如 opencode.ai/zen）要求会话 ID 在会话内稳定，
-            # 用于路由亲和与 prompt 缓存；按 Provider 派生可跨重启保持一致。
-            headers[provider.session_header_name] = stable_session_id(provider.id)
+        headers = self._headers(provider, secret)
         messages = [
             {"role": "system", "content": system_message(prompt, task_kind, prompt_version)},
             {"role": "user", "content": prompt.user},

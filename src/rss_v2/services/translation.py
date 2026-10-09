@@ -178,10 +178,11 @@ class TranslationService:
         )
 
     def test_connection(self, provider_id: str, model: str | None = None) -> ConnectionTest:
-        """用一枚可用 Key 试跑一次最小结构化调用，返回延迟或错误。
+        """用一枚可用 Key 做一次连通性探测，返回模型回复、延迟或错误。
 
-        探测文本固定，只验证连通性；版本串取全局默认翻译提示词并带可区分后缀，
-        因此审计里能一眼认出这不是真实翻译。
+        探测只要求上游按协议回话，**不要求结构化输出**：模型回一句"connection works"
+        说明链路可用，而"会不会按 JSON 指令作答"是提示词质量的问题，不该判连接失败。
+        版本串取全局默认翻译提示词并带可区分后缀，审计里能一眼认出这不是真实翻译。
         """
         provider = self.llm_config.get_provider(provider_id)
         if provider is None:
@@ -200,8 +201,8 @@ class TranslationService:
         for key in keys:
             started = time.perf_counter()
             try:
-                _, tokens, duration = self.provider.translate(
-                    provider, chosen.model, key.secret, PROBE, prompt_version
+                reply, tokens, duration = self.provider.probe(
+                    provider, chosen.model, key.secret, PROBE
                 )
             except Exception as exc:
                 error = (
@@ -245,8 +246,11 @@ class TranslationService:
                 int(tokens.get("total_tokens", 0)),
                 None,
                 None,
+                reply,
             )
-        return ConnectionTest(False, chosen.model, "", 0, 0, last_error.code, last_error.message)
+        return ConnectionTest(
+            False, chosen.model, "", 0, 0, last_error.code, last_error.message, ""
+        )
 
     def list_for_version(self, version_id: str) -> list[Translation]:
         """返回版本已有的译文。"""

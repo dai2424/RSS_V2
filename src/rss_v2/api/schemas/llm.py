@@ -39,7 +39,7 @@ class ConnectionTestRequest(BaseModel):
 
 
 class ConnectionTestResponse(BaseModel):
-    """连接测试响应；只返回密钥掩码，不返回密钥值。"""
+    """连接测试响应；只返回密钥掩码与模型回复片段，不返回密钥值。"""
 
     ok: bool
     model: str
@@ -48,6 +48,7 @@ class ConnectionTestResponse(BaseModel):
     total_tokens: int
     error_code: str | None
     error_message: str | None
+    reply: str = ""
 
 
 class ProviderModelCreateRequest(BaseModel):
