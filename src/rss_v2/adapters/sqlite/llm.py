@@ -15,6 +15,7 @@ def _provider(row: sqlite3.Row) -> Provider:
         id=row["id"],
         name=row["name"],
         base_url=row["base_url"],
+        protocol=row["protocol"],
         enabled=bool(row["enabled"]),
         timeout_seconds=row["timeout_seconds"],
         session_header_name=row["session_header_name"],
@@ -82,11 +83,12 @@ class SQLiteLLMConfigRepository:
     def create_provider(self, provider: Provider) -> Provider:
         with self.database.transaction() as connection:
             connection.execute(
-                "INSERT INTO llm_providers(id,name,base_url,enabled,timeout_seconds,session_header_name,created_at,updated_at,extra_headers_json) VALUES(?,?,?,?,?,?,?,?,?)",
+                "INSERT INTO llm_providers(id,name,base_url,protocol,enabled,timeout_seconds,session_header_name,created_at,updated_at,extra_headers_json) VALUES(?,?,?,?,?,?,?,?,?,?)",
                 (
                     provider.id,
                     provider.name,
                     provider.base_url,
+                    provider.protocol,
                     int(provider.enabled),
                     provider.timeout_seconds,
                     provider.session_header_name,
@@ -101,6 +103,7 @@ class SQLiteLLMConfigRepository:
         allowed = {
             "name",
             "base_url",
+            "protocol",
             "enabled",
             "timeout_seconds",
             "session_header_name",

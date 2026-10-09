@@ -38,26 +38,44 @@ def _system_prompt(body: dict[str, Any]) -> str:
     )
 
 
+def _fixture_content(system_prompt: str) -> dict[str, object]:
+    """按任务类型标记返回对应结构；两种协议的假端点共用它。"""
+
+    if "[task: enrich_message" in system_prompt:
+        return {
+            "title": "精简标题",
+            "summary": "计算平台已经发布，适合检索归档。",
+            "keywords": ["计算平台", "发布"],
+        }
+    return {
+        "title": "新计算平台",
+        "summary": "计算平台已发布。",
+        "content": "这是中文正文。",
+    }
+
+
 @app.post("/fixtures/v1/chat/completions")
 async def completion(request: Request) -> dict[str, object]:
     """模拟兼容协议，按任务类型返回对应结构，不调用真实模型。"""
     payload: object = await request.json()
     body = payload if isinstance(payload, dict) else {}
-    if "[task: enrich_message" in _system_prompt(body):
-        content = {
-            "title": "精简标题",
-            "summary": "计算平台已经发布，适合检索归档。",
-            "keywords": ["计算平台", "发布"],
-        }
-    else:
-        content = {
-            "title": "新计算平台",
-            "summary": "计算平台已发布。",
-            "content": "这是中文正文。",
-        }
+    content = _fixture_content(_system_prompt(body))
     return {
         "choices": [{"message": {"content": json.dumps(content, ensure_ascii=False)}}],
         "usage": {"total_tokens": 3},
+    }
+
+
+@app.post("/fixtures/v1/messages")
+async def messages(request: Request) -> dict[str, object]:
+    """模拟 Anthropic Messages 协议：系统提示在请求顶层，文本在 content 数组里。"""
+    payload: object = await request.json()
+    body = payload if isinstance(payload, dict) else {}
+    content = _fixture_content(str(body.get("system") or ""))
+    return {
+        "content": [{"type": "text", "text": json.dumps(content, ensure_ascii=False)}],
+        "stop_reason": "end_turn",
+        "usage": {"input_tokens": 5, "output_tokens": 3},
     }
 
 

@@ -6,7 +6,14 @@ import re
 from dataclasses import dataclass
 from typing import Any, cast
 
-from rss_v2.domain import ConflictError, DomainError, Provider, ProviderKey, ProviderModel
+from rss_v2.domain import (
+    ConflictError,
+    DomainError,
+    LLMProtocol,
+    Provider,
+    ProviderKey,
+    ProviderModel,
+)
 from rss_v2.domain.values import new_id, now, validate_http_url
 from rss_v2.ports import LLMConfigRepository
 
@@ -42,6 +49,7 @@ class ProviderService:
         timeout_seconds: float,
         session_header_name: str | None,
         extra_headers: dict[str, str] | None = None,
+        protocol: str = LLMProtocol.CHAT_COMPLETIONS.value,
     ) -> Provider:
         base_url = validate_http_url(base_url)
         self.validate_session_header(session_header_name)
@@ -53,6 +61,7 @@ class ProviderService:
                 new_id(),
                 name.strip(),
                 base_url.rstrip("/"),
+                self.validate_protocol(protocol),
                 True,
                 timeout_seconds,
                 session_header_name,
@@ -70,6 +79,8 @@ class ProviderService:
             changes["base_url"] = validate_http_url(str(changes["base_url"])).rstrip("/")
         if "session_header_name" in changes:
             self.validate_session_header(changes["session_header_name"])
+        if "protocol" in changes:
+            changes["protocol"] = self.validate_protocol(changes["protocol"])
         if "name" in changes and not str(changes["name"]).strip():
             raise DomainError("invalid_provider", "Provider 名称不能为空")
         if "extra_headers" in changes:
@@ -138,6 +149,17 @@ class ProviderService:
         if not text or len(text) > 500 or any(char in text for char in "\r\n"):
             raise DomainError("invalid_key", "API Key 不能为空，且不能包含换行")
         return text
+
+    @staticmethod
+    def validate_protocol(protocol: object) -> str:
+        """协议必须是已实现的取值；未知协议直接拒绝，不做静默回退。"""
+
+        try:
+            return LLMProtocol(str(protocol)).value
+        except ValueError as exc:
+            supported = "、".join(item.value for item in LLMProtocol)
+            message = f"不支持的请求协议：{protocol}；可用：{supported}"
+            raise DomainError("invalid_protocol", message) from exc
 
     @staticmethod
     def validate_session_header(name: object) -> None:

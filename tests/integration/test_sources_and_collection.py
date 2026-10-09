@@ -7,7 +7,7 @@ import respx
 from fastapi.testclient import TestClient
 from httpx import Response
 
-from rss_v2.adapters.llm.openai_compatible import stable_session_id
+from rss_v2.adapters.llm.boundary import stable_session_id
 from rss_v2.bootstrap import build_container
 from rss_v2.tasks.worker import Worker
 

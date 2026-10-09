@@ -33,6 +33,17 @@ class TaskType(StrEnum):
     ENRICH_MESSAGE = "enrich_message"
 
 
+class LLMProtocol(StrEnum):
+    """Provider 使用的模型 API 协议。
+
+    chat_completions 是 OpenAI /v1/chat/completions 形状；anthropic_messages
+    是 Anthropic /v1/messages 形状（system 在顶层、认证用 x-api-key）。
+    """
+
+    CHAT_COMPLETIONS = "chat_completions"
+    ANTHROPIC_MESSAGES = "anthropic_messages"
+
+
 #: 走 Provider×模型 调度、逐次审计并按冷却重试的任务类型。
 LLM_TASK_TYPES = frozenset({TaskType.TRANSLATE_MESSAGE, TaskType.ENRICH_MESSAGE})
 
@@ -356,6 +367,7 @@ class Provider:
     id: str  # 实体 UUID
     name: str  # 显示名称
     base_url: str  # 兼容模型服务地址，无认证信息
+    protocol: str  # 请求协议，取值见 LLMProtocol；决定端点、认证头与请求体形状
     enabled: bool  # 是否参与后续处理
     timeout_seconds: float  # 单次模型请求超时秒数
     session_header_name: str | None  # 可选的非敏感会话头名称

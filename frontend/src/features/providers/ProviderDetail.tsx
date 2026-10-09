@@ -7,6 +7,7 @@ import { KeyAddDialog, KeyRow } from "./KeySettings";
 import { ProviderEditDialog } from "./ProviderEditDialog";
 import { ProviderModels } from "./ProviderModels";
 import {
+  protocolLabel,
   providerStatus,
   type ConnectionTest,
   type DirtyChange,
@@ -118,7 +119,7 @@ export function ProviderDetail({
             <code>{provider.base_url}</code>
           </dd>
           <dt>API 格式</dt>
-          <dd>Chat Completions（/chat/completions）</dd>
+          <dd>{protocolLabel(provider.protocol)}</dd>
           <dt>超时</dt>
           <dd>{provider.timeout_seconds} 秒</dd>
           <dt>会话头</dt>
@@ -160,7 +161,10 @@ export function ProviderDetail({
           </div>
         )}
       </section>
+      {/* key 按供应商隔离：弹层表单在挂载时读一次初值，换供应商必须重挂，
+          否则保存会把上一个供应商的名称与地址写到当前这条记录上。 */}
       <ProviderEditDialog
+        key={provider.id}
         provider={provider}
         open={editing}
         onOpenChange={setEditing}

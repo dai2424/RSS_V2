@@ -7,6 +7,29 @@ export type Key = components["schemas"]["ProviderKeyResponse"];
 export type ConnectionTest = components["schemas"]["ConnectionTestResponse"];
 export type DirtyChange = (id: string, dirty: boolean) => void;
 
+/**
+ * Provider 请求协议：取值与后端 domain.models.LLMProtocol 一致。
+ * endpoint 只用于界面说明，实际路径由适配器拼接（base_url + endpoint）。
+ */
+export const PROTOCOLS = [
+  {
+    value: "chat_completions",
+    label: "Chat Completions",
+    endpoint: "/chat/completions",
+  },
+  {
+    value: "anthropic_messages",
+    label: "Anthropic Messages",
+    endpoint: "/messages",
+  },
+] as const;
+
+/** 协议显示名；未知取值原样展示，便于发现数据库里的的历史配置。 */
+export function protocolLabel(protocol: string): string {
+  const item = PROTOCOLS.find((entry) => entry.value === protocol);
+  return item ? `${item.label}（${item.endpoint}）` : protocol;
+}
+
 /** 聚合页面内多个表单的未提交状态，卸载时清除对应状态。 */
 export function useFormDirty(
   id: string,

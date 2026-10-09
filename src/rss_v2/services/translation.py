@@ -9,6 +9,7 @@ from rss_v2.domain import (
     ConnectionTest,
     DomainError,
     ExternalServiceError,
+    LLMProtocol,
     MessageVersion,
     Prompt,
     Provider,
@@ -170,7 +171,9 @@ class TranslationService:
         if candidates:
             return candidates[0]
         return (
-            Provider("", "", "", False, 0.0, None, now(), now()),
+            Provider(
+                "", "", "", LLMProtocol.CHAT_COMPLETIONS.value, False, 0.0, None, now(), now()
+            ),
             str(task.payload.get("model", "")),
         )
 

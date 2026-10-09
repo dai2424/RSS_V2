@@ -1042,13 +1042,18 @@ export interface components {
     };
     /**
      * ProviderCreateRequest
-     * @description 创建 provider 请求。
+     * @description 创建 provider 请求；protocol 省略时用 OpenAI 兼容协议。
      */
     ProviderCreateRequest: {
       /** Name */
       name: string;
       /** Base Url */
       base_url: string;
+      /**
+       * Protocol
+       * @default chat_completions
+       */
+      protocol: string;
       /**
        * Timeout Seconds
        * @default 60
@@ -1160,6 +1165,8 @@ export interface components {
       name?: string | null;
       /** Base Url */
       base_url?: string | null;
+      /** Protocol */
+      protocol?: string | null;
       /** Enabled */
       enabled?: boolean | null;
       /** Timeout Seconds */
@@ -1182,6 +1189,8 @@ export interface components {
       name: string;
       /** Base Url */
       base_url: string;
+      /** Protocol */
+      protocol: string;
       /** Enabled */
       enabled: boolean;
       /** Timeout Seconds */

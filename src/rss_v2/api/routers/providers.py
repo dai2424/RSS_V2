@@ -44,6 +44,7 @@ def create_provider(payload: ProviderCreateRequest, request: Request) -> Provide
         payload.timeout_seconds,
         payload.session_header_name,
         payload.extra_headers,
+        payload.protocol,
     )
     return provider_response(provider, [], [])
 

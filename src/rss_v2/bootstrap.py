@@ -6,7 +6,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from rss_v2.adapters.llm.anthropic_messages import AnthropicMessagesProvider
 from rss_v2.adapters.llm.openai_compatible import OpenAICompatibleProvider
+from rss_v2.adapters.llm.router import ProtocolRouter
 from rss_v2.adapters.rss.feedparser_client import HTTPXFeedClient
 from rss_v2.adapters.sqlite.collections import SQLiteCollectionRunRepository
 from rss_v2.adapters.sqlite.connection import SQLiteDatabase
@@ -26,7 +28,7 @@ from rss_v2.adapters.sqlite.repositories import (
 )
 from rss_v2.adapters.sqlite.translations import SQLiteTranslationRepository
 from rss_v2.adapters.sqlite.v1_import import SQLiteV1Importer
-from rss_v2.domain import Provider
+from rss_v2.domain import LLMProtocol, Provider
 from rss_v2.services.collection import CollectionService
 from rss_v2.services.enrichment import EnrichmentService
 from rss_v2.services.llm_failover import LLMFailover
@@ -108,7 +110,13 @@ def build_container(settings: Settings | None = None, migrate: bool = True) -> C
     prompts = SQLitePromptRepository(database)
     task_settings = SQLiteTaskSettingRepository(database)
     feed_client = HTTPXFeedClient()
-    llm_provider = OpenAICompatibleProvider()
+    # 协议实现只在组合根注册；服务层拿到的始终是 LLMProvider 端口。
+    llm_provider = ProtocolRouter(
+        {
+            LLMProtocol.CHAT_COMPLETIONS.value: OpenAICompatibleProvider(),
+            LLMProtocol.ANTHROPIC_MESSAGES.value: AnthropicMessagesProvider(),
+        }
+    )
     failover = LLMFailover(llm_config, llm_calls, tasks)
     resolver = PromptResolver(prompts, task_settings, sources)
     category_service = CategoryService(categories)

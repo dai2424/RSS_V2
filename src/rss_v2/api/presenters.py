@@ -157,6 +157,7 @@ def provider_response(
         id=provider.id,
         name=provider.name,
         base_url=provider.base_url,
+        protocol=provider.protocol,
         enabled=provider.enabled,
         timeout_seconds=provider.timeout_seconds,
         session_header_name=provider.session_header_name,

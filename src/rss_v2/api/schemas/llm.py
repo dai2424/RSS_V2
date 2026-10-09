@@ -10,10 +10,11 @@ from .catalog import PatchRequest
 
 
 class ProviderCreateRequest(BaseModel):
-    """创建 provider 请求。"""
+    """创建 provider 请求；protocol 省略时用 OpenAI 兼容协议。"""
 
     name: str = Field(min_length=1, max_length=100)
     base_url: str = Field(min_length=8, max_length=1000)
+    protocol: str = Field(default="chat_completions", min_length=1, max_length=40)
     timeout_seconds: float = Field(default=60, gt=0, le=600)
     session_header_name: str | None = Field(default=None, max_length=100)
     extra_headers: dict[str, str] = Field(default_factory=dict)
@@ -24,6 +25,7 @@ class ProviderPatchRequest(PatchRequest):
 
     name: str | None = Field(default=None, min_length=1, max_length=100)
     base_url: str | None = Field(default=None, min_length=8, max_length=1000)
+    protocol: str | None = Field(default=None, min_length=1, max_length=40)
     enabled: bool | None = None
     timeout_seconds: float | None = Field(default=None, gt=0, le=600)
     session_header_name: str | None = Field(default=None, max_length=100)
@@ -108,6 +110,7 @@ class ProviderResponse(BaseModel):
     id: str
     name: str
     base_url: str
+    protocol: str
     enabled: bool
     timeout_seconds: float
     session_header_name: str | None

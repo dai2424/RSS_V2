@@ -10,7 +10,12 @@ import {
   DialogTitle,
 } from "../../components/ui/dialog";
 import { UnsavedDialog } from "../../components/UnsavedChanges";
-import { useFormDirty, type DirtyChange, type Provider } from "./types";
+import {
+  PROTOCOLS,
+  useFormDirty,
+  type DirtyChange,
+  type Provider,
+} from "./types";
 
 const headersSchema = z.record(z.string(), z.string());
 
@@ -76,6 +81,10 @@ export function ProviderEditDialog({
     ["session_header_name", "会话头名称（可选）", "text"],
     ["extra_headers", "非敏感请求头 JSON", "text"],
   ] as const;
+  const protocolOptions = PROTOCOLS.map((item) => ({
+    value: item.value as string,
+    text: `${item.label}（${item.endpoint}）`,
+  }));
   return (
     <>
       <Dialog open={open} onOpenChange={requestClose}>
@@ -124,6 +133,22 @@ export function ProviderEditDialog({
                   />
                 </div>
               ))}
+              <div className="form-field">
+                <label htmlFor="edit-protocol">API 格式</label>
+                <select
+                  id="edit-protocol"
+                  value={form.protocol}
+                  onChange={(event) =>
+                    setForm({ ...form, protocol: event.target.value })
+                  }
+                >
+                  {protocolOptions.map((item) => (
+                    <option key={item.value} value={item.value}>
+                      {item.text}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
             {save.isError && (
               <p className="field-error" role="alert">
@@ -158,6 +183,7 @@ function initialForm(provider: Provider) {
   return {
     name: provider.name,
     base_url: provider.base_url,
+    protocol: provider.protocol,
     timeout_seconds: provider.timeout_seconds,
     session_header_name: provider.session_header_name || "",
     extra_headers: JSON.stringify(provider.extra_headers || {}),

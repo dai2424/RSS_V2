@@ -3053,6 +3053,13 @@
             "minLength": 8,
             "title": "Base Url"
           },
+          "protocol": {
+            "type": "string",
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Protocol",
+            "default": "chat_completions"
+          },
           "timeout_seconds": {
             "type": "number",
             "maximum": 600.0,
@@ -3086,7 +3093,7 @@
           "base_url"
         ],
         "title": "ProviderCreateRequest",
-        "description": "创建 provider 请求。"
+        "description": "创建 provider 请求；protocol 省略时用 OpenAI 兼容协议。"
       },
       "ProviderKeyCreateRequest": {
         "properties": {
@@ -3354,6 +3361,19 @@
             ],
             "title": "Base Url"
           },
+          "protocol": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 40,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Protocol"
+          },
           "enabled": {
             "anyOf": [
               {
@@ -3417,6 +3437,10 @@
             "type": "string",
             "title": "Base Url"
           },
+          "protocol": {
+            "type": "string",
+            "title": "Protocol"
+          },
           "enabled": {
             "type": "boolean",
             "title": "Enabled"
@@ -3463,6 +3487,7 @@
           "id",
           "name",
           "base_url",
+          "protocol",
           "enabled",
           "timeout_seconds",
           "session_header_name",

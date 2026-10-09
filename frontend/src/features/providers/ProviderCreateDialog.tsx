@@ -10,7 +10,7 @@ import {
   DialogTitle,
 } from "../../components/ui/dialog";
 import { UnsavedDialog } from "../../components/UnsavedChanges";
-import { useFormDirty, type DirtyChange } from "./types";
+import { PROTOCOLS, useFormDirty, type DirtyChange } from "./types";
 
 /**
  * 新增供应商入口：弹层内填写名称与 Base URL，
@@ -29,14 +29,17 @@ export function ProviderCreateDialog({
   const [confirming, setConfirming] = useState(false);
   const [name, setName] = useState("");
   const [baseUrl, setBaseUrl] = useState("");
+  // 显式标注 string：PROTOCOLS 是 as const，否则状态会被收窄成第一个字面量。
+  const [protocol, setProtocol] = useState<string>(PROTOCOLS[0].value);
   const trigger = useRef<HTMLButtonElement | null>(null);
   const queryClient = useQueryClient();
-  const dirty = Boolean(name) || Boolean(baseUrl);
+  const dirty =
+    Boolean(name) || Boolean(baseUrl) || protocol !== PROTOCOLS[0].value;
   useFormDirty("provider-create", dirty && open, onDirtyChange);
   const create = useMutation({
     mutationFn: async () => {
       const r = await api.POST("/api/llm/providers", {
-        body: { name, base_url: baseUrl, timeout_seconds: 60 },
+        body: { name, base_url: baseUrl, timeout_seconds: 60, protocol },
       });
       const created = requireResponse(r.response, r.data, r.error);
       // 先等列表刷新完成再回调选中，避免页面 effect 用旧列表重置选择。
@@ -46,6 +49,7 @@ export function ProviderCreateDialog({
     onSuccess: (created) => {
       setName("");
       setBaseUrl("");
+      setProtocol(PROTOCOLS[0].value);
       setOpen(false);
       onSaved();
       onCreated(created.id);
@@ -105,6 +109,20 @@ export function ProviderCreateDialog({
                 placeholder="https://example.test/v1"
               />
             </label>
+            <div className="form-field">
+              <label htmlFor="new-provider-protocol">API 格式</label>
+              <select
+                id="new-provider-protocol"
+                value={protocol}
+                onChange={(event) => setProtocol(event.target.value)}
+              >
+                {PROTOCOLS.map((item) => (
+                  <option key={item.value} value={item.value}>
+                    {item.label}（{item.endpoint}）
+                  </option>
+                ))}
+              </select>
+            </div>
             <div className="form-actions">
               <Button type="submit" disabled={create.isPending}>
                 {create.isPending ? "保存中…" : "添加 Provider"}
@@ -125,6 +143,7 @@ export function ProviderCreateDialog({
           setConfirming(false);
           setName("");
           setBaseUrl("");
+          setProtocol(PROTOCOLS[0].value);
           setOpen(false);
         }}
         returnFocus={trigger}

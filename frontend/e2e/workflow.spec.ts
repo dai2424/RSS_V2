@@ -337,9 +337,29 @@ test("Provider、模型与 API Key 配置，1280px 桌面可操作", async ({
   await expect(modelRow).toBeVisible();
   // 固定 fixture 返回合法结构化翻译，测试连接应成功并显示延迟。
   await modelRow.getByRole("button", { name: "测试", exact: true }).click();
+  // 假端点按协议给出不同用量：3 tokens 说明走的是 chat completions。
   await expect(
     card.getByRole("status").filter({ hasText: "连接成功" }),
-  ).toContainText("ui-test-model");
+  ).toContainText("3 tokens");
+  // 切到 Anthropic Messages 协议：详情行同步显示，连接测试改走 /messages 假端点。
+  await card.getByRole("button", { name: "编辑连接", exact: true }).click();
+  const connectionDialog = page.getByRole("dialog", { name: "编辑连接配置" });
+  await connectionDialog
+    .getByLabel("API 格式", { exact: true })
+    .selectOption({ label: "Anthropic Messages（/messages）" });
+  await connectionDialog
+    .getByRole("button", { name: "保存修改", exact: true })
+    .click();
+  await expect(connectionDialog).toBeHidden();
+  // 列表刷新有轮询间隔，这里等协议行落到详情里。
+  await expect(card).toContainText("Anthropic Messages（/messages）", {
+    timeout: 15000,
+  });
+  await card.getByRole("button", { name: "测试连接", exact: true }).click();
+  // 换成 Messages 形状的假端点后用量变成 5+3，据此确认请求打到了 /messages。
+  await expect(
+    card.getByRole("status").filter({ hasText: "连接成功" }),
+  ).toContainText("8 tokens");
   await modelRow
     .getByRole("switch", { name: "启用模型 ui-test-model" })
     .click();
