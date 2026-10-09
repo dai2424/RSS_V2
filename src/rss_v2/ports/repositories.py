@@ -13,6 +13,7 @@ from rss_v2.domain import (
     Message,
     MessageVersion,
     Prompt,
+    PromptUsage,
     Provider,
     ProviderKey,
     ProviderModel,
@@ -235,7 +236,11 @@ class VersionProcessing(Protocol):
 
 
 class PromptRepository(Protocol):
-    """提示词版本存取端口；版本不可变，只新增、启用与归档。"""
+    """提示词版本存取端口。
+
+    版本串已写进审计、结果与任务幂等键的版本不可变，只新增、启用与归档；
+    未被引用过的版本可以就地改文本或删除，判定口径见 `usage`。
+    """
 
     def list(self, task_kind: str | None = None) -> list[Prompt]: ...
 
@@ -250,6 +255,24 @@ class PromptRepository(Protocol):
     def set_status(self, prompt_id: str, status: str) -> Prompt: ...
 
     def archive_kind(self, task_kind: str, keep_id: str) -> None: ...
+
+    def usage(self, prompt_id: str, version_string: str) -> PromptUsage:
+        """统计该版本在调用审计、结果、任务与任务分配中的引用次数。
+
+        版本串必须精确匹配：`translation-v1` 不能命中 `translation-v10`，
+        但试跑写下的 `{版本串}+prompt-test` 算使用，因为审计里已存在该版本串。
+        """
+        ...
+
+    def update_content(
+        self, prompt_id: str, name: str, system_template: str, user_template: str, note: str
+    ) -> Prompt:
+        """就地改文本；不动状态、业务键与版本号，所以版本串保持稳定。"""
+        ...
+
+    def delete(self, prompt_id: str) -> None:
+        """物理删除一条版本记录；调用方负责先确认它从未被引用过。"""
+        ...
 
 
 class TaskSettingRepository(Protocol):

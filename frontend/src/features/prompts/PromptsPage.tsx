@@ -1,27 +1,38 @@
 import { useState } from "react";
-import { Card, ErrorState } from "../../components/ui";
+import {
+  Button,
+  Card,
+  EmptyState,
+  ErrorState,
+  PageHeader,
+} from "../../components/ui";
 import { PromptDetail } from "./PromptDetail";
+import { PromptEditor } from "./PromptEditor";
 import { PromptList } from "./PromptList";
 import { usePrompts } from "./usePrompts";
 
-/** 左栏版本列表 + 右栏详情，与模型配置页同一套布局。 */
+/**
+ * 左栏版本列表 + 右栏详情，与模型配置页同一套布局。
+ * 新建和编辑都用页面内的表单（提示词是长正文，不用弹层），保存前后都能编译预览。
+ */
 export function PromptsPage() {
   const [selected, setSelected] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
   const prompts = usePrompts();
+  const list = prompts.data;
   const active =
-    prompts.data?.find((item) => item.id === selected) ??
-    prompts.data?.[0] ??
-    null;
+    list?.find((item) => item.id === selected) ?? list?.[0] ?? null;
   return (
     <div className="page">
-      <div className="page-header">
-        <div>
-          <h1>提示词</h1>
-          <p className="muted">
-            按任务类型管理提示词：编辑生成新版本，启用后生效；版本不可修改，历史版本可归档但不会被删除。
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        title="提示词"
+        description="按任务类型管理提示词：启用后生效，未被引用过的版本可以就地编辑或删除，其余只能另存新版本或归档。"
+        action={
+          <Button onClick={() => setCreating(true)} disabled={creating}>
+            新建提示词
+          </Button>
+        }
+      />
       {prompts.isLoading && <div className="loading">正在加载提示词…</div>}
       {prompts.isError && (
         <ErrorState
@@ -29,10 +40,23 @@ export function PromptsPage() {
           onRetry={() => void prompts.refetch()}
         />
       )}
-      {!!prompts.data?.length && (
+      {creating && (
+        <PromptEditor
+          mode="create"
+          onDone={() => setCreating(false)}
+          onCreated={(prompt) => setSelected(prompt.id)}
+        />
+      )}
+      {list?.length === 0 && !creating && (
+        <EmptyState
+          title="还没有提示词"
+          description="新建一个提示词版本并启用，翻译和内容加工才会使用它。"
+        />
+      )}
+      {!!list?.length && (
         <div className="provider-layout">
           <PromptList
-            prompts={prompts.data}
+            prompts={list}
             selectedId={active?.id ?? null}
             onSelect={setSelected}
           />

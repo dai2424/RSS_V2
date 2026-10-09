@@ -5,7 +5,7 @@ from __future__ import annotations
 import sqlite3
 
 from rss_v2.adapters.sqlite.connection import SQLiteDatabase
-from rss_v2.domain import Prompt, TaskSetting
+from rss_v2.domain import Prompt, PromptUsage, TaskSetting
 from rss_v2.domain.values import now
 
 
@@ -36,6 +36,13 @@ def _setting(row: sqlite3.Row) -> TaskSetting:
         created_at=row["created_at"],
         updated_at=row["updated_at"],
     )
+
+
+def _count(connection: sqlite3.Connection, sql: str, params: tuple[object, ...]) -> int:
+    """单值引用计数。"""
+
+    row = connection.execute(sql, params).fetchone()
+    return int(row[0]) if row else 0
 
 
 class SQLitePromptRepository:
@@ -135,6 +142,62 @@ class SQLitePromptRepository:
                 " WHERE task_kind=? AND status='active' AND id<>?",
                 (now(), task_kind, keep_id),
             )
+
+    def usage(self, prompt_id: str, version_string: str) -> PromptUsage:
+        """统计该版本在调用审计、结果、任务与任务分配中的引用次数。
+
+        版本串用等值比较而不是 LIKE 前缀：`translation-v1` 加通配符会误命中 `translation-v10`。
+        试跑写下的 `{版本串}+prompt-test` 也算使用，因为审计里已经存在该版本串。
+        """
+
+        connection = self.database.connect()
+        try:
+            calls = _count(
+                connection,
+                "SELECT count(*) FROM llm_calls"
+                " WHERE prompt_version=? OR prompt_version=? || '+prompt-test'",
+                (version_string, version_string),
+            )
+            results = _count(
+                connection,
+                "SELECT count(*) FROM translations WHERE prompt_version=?",
+                (version_string,),
+            ) + _count(
+                connection,
+                "SELECT count(*) FROM message_enrichments WHERE prompt_version=?",
+                (version_string,),
+            )
+            tasks = _count(
+                connection,
+                "SELECT count(*) FROM tasks WHERE json_extract(payload_json,'$.prompt_id')=?",
+                (prompt_id,),
+            )
+            bindings = _count(
+                connection, "SELECT count(*) FROM task_settings WHERE prompt_id=?", (prompt_id,)
+            )
+        finally:
+            connection.close()
+        return PromptUsage(calls=calls, results=results, tasks=tasks, bindings=bindings)
+
+    def update_content(
+        self, prompt_id: str, name: str, system_template: str, user_template: str, note: str
+    ) -> Prompt:
+        """就地改文本；状态、业务键与版本号保持原样，版本串因此不会漂移。"""
+
+        with self.database.transaction() as connection:
+            connection.execute(
+                "UPDATE llm_prompts SET name=?, system_template=?, user_template=?, note=?,"
+                " updated_at=? WHERE id=?",
+                (name, system_template, user_template, note, now(), prompt_id),
+            )
+        result = self.get(prompt_id)
+        if result is None:
+            raise RuntimeError("提示词内容更新后无法读取")
+        return result
+
+    def delete(self, prompt_id: str) -> None:
+        with self.database.transaction() as connection:
+            connection.execute("DELETE FROM llm_prompts WHERE id=?", (prompt_id,))
 
 
 class SQLiteTaskSettingRepository:

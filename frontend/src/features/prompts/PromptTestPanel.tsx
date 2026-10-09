@@ -39,6 +39,9 @@ export function PromptTestPanel({ prompt }: { prompt: Prompt }) {
       <p className="muted">
         用真实模型跑一次，结果只用于预览：会写入调用审计，但不会保存成译文或摘要。
       </p>
+      <p className="muted">
+        试跑算一次使用：跑过的版本不能再就地编辑或删除，只能另存为新版本或归档。
+      </p>
       <div className="form-field">
         <label htmlFor="prompt-sample-mode">样例来源</label>
         <select

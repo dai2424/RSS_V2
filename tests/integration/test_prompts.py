@@ -111,6 +111,44 @@ def prompts(client: TestClient, task_kind: str | None = None) -> list[dict[str, 
     return list(response.json())
 
 
+#: 能通过编译的翻译模板；新建与就地编辑共用，避免测试之间的模板漂移。
+GOOD_TEMPLATE = "输出 title、summary、content：{{title}} {{summary}} {{content}}"
+
+
+def create_prompt(client: TestClient, **overrides: object) -> dict[str, object]:
+    """新建一个提示词版本，默认是翻译任务的合法草稿。"""
+
+    body: dict[str, object] = {
+        "task_kind": "translate_message",
+        "prompt_key": TRANSLATE_KEY,
+        "name": "翻译草稿",
+        "user_template": GOOD_TEMPLATE,
+    }
+    body.update(overrides)
+    response = client.post("/api/llm/prompts", json=body)
+    assert response.status_code == 201, response.text
+    return dict(response.json())
+
+
+def edit_body(**overrides: object) -> dict[str, object]:
+    """就地编辑请求体；字段齐全，避免漏传字段掩盖被拒绝的真实原因。"""
+
+    body: dict[str, object] = {
+        "name": "改过的名字",
+        "system_template": "只返回 JSON。",
+        "user_template": GOOD_TEMPLATE,
+        "note": "就地改了文本",
+    }
+    body.update(overrides)
+    return body
+
+
+def usage_of(client: TestClient, prompt_id: str) -> dict[str, object]:
+    response = client.get(f"/api/llm/prompts/{prompt_id}/usage")
+    assert response.status_code == 200, response.text
+    return dict(response.json())
+
+
 def test_seeded_prompts_keep_existing_version_strings(client: TestClient) -> None:
     """迁移种子必须与改造前的版本串一致，否则历史译文与幂等键对不上。"""
 
@@ -354,3 +392,188 @@ def test_prompt_test_writes_audit_but_no_result(client: TestClient) -> None:
     assert missing.status_code == 400
     assert missing.json()["code"] == "sample_required"
     assert source_id
+
+
+def test_new_prompt_key_starts_at_v1_and_bad_key_is_rejected(client: TestClient) -> None:
+    """新建全新提示词从 v1 开始，任务类型取自 specs；非法业务键直接拒绝。"""
+
+    created = create_prompt(client, prompt_key="news-brief", name="简报")
+    assert created["version"] == 1
+    assert created["version_string"] == "news-brief-v1"
+    assert created["status"] == "draft"
+    kinds = {item["task_kind"] for item in client.get("/api/llm/prompts/specs").json()}
+    assert created["task_kind"] in kinds
+
+    for bad in ("News-Brief", "news:brief"):
+        rejected = client.post(
+            "/api/llm/prompts",
+            json={
+                "task_kind": "translate_message",
+                "prompt_key": bad,
+                "user_template": GOOD_TEMPLATE,
+            },
+        )
+        assert rejected.status_code == 400, rejected.text
+        assert rejected.json()["code"] == "prompt_key_invalid"
+
+
+def test_draft_is_editable_in_place_until_it_is_used(client: TestClient) -> None:
+    """未被引用的草稿可以就地改文本；试跑写下的审计同样让它锁定。"""
+
+    container: Container = client.app.state.container
+    configure_model(client)
+    prompt = create_prompt(client)
+    prompt_id = str(prompt["id"])
+    assert usage_of(client, prompt_id) == {
+        "used": False,
+        "calls": 0,
+        "results": 0,
+        "tasks": 0,
+        "bindings": 0,
+    }
+
+    edited = client.patch(f"/api/llm/prompts/{prompt_id}", json=edit_body())
+    assert edited.status_code == 200, edited.text
+    # 版本串与状态不变，只有文本和 updated_at 变；改完再读一致。
+    assert edited.json()["version_string"] == prompt["version_string"]
+    assert edited.json()["status"] == "draft"
+    fetched = client.get(f"/api/llm/prompts/{prompt_id}").json()
+    assert fetched["name"] == "改过的名字"
+    assert fetched["system_template"] == "只返回 JSON。"
+    assert fetched["user_template"] == GOOD_TEMPLATE
+    assert fetched["note"] == "就地改了文本"
+
+    container.prompt_service.provider = FakeProvider()
+    tested = client.post(
+        f"/api/llm/prompts/{prompt_id}/test",
+        json={"sample": {"title": "Title", "summary": "Summary", "content": "Body"}},
+    )
+    assert tested.status_code == 200, tested.text
+    used = usage_of(client, prompt_id)
+    assert used["used"] is True and used["calls"] == 1
+
+    blocked = client.patch(f"/api/llm/prompts/{prompt_id}", json=edit_body(note="第二次改"))
+    assert blocked.status_code == 400, blocked.text
+    assert blocked.json()["code"] == "prompt_used"
+    removed = client.delete(f"/api/llm/prompts/{prompt_id}")
+    assert removed.status_code == 400, removed.text
+    assert removed.json()["code"] == "prompt_used"
+
+
+def test_invalid_edit_is_rejected_and_keeps_original_text(client: TestClient) -> None:
+    """就地编辑同样要过编译校验；不通过时库里保持原文本。"""
+
+    prompt = create_prompt(client, prompt_key="validate-me", name="校验")
+    rejected = client.patch(
+        f"/api/llm/prompts/{prompt['id']}",
+        json=edit_body(user_template="缺少输出字段声明"),
+    )
+    assert rejected.status_code == 400, rejected.text
+    assert rejected.json()["code"] == "prompt_invalid"
+    assert client.get(f"/api/llm/prompts/{prompt['id']}").json()["user_template"] == GOOD_TEMPLATE
+
+
+def test_delete_only_removes_unused_non_active_versions(client: TestClient) -> None:
+    """删除规则：启用中的版本先换一个，未使用且非启用的可以真删。"""
+
+    seeded = next(
+        item for item in prompts(client, "translate_message") if item["status"] == "active"
+    )
+    blocked = client.delete(f"/api/llm/prompts/{seeded['id']}")
+    assert blocked.status_code == 400, blocked.text
+    assert blocked.json()["code"] == "prompt_active"
+
+    draft = create_prompt(client, prompt_key="delete-me", name="待删")
+    removed = client.delete(f"/api/llm/prompts/{draft['id']}")
+    assert removed.status_code == 204, removed.text
+    assert {item["id"] for item in prompts(client, "translate_message")} == {seeded["id"]}
+
+    # 换个启用版本后旧版本自动归档，就不再被"正在启用"挡住。
+    takeover = create_prompt(client, prompt_key="takeover", name="接管")
+    assert client.post(f"/api/llm/prompts/{takeover['id']}/activate").json()["status"] == "active"
+    assert client.get(f"/api/llm/prompts/{seeded['id']}").json()["status"] == "archived"
+    assert client.delete(f"/api/llm/prompts/{seeded['id']}").status_code == 204
+    assert {item["id"] for item in prompts(client, "translate_message")} == {takeover["id"]}
+
+
+@respx.mock
+def test_binding_blocks_edit_and_delete_without_any_call(client: TestClient) -> None:
+    """来源绑定该版本后，即使还没有调用记录也不能改文本或删除。"""
+
+    respx.get("https://bind.test/feed").mock(
+        return_value=Response(200, content=feed("Long english headline", LONG_ENGLISH_SUMMARY))
+    )
+    configure_model(client)
+    source_id = create_source(client, "https://bind.test/feed")
+    prompt = create_prompt(client, prompt_key="bind-check", name="绑定检查")
+    saved = client.put(
+        f"/api/task-settings/source/{source_id}",
+        json={"settings": [{"task_kind": "translate_message", "prompt_id": prompt["id"]}]},
+    )
+    assert saved.status_code == 200, saved.text
+
+    usage = usage_of(client, str(prompt["id"]))
+    assert usage["bindings"] == 1 and usage["used"] is True
+    blocked = client.patch(f"/api/llm/prompts/{prompt['id']}", json=edit_body())
+    assert blocked.status_code == 400 and blocked.json()["code"] == "prompt_used"
+    assert client.delete(f"/api/llm/prompts/{prompt['id']}").status_code == 400
+
+
+@respx.mock
+def test_finished_task_and_result_block_edit(client: TestClient) -> None:
+    """跑过一次真实任务后，任务快照与结果都指向该版本，因此不能再改。"""
+
+    container: Container = client.app.state.container
+    respx.get("https://used.test/feed").mock(
+        return_value=Response(200, content=feed("Long english headline", LONG_ENGLISH_SUMMARY))
+    )
+    configure_model(client)
+    source_id = create_source(client, "https://used.test/feed")
+    prompt = create_prompt(client, prompt_key="used-check", name="使用检查")
+    saved = client.put(
+        f"/api/task-settings/source/{source_id}",
+        json={
+            "settings": [
+                {"task_kind": "translate_message", "prompt_id": prompt["id"]},
+                {"task_kind": "enrich_message", "enabled": False},
+            ]
+        },
+    )
+    assert saved.status_code == 200, saved.text
+    container.translation_service.provider = FakeProvider()
+
+    run = client.post("/api/collection/runs", json={"source_ids": [source_id]})
+    assert run.status_code == 202, run.text
+    worker = Worker(container)
+    assert worker.run_once() is True
+    assert worker.run_once() is True
+
+    usage = usage_of(client, str(prompt["id"]))
+    assert usage["tasks"] >= 1 and usage["results"] >= 1 and usage["calls"] >= 1
+    blocked = client.patch(f"/api/llm/prompts/{prompt['id']}", json=edit_body())
+    assert blocked.status_code == 400 and blocked.json()["code"] == "prompt_used"
+
+
+def test_usage_matches_version_string_exactly(client: TestClient) -> None:
+    """使用统计按版本串等值匹配：v10 的调用不能算到 v1 头上。"""
+
+    container: Container = client.app.state.container
+    configure_model(client)
+    first = create_prompt(client, prompt_key="prefix-check", name="第一版")
+    latest = first
+    for _ in range(9):
+        latest = create_prompt(client, prompt_key="prefix-check", name="后续版本")
+    assert first["version_string"] == "prefix-check-v1"
+    assert latest["version_string"] == "prefix-check-v10"
+
+    container.prompt_service.provider = FakeProvider()
+    tested = client.post(
+        f"/api/llm/prompts/{latest['id']}/test",
+        json={"sample": {"title": "Title", "summary": "Summary", "content": "Body"}},
+    )
+    assert tested.status_code == 200, tested.text
+
+    assert usage_of(client, str(first["id"]))["calls"] == 0
+    assert usage_of(client, str(latest["id"]))["calls"] == 1
+    # v1 确实没被引用过，所以仍可编辑。
+    assert client.patch(f"/api/llm/prompts/{first['id']}", json=edit_body()).status_code == 200

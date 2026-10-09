@@ -1497,6 +1497,91 @@
             }
           }
         }
+      },
+      "patch": {
+        "tags": [
+          "prompts"
+        ],
+        "summary": "Update Prompt",
+        "description": "就地编辑未被使用过的版本；版本串不变，因此审计仍然指得回这条记录。",
+        "operationId": "update_prompt_api_llm_prompts__prompt_id__patch",
+        "parameters": [
+          {
+            "name": "prompt_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Prompt Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PromptUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "prompts"
+        ],
+        "summary": "Delete Prompt",
+        "description": "删除从未被使用过的版本；已被引用或正在启用的版本会被拒绝。",
+        "operationId": "delete_prompt_api_llm_prompts__prompt_id__delete",
+        "parameters": [
+          {
+            "name": "prompt_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Prompt Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/llm/prompts/{prompt_id}/activate": {
@@ -1567,6 +1652,49 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PromptResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/llm/prompts/{prompt_id}/usage": {
+      "get": {
+        "tags": [
+          "prompts"
+        ],
+        "summary": "Get Prompt Usage",
+        "description": "该版本的使用情况；界面据此决定能否就地编辑或删除。",
+        "operationId": "get_prompt_usage_api_llm_prompts__prompt_id__usage_get",
+        "parameters": [
+          {
+            "name": "prompt_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Prompt Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptUsageResponse"
                 }
               }
             }
@@ -2842,6 +2970,74 @@
         ],
         "title": "PromptTestResponse",
         "description": "试跑结果；只返回密钥掩码与结构化输出。"
+      },
+      "PromptUpdateRequest": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 100,
+            "title": "Name",
+            "default": ""
+          },
+          "system_template": {
+            "type": "string",
+            "maxLength": 20000,
+            "title": "System Template",
+            "default": ""
+          },
+          "user_template": {
+            "type": "string",
+            "maxLength": 20000,
+            "minLength": 1,
+            "title": "User Template"
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 500,
+            "title": "Note",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "user_template"
+        ],
+        "title": "PromptUpdateRequest",
+        "description": "就地编辑请求；任务类型、业务键与版本号不变，名称留空时回落到业务键。"
+      },
+      "PromptUsageResponse": {
+        "properties": {
+          "used": {
+            "type": "boolean",
+            "title": "Used"
+          },
+          "calls": {
+            "type": "integer",
+            "title": "Calls"
+          },
+          "results": {
+            "type": "integer",
+            "title": "Results"
+          },
+          "tasks": {
+            "type": "integer",
+            "title": "Tasks"
+          },
+          "bindings": {
+            "type": "integer",
+            "title": "Bindings"
+          }
+        },
+        "type": "object",
+        "required": [
+          "used",
+          "calls",
+          "results",
+          "tasks",
+          "bindings"
+        ],
+        "title": "PromptUsageResponse",
+        "description": "提示词版本的使用情况；界面据此决定能否就地编辑或删除。\n\n`used` 为真时只能另存新版本或归档；`bindings` 是来源与分类对该版本的绑定条数。"
       },
       "ProviderCreateRequest": {
         "properties": {

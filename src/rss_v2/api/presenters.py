@@ -13,6 +13,7 @@ from rss_v2.api.schemas import (
     PromptCompileResponse,
     PromptResponse,
     PromptTestResponse,
+    PromptUsageResponse,
     ProviderKeyResponse,
     ProviderModelResponse,
     ProviderResponse,
@@ -29,6 +30,7 @@ from rss_v2.domain import (
     MessageVersion,
     Prompt,
     PromptTest,
+    PromptUsage,
     Provider,
     ProviderKey,
     ProviderModel,
@@ -196,6 +198,18 @@ def compile_response(compiled: CompiledPrompt, task_kind: str) -> PromptCompileR
         system=compiled.system,
         user=compiled.user,
         variables=list(spec.variables),
+    )
+
+
+def prompt_usage_response(usage: PromptUsage) -> PromptUsageResponse:
+    """使用情况；判定口径在仓储层，这里只做字段搬运。"""
+
+    return PromptUsageResponse(
+        used=usage.used,
+        calls=usage.calls,
+        results=usage.results,
+        tasks=usage.tasks,
+        bindings=usage.bindings,
     )
 
 

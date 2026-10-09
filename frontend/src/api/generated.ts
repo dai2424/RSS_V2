@@ -456,10 +456,18 @@ export interface paths {
     get: operations["get_prompt_api_llm_prompts__prompt_id__get"];
     put?: never;
     post?: never;
-    delete?: never;
+    /**
+     * Delete Prompt
+     * @description 删除从未被使用过的版本；已被引用或正在启用的版本会被拒绝。
+     */
+    delete: operations["delete_prompt_api_llm_prompts__prompt_id__delete"];
     options?: never;
     head?: never;
-    patch?: never;
+    /**
+     * Update Prompt
+     * @description 就地编辑未被使用过的版本；版本串不变，因此审计仍然指得回这条记录。
+     */
+    patch: operations["update_prompt_api_llm_prompts__prompt_id__patch"];
     trace?: never;
   };
   "/api/llm/prompts/{prompt_id}/activate": {
@@ -493,6 +501,26 @@ export interface paths {
     put?: never;
     /** Archive Prompt */
     post: operations["archive_prompt_api_llm_prompts__prompt_id__archive_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/llm/prompts/{prompt_id}/usage": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Get Prompt Usage
+     * @description 该版本的使用情况；界面据此决定能否就地编辑或删除。
+     */
+    get: operations["get_prompt_usage_api_llm_prompts__prompt_id__usage_get"];
+    put?: never;
+    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -970,6 +998,47 @@ export interface components {
       error_code: string | null;
       /** Error Message */
       error_message: string | null;
+    };
+    /**
+     * PromptUpdateRequest
+     * @description 就地编辑请求；任务类型、业务键与版本号不变，名称留空时回落到业务键。
+     */
+    PromptUpdateRequest: {
+      /**
+       * Name
+       * @default
+       */
+      name: string;
+      /**
+       * System Template
+       * @default
+       */
+      system_template: string;
+      /** User Template */
+      user_template: string;
+      /**
+       * Note
+       * @default
+       */
+      note: string;
+    };
+    /**
+     * PromptUsageResponse
+     * @description 提示词版本的使用情况；界面据此决定能否就地编辑或删除。
+     *
+     *     `used` 为真时只能另存新版本或归档；`bindings` 是来源与分类对该版本的绑定条数。
+     */
+    PromptUsageResponse: {
+      /** Used */
+      used: boolean;
+      /** Calls */
+      calls: number;
+      /** Results */
+      results: number;
+      /** Tasks */
+      tasks: number;
+      /** Bindings */
+      bindings: number;
     };
     /**
      * ProviderCreateRequest
@@ -2375,6 +2444,70 @@ export interface operations {
       };
     };
   };
+  delete_prompt_api_llm_prompts__prompt_id__delete: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        prompt_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  update_prompt_api_llm_prompts__prompt_id__patch: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        prompt_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["PromptUpdateRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PromptResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
   activate_prompt_api_llm_prompts__prompt_id__activate_post: {
     parameters: {
       query?: never;
@@ -2424,6 +2557,37 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["PromptResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  get_prompt_usage_api_llm_prompts__prompt_id__usage_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        prompt_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PromptUsageResponse"];
         };
       };
       /** @description Validation Error */

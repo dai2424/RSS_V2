@@ -127,6 +127,15 @@ class PromptCreateRequest(BaseModel):
     note: str = Field(default="", max_length=500)
 
 
+class PromptUpdateRequest(BaseModel):
+    """就地编辑请求；任务类型、业务键与版本号不变，名称留空时回落到业务键。"""
+
+    name: str = Field(default="", max_length=100)
+    system_template: str = Field(default="", max_length=20000)
+    user_template: str = Field(min_length=1, max_length=20000)
+    note: str = Field(default="", max_length=500)
+
+
 class PromptSampleRequest(BaseModel):
     """编译预览与试跑的样例输入。"""
 
@@ -200,6 +209,19 @@ class PromptResponse(BaseModel):
     note: str
     created_at: int
     updated_at: int
+
+
+class PromptUsageResponse(BaseModel):
+    """提示词版本的使用情况；界面据此决定能否就地编辑或删除。
+
+    `used` 为真时只能另存新版本或归档；`bindings` 是来源与分类对该版本的绑定条数。
+    """
+
+    used: bool
+    calls: int
+    results: int
+    tasks: int
+    bindings: int
 
 
 class TaskSettingItem(BaseModel):

@@ -9,6 +9,7 @@ from rss_v2.api.presenters import (
     container,
     prompt_response,
     prompt_test_response,
+    prompt_usage_response,
     task_setting_response,
 )
 from rss_v2.api.schemas import (
@@ -18,6 +19,8 @@ from rss_v2.api.schemas import (
     PromptResponse,
     PromptTestRequest,
     PromptTestResponse,
+    PromptUpdateRequest,
+    PromptUsageResponse,
     TaskSettingResponse,
     TaskSettingsUpdateRequest,
 )
@@ -92,6 +95,32 @@ def activate_prompt(prompt_id: str, request: Request) -> PromptResponse:
 @prompts_router.post("/{prompt_id}/archive", response_model=PromptResponse)
 def archive_prompt(prompt_id: str, request: Request) -> PromptResponse:
     return prompt_response(container(request).prompt_service.archive(prompt_id))
+
+
+@prompts_router.get("/{prompt_id}/usage", response_model=PromptUsageResponse)
+def get_prompt_usage(prompt_id: str, request: Request) -> PromptUsageResponse:
+    """该版本的使用情况；界面据此决定能否就地编辑或删除。"""
+    return prompt_usage_response(container(request).prompt_service.usage(prompt_id))
+
+
+@prompts_router.patch("/{prompt_id}", response_model=PromptResponse)
+def update_prompt(prompt_id: str, request: Request, payload: PromptUpdateRequest) -> PromptResponse:
+    """就地编辑未被使用过的版本；版本串不变，因此审计仍然指得回这条记录。"""
+    return prompt_response(
+        container(request).prompt_service.update(
+            prompt_id,
+            payload.name,
+            payload.system_template,
+            payload.user_template,
+            payload.note,
+        )
+    )
+
+
+@prompts_router.delete("/{prompt_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_prompt(prompt_id: str, request: Request) -> None:
+    """删除从未被使用过的版本；已被引用或正在启用的版本会被拒绝。"""
+    container(request).prompt_service.delete(prompt_id)
 
 
 @prompts_router.post("/{prompt_id}/test", response_model=PromptTestResponse)

@@ -439,3 +439,106 @@ test("Provider 保存失败保留输入并保护离开", async ({ page }) => {
   );
   await keyDialog.getByRole("button", { name: "关闭", exact: true }).click();
 });
+
+for (const width of [1280, 1440, 1920]) {
+  test(`提示词新建、就地编辑、启用与删除 ${width}px`, async ({
+    page,
+  }, testInfo) => {
+    await page.setViewportSize({ width, height: 1000 });
+    const errors: string[] = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    const suffix = String(Date.now());
+    const key = `e2e-brief-${suffix}`;
+    const version = `${key}-v1`;
+    await page.goto("/settings/prompts");
+
+    // 新建：长正文在页面内编辑，故意漏声明输出字段，断言编译错误就地显示。
+    await page.getByRole("button", { name: "新建提示词", exact: true }).click();
+    await page
+      .getByLabel("任务类型", { exact: true })
+      .selectOption({ label: "内容加工" });
+    await page.getByLabel("提示词标识", { exact: true }).fill(key);
+    await page
+      .getByLabel("版本名称", { exact: true })
+      .fill("验收草稿" + suffix);
+    await page
+      .getByLabel("用户提示", { exact: true })
+      .fill("只输出摘要：{{title}}");
+    await page.getByRole("button", { name: "编译预览", exact: true }).click();
+    await expect(page.locator(".alert-error")).toContainText("编译未通过");
+    await expect(page.locator(".alert-error")).toContainText("keywords");
+    await page.screenshot({
+      path: testInfo.outputPath(`prompts-create-${width}.png`),
+      fullPage: true,
+    });
+
+    // 修正后创建：新版本进入列表，并说明它还没被引用过。
+    await page
+      .getByLabel("用户提示", { exact: true })
+      .fill("输出 title、summary、keywords：{{title}} {{summary}} {{content}}");
+    await page.getByRole("button", { name: "创建提示词", exact: true }).click();
+    await expect(
+      page.getByRole("heading", { name: version, exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByText(/该版本还没有被任何调用、结果、任务或分配引用/),
+    ).toBeVisible();
+
+    // 就地编辑：未被引用的草稿可以直接改文本，版本串不变。
+    await page.getByRole("button", { name: "编辑", exact: true }).click();
+    await page
+      .getByLabel("版本名称", { exact: true })
+      .fill("改过的验收草稿" + suffix);
+    await page.getByLabel("版本说明", { exact: true }).fill("就地改了文本");
+    await page.getByRole("button", { name: "保存修改", exact: true }).click();
+    await expect(page.getByText("改过的验收草稿" + suffix)).toBeVisible();
+    await expect(page.getByText("版本说明：就地改了文本")).toBeVisible();
+
+    // 启用后不能删：按钮禁用，并用文字说明原因。
+    await page.getByRole("button", { name: "启用此版本", exact: true }).click();
+    await expect(
+      page.getByRole("button", { name: "当前启用版本", exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "删除", exact: true }),
+    ).toBeDisabled();
+    await expect(page.getByText(/它正在启用/)).toBeVisible();
+
+    // 切回内置版本（新版本随之归档），恢复全局启用状态。
+    await page.getByRole("button", { name: "enrich-v1" }).click();
+    await expect(
+      page.getByRole("heading", { name: "enrich-v1", exact: true }),
+    ).toBeVisible();
+    const activate = page.getByRole("button", {
+      name: "启用此版本",
+      exact: true,
+    });
+    if ((await activate.count()) > 0) {
+      await activate.click();
+    }
+    await expect(
+      page.getByRole("button", { name: "当前启用版本", exact: true }),
+    ).toBeVisible();
+
+    // 删除已归档且未被引用的版本：确认弹层说明对象与影响后从列表消失。
+    await page.getByRole("button", { name: version }).click();
+    await expect(
+      page.getByRole("heading", { name: version, exact: true }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "删除", exact: true }).click();
+    const confirm = page.getByRole("alertdialog", { name: "删除提示词版本" });
+    await expect(confirm).toContainText(version);
+    await expect(confirm).toContainText("不可恢复");
+    await confirm
+      .getByRole("button", { name: "确认删除", exact: true })
+      .click();
+    await expect(confirm).toBeHidden();
+    await expect(page.getByRole("button", { name: version })).toHaveCount(0);
+    await expect(page.locator("body")).toHaveJSProperty("scrollWidth", width);
+    await page.screenshot({
+      path: testInfo.outputPath(`prompts-${width}.png`),
+      fullPage: true,
+    });
+    expect(errors).toEqual([]);
+  });
+}

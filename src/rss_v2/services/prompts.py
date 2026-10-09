@@ -16,6 +16,7 @@ from rss_v2.domain import (
     Prompt,
     PromptSample,
     PromptTest,
+    PromptUsage,
     Provider,
     ProviderKey,
     TaskType,
@@ -79,10 +80,7 @@ class PromptService:
         spec_for(task_kind)
         if not KEY_PATTERN.match(prompt_key):
             raise DomainError("prompt_key_invalid", "提示词标识只能用小写字母、数字和短横线")
-        compiled = compile_prompt(task_kind, system_template, user_template)
-        if not compiled.ok:
-            detail = "；".join(issue.message for issue in compiled.errors)
-            raise DomainError("prompt_invalid", f"提示词编译未通过：{detail}")
+        _compile_or_fail(task_kind, system_template, user_template)
         timestamp = now()
         return self.prompts.create(
             Prompt(
@@ -112,17 +110,53 @@ class PromptService:
 
         return self.prompts.set_status(self.get(prompt_id).id, "archived")
 
+    def usage(self, prompt_id: str) -> PromptUsage:
+        """某个版本的使用情况；界面据此决定能否就地编辑或删除。"""
+
+        prompt = self.get(prompt_id)
+        return self.prompts.usage(prompt.id, prompt.version_string)
+
+    def update(
+        self, prompt_id: str, name: str, system_template: str, user_template: str, note: str
+    ) -> Prompt:
+        """就地编辑；只允许改还没被任何任务引用过的版本。
+
+        改动不生成新版本串，所以一旦审计、结果、任务或任务分配里出现过这个版本串，
+        再改文本就会让那些记录指向不存在的文本，只能另存为新版本。
+        """
+
+        prompt = self.get(prompt_id)
+        _compile_or_fail(prompt.task_kind, system_template, user_template)
+        if self.prompts.usage(prompt.id, prompt.version_string).used:
+            raise DomainError("prompt_used", "该版本已被任务使用，请另存为新版本")
+        return self.prompts.update_content(
+            prompt.id,
+            name.strip() or prompt.prompt_key,
+            system_template,
+            user_template,
+            note.strip(),
+        )
+
+    def delete(self, prompt_id: str) -> None:
+        """真删除；只允许删还没被引用过、也不是当前启用版本的记录。"""
+
+        prompt = self.get(prompt_id)
+        if self.prompts.usage(prompt.id, prompt.version_string).used:
+            raise DomainError("prompt_used", "该版本已被任务使用，只能改为归档")
+        if prompt.status == "active":
+            # 唯一索引保证每个任务类型最多一个启用版本，启用中即"唯一启用版本"：
+            # 删掉它会让该任务类型没有启用版本，未绑定提示词的来源会拿不到提示词。
+            raise DomainError("prompt_active", "该版本正在启用，请先启用另一个版本再删除")
+        self.prompts.delete(prompt.id)
+
     def test(self, prompt_id: str, sample: PromptSample, model: str | None = None) -> PromptTest:
         """用样例输入真实调用一次模型，返回结构化输出或失败原因。"""
 
         prompt = self.get(prompt_id)
         values = prompt_values(sample.title, sample.summary, sample.content)
-        compiled = compile_prompt(
+        compiled = _compile_or_fail(
             prompt.task_kind, prompt.system_template, prompt.user_template, values
         )
-        if not compiled.ok:
-            detail = "；".join(issue.message for issue in compiled.errors)
-            raise DomainError("prompt_invalid", f"提示词编译未通过：{detail}")
         payload = PromptPayload(system=compiled.system, user=compiled.user)
         prompt_version = f"{prompt.version_string}+prompt-test"
         digest = input_hash(payload.system, payload.user)
@@ -190,6 +224,24 @@ class PromptService:
         if task_kind == TaskType.ENRICH_MESSAGE.value:
             return self.provider.enrich(provider, model_name, secret, payload, prompt_version)
         raise DomainError("task_kind_unsupported", f"任务类型尚未支持试跑：{task_kind}")
+
+
+def _compile_or_fail(
+    task_kind: str,
+    system_template: str,
+    user_template: str,
+    values: dict[str, str] | None = None,
+) -> CompiledPrompt:
+    """编译模板并把错误汇总成一条可展示的信息。
+
+    新建、就地编辑和试跑都走这里，保证"编译不过就不落库、也不调模型"只有一份实现。
+    """
+
+    compiled = compile_prompt(task_kind, system_template, user_template, values)
+    if not compiled.ok:
+        detail = "；".join(issue.message for issue in compiled.errors)
+        raise DomainError("prompt_invalid", f"提示词编译未通过：{detail}")
+    return compiled
 
 
 def _output(result: object) -> dict[str, Any]:

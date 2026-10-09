@@ -169,6 +169,27 @@ class Prompt:
 
 
 @dataclass(frozen=True, slots=True)
+class PromptUsage:
+    """某个提示词版本被引用的次数统计。
+
+    版本串一旦写进审计、结果、任务幂等键或任务分配，改文本就再也无法回溯，
+    所以"能否就地编辑或删除"完全由这里的计数决定，而不是由状态决定。
+    `used` 由各项计数推导，避免出现"计数非零却标记未使用"的矛盾状态。
+    """
+
+    calls: int  # llm_calls 引用次数，含试跑写下的 {版本串}+prompt-test
+    results: int  # translations 与 message_enrichments 引用条数
+    tasks: int  # 任务的 payload_json 指定该版本的任务数，含已完成的历史任务
+    bindings: int  # task_settings 里绑定该版本的来源与分类条目数
+
+    @property
+    def used(self) -> bool:
+        """是否已被任何审计、结果、任务或分配引用。"""
+
+        return bool(self.calls or self.results or self.tasks or self.bindings)
+
+
+@dataclass(frozen=True, slots=True)
 class TaskSetting:
     """任务分配：某个来源或行业分类对一类任务的覆盖配置。
 

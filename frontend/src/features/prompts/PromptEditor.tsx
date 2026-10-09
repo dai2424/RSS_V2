@@ -1,60 +1,115 @@
 import { useState } from "react";
 import { Button, Card, ErrorState } from "../../components/ui";
 import { showToast } from "../../components/Toast";
+import { PromptCompilePreview } from "./PromptCompilePreview";
+import { PromptCreateFields } from "./PromptCreateFields";
 import { usePromptActions, useTaskSpecs, type Prompt } from "./usePrompts";
 
-/** 新建版本：先编译校验与预览，通过后才允许保存。 */
-export function PromptEditor({
-  taskKind,
-  promptKey,
-  base,
-  onDone,
-}: {
-  taskKind: string;
-  promptKey: string;
-  base: Prompt;
+type PromptEditorMode = "create" | "edit" | "version";
+
+/** 新建没有基准版本；就地编辑与另存新版本都以现有版本为模板。 */
+type PromptEditorProps = {
+  mode: PromptEditorMode;
+  base?: Prompt | null;
   onDone: () => void;
-}) {
-  const [name, setName] = useState(`${base.name} 的新版本`);
-  const [system, setSystem] = useState(base.system_template);
-  const [user, setUser] = useState(base.user_template);
-  const [note, setNote] = useState("");
-  const [compileError, setCompileError] = useState("");
-  const { create, compile } = usePromptActions(taskKind);
+  onCreated?: (prompt: Prompt) => void;
+};
+
+/** 提交按钮文案：三种模式的差别只有文案与提交目标。 */
+const SAVE_LABELS: Record<PromptEditorMode, string> = {
+  create: "创建提示词",
+  edit: "保存修改",
+  version: "保存为新版本",
+};
+
+function editorTitle(mode: PromptEditorMode, base: Prompt | null): string {
+  if (mode === "create") return "新建提示词";
+  if (mode === "edit") return `就地编辑 ${base?.version_string ?? ""}`;
+  return `基于 ${base?.version_string ?? ""} 新建版本`;
+}
+
+/**
+ * 提示词表单：新建、就地编辑、另存新版本共用一套字段与编译预览。
+ *
+ * - `create`：选任务类型并填全新业务键，因此从空模板开始；
+ * - `edit`：改现有版本的文本，版本串不变（只对没被引用过的草稿开放）；
+ * - `version`：以现有版本为底稿新建下一个版本号。
+ */
+export function PromptEditor(props: PromptEditorProps) {
+  const { mode, onDone, onCreated } = props;
+  const base = props.mode === "create" ? null : (props.base ?? null);
+  const [taskKind, setTaskKind] = useState(base?.task_kind ?? "");
+  const [promptKey, setPromptKey] = useState(base?.prompt_key ?? "");
+  const [name, setName] = useState(
+    base && mode === "version" ? `${base.name} 的新版本` : (base?.name ?? ""),
+  );
+  const [system, setSystem] = useState(base?.system_template ?? "");
+  const [user, setUser] = useState(base?.user_template ?? "");
+  const [note, setNote] = useState(mode === "edit" ? (base?.note ?? "") : "");
+  const [formError, setFormError] = useState("");
+  const { create, update, compile } = usePromptActions();
   const specs = useTaskSpecs();
-  const spec = specs.data?.find((item) => item.task_kind === taskKind);
+  // 新建时任务类型默认取第一个规格；用派生值而不是副作用，避免首帧出现空选。
+  const selectedKind = taskKind || specs.data?.[0]?.task_kind || "";
+  const spec = specs.data?.find((item) => item.task_kind === selectedKind);
   const result = compile.data;
+  const saving = create.isPending || update.isPending;
+  const title = editorTitle(mode, base);
+
+  const done = (prompt: Prompt) => {
+    showToast({
+      type: "info",
+      content:
+        mode === "edit"
+          ? `已保存 ${prompt.version_string} 的修改`
+          : `已创建 ${prompt.version_string}`,
+    });
+    onCreated?.(prompt);
+    onDone();
+  };
   const save = () => {
+    setFormError("");
+    const body = {
+      name,
+      system_template: system,
+      user_template: user,
+      note,
+    };
+    const failed = (error: Error) => setFormError(error.message);
+    if (mode === "edit" && base) {
+      update.mutate(
+        { promptId: base.id, body },
+        { onSuccess: done, onError: failed },
+      );
+      return;
+    }
     create.mutate(
       {
-        task_kind: taskKind,
-        prompt_key: promptKey,
-        name,
-        system_template: system,
-        user_template: user,
-        note,
+        task_kind: selectedKind,
+        prompt_key: mode === "create" ? promptKey : (base?.prompt_key ?? ""),
+        ...body,
       },
-      {
-        onSuccess: (prompt) => {
-          showToast({
-            type: "info",
-            content: `已创建 ${prompt.version_string}`,
-          });
-          onDone();
-        },
-        onError: (error: Error) => setCompileError(error.message),
-      },
+      { onSuccess: done, onError: failed },
     );
   };
   return (
     <Card className="card-pad">
-      <h2>新建版本</h2>
+      <h2>{title}</h2>
       <p className="muted">
-        同一提示词标识的版本号自动递增。可用占位符：
+        可用占位符：
         {(spec?.variables ?? []).map((item) => `{{${item}}}`).join("、") ||
           "加载中…"}
         ；必须声明输出字段：{(spec?.output_fields ?? []).join("、")}
       </p>
+      {mode === "create" && (
+        <PromptCreateFields
+          taskKind={selectedKind}
+          promptKey={promptKey}
+          options={specs.data ?? []}
+          onTaskKindChange={setTaskKind}
+          onPromptKeyChange={setPromptKey}
+        />
+      )}
       <div className="form-field">
         <label htmlFor="prompt-name">版本名称</label>
         <input
@@ -90,48 +145,21 @@ export function PromptEditor({
           onChange={(e) => setNote(e.target.value)}
         />
       </div>
-      {compileError && (
+      {formError && (
         <p className="field-error" role="alert">
-          {compileError}
+          {formError}
         </p>
       )}
       {compile.isError && <ErrorState message={compile.error.message} />}
-      {result && (
-        <div
-          className={result.ok ? "alert" : "alert alert-error"}
-          role="status"
-        >
-          {result.ok ? "编译通过" : "编译未通过"}
-          <ul className="issue-list">
-            {result.errors.map((item) => (
-              <li key={`e-${item.field}-${item.message}`}>
-                错误：{item.message}
-              </li>
-            ))}
-            {result.warnings.map((item) => (
-              <li key={`w-${item.field}-${item.message}`}>
-                提示：{item.message}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-      {result?.ok && (
-        <div className="prompt-preview">
-          <h3>渲染预览（系统提示）</h3>
-          <pre className="prompt-text">{result.system || "（空）"}</pre>
-          <h3>渲染预览（用户提示）</h3>
-          <pre className="prompt-text">{result.user}</pre>
-        </div>
-      )}
+      {result && <PromptCompilePreview result={result} />}
       <div className="form-actions">
         <Button
           className="secondary"
           disabled={compile.isPending}
           onClick={() => {
-            setCompileError("");
+            setFormError("");
             compile.mutate({
-              task_kind: taskKind,
+              task_kind: selectedKind,
               system_template: system,
               user_template: user,
             });
@@ -139,8 +167,11 @@ export function PromptEditor({
         >
           {compile.isPending ? "编译中…" : "编译预览"}
         </Button>
-        <Button disabled={create.isPending} onClick={save}>
-          {create.isPending ? "保存中…" : "保存为新版本"}
+        <Button disabled={saving} onClick={save}>
+          {saving ? "保存中…" : SAVE_LABELS[mode]}
+        </Button>
+        <Button className="secondary" disabled={saving} onClick={onDone}>
+          取消
         </Button>
       </div>
     </Card>
