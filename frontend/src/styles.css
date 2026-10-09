@@ -403,6 +403,42 @@ tbody tr:hover {
   font-size: 12px;
   margin-top: 4px;
 }
+/* 任务表按比例分配列宽：自动布局会把宽屏余量全给目标列，造成一列超宽、
+   其余列被压成竖排。按比例分配后余量平均落在各列，宽屏也不会出现大空档。 */
+.tasks-table {
+  table-layout: fixed;
+}
+.tasks-table th {
+  white-space: nowrap;
+}
+.tasks-table th,
+.tasks-table td {
+  overflow-wrap: anywhere;
+}
+.tasks-table .col-task {
+  width: 10%;
+}
+.tasks-table .col-target {
+  width: 25%;
+}
+.tasks-table .col-status {
+  width: 10%;
+}
+.tasks-table .col-attempts {
+  width: 6%;
+}
+.tasks-table .col-model {
+  width: 13%;
+}
+.tasks-table .col-duration {
+  width: 10%;
+}
+.tasks-table .col-created {
+  width: 15%;
+}
+.tasks-table .col-actions {
+  width: 11%;
+}
 /* 短字段（次数、耗时、时间）不换行，避免被长内容挤成竖排。 */
 .cell-nowrap {
   white-space: nowrap;

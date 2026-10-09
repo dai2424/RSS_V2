@@ -104,15 +104,24 @@ export function TasksPage() {
         )}
         {!!tasks.data?.length && (
           <div className="table-wrap">
-            <table>
+            <table className="tasks-table">
+              <colgroup>
+                <col className="col-task" />
+                <col className="col-target" />
+                <col className="col-status" />
+                <col className="col-attempts" />
+                <col className="col-model" />
+                <col className="col-duration" />
+                <col className="col-created" />
+                <col className="col-actions" />
+              </colgroup>
               <thead>
                 <tr>
                   <th>任务</th>
                   <th>目标</th>
                   <th>状态</th>
                   <th>尝试</th>
-                  <th>模型</th>
-                  <th>提示词</th>
+                  <th>模型 / 提示词</th>
                   <th title="从创建到结束的时间，含排队等待">耗时</th>
                   <th>创建时间</th>
                   <th>操作</th>
@@ -145,7 +154,7 @@ export function TasksPage() {
                             <span className="muted">—</span>
                           )}
                         </td>
-                        <td>
+                        <td className="cell-nowrap">
                           <Badge
                             tone={
                               task.status === "succeeded"
@@ -161,15 +170,17 @@ export function TasksPage() {
                         <td className="cell-nowrap">{task.attempts}</td>
                         <td>
                           {task.model ?? <span className="muted">—</span>}
-                        </td>
-                        <td>
-                          {task.prompt_version ?? (
-                            <span className="muted">—</span>
+                          {task.prompt_version && (
+                            <div className="cell-subtitle">
+                              {task.prompt_version}
+                            </div>
                           )}
                         </td>
-                        <td>{durationCell(task)}</td>
-                        <td>{formatTime(task.created_at)}</td>
-                        <td>
+                        <td className="cell-nowrap">{durationCell(task)}</td>
+                        <td className="cell-nowrap">
+                          {formatTime(task.created_at)}
+                        </td>
+                        <td className="cell-nowrap">
                           {task.status === "failed" && (
                             <Button
                               className="secondary"
@@ -183,7 +194,7 @@ export function TasksPage() {
                       </tr>
                       {task.error_message && (
                         <tr className="task-error">
-                          <td colSpan={9}>
+                          <td colSpan={8}>
                             <span className="field-error">
                               {task.error_message}
                             </span>
