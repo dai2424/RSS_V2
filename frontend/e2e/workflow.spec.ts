@@ -390,11 +390,13 @@ test("Provider、模型与 API Key 配置，1280px 桌面可操作", async ({
   await modelDialog.getByRole("button", { name: "关闭", exact: true }).click();
   const confirmLeave = page.getByRole("alertdialog", { name: "未保存的修改" });
   await expect(confirmLeave).toBeVisible();
-  // 等焦点进入确认弹层再按 Escape：焦点陷阱未就绪时按键会丢失，导致偶发失败。
+  // 在确认弹层上按键而不是全局按键：嵌套弹层刚打开时，全局 Escape 可能被外层
+  // 先吃掉，导致外层一起关掉（Playwright 的 locator.press 会等元素可交互）。
   await expect(
     confirmLeave.getByRole("button", { name: "继续编辑", exact: true }),
   ).toBeFocused();
-  await page.keyboard.press("Escape");
+  await confirmLeave.press("Escape");
+  await expect(confirmLeave).toBeHidden();
   await expect(modelDialog.getByLabel("模型 ID", { exact: true })).toHaveValue(
     "ui-model-updated",
   );
@@ -449,6 +451,7 @@ test("Provider 保存失败保留输入并保护离开", async ({ page }) => {
   await expect(dialog.getByLabel("名称", { exact: true })).toHaveValue(
     "待保存配置",
   );
+  // 再次在外层弹层上按 Escape：重新弹确认，然后放弃修改。
   await page.keyboard.press("Escape");
   await page
     .getByRole("button", { name: "放弃修改并离开", exact: true })
