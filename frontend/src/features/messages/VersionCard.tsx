@@ -6,7 +6,12 @@ import {
   TabsList,
   TabsTrigger,
 } from "../../components/ui/tabs";
-import { formatTime, safeLink, statusLabels } from "../../lib/display";
+import {
+  formatTime,
+  keywordKindLabels,
+  safeLink,
+  statusLabels,
+} from "../../lib/display";
 
 type Version = components["schemas"]["MessageVersionResponse"];
 type Generated = NonNullable<Version["enrichments"]>[number];
@@ -71,8 +76,12 @@ function EnrichmentPanel({
           <span className="muted">无关键词</span>
         )}
         {enrichment.keywords.map((keyword) => (
-          <Badge key={keyword} tone="neutral">
-            {keyword}
+          <Badge
+            key={keyword.text}
+            tone="neutral"
+            title={keywordKindLabels[keyword.kind] ?? keyword.kind}
+          >
+            {keyword.text}
           </Badge>
         ))}
       </div>

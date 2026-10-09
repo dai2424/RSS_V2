@@ -558,6 +558,74 @@
             }
           },
           {
+            "name": "keyword",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Keyword"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Kind"
+            }
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "发布时间下界，UTC 秒",
+              "title": "Since"
+            },
+            "description": "发布时间下界，UTC 秒"
+          },
+          {
+            "name": "until",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "发布时间上界，UTC 秒",
+              "title": "Until"
+            },
+            "description": "发布时间上界，UTC 秒"
+          },
+          {
             "name": "limit",
             "in": "query",
             "required": false,
@@ -651,6 +719,65 @@
         }
       }
     },
+    "/api/messages/{message_id}/related": {
+      "get": {
+        "tags": [
+          "messages"
+        ],
+        "summary": "Related Messages",
+        "description": "共享关键词的其他消息；没有关键词时返回空列表。",
+        "operationId": "related_messages_api_messages__message_id__related_get",
+        "parameters": [
+          {
+            "name": "message_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Message Id"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 20,
+              "minimum": 1,
+              "default": 8,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RelatedMessageResponse"
+                  },
+                  "title": "Response Related Messages Api Messages  Message Id  Related Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/messages/{message_id}/translate": {
       "post": {
         "tags": [
@@ -718,6 +845,70 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/TaskResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/keywords/rebuild": {
+      "post": {
+        "tags": [
+          "keywords"
+        ],
+        "summary": "Rebuild Index",
+        "description": "按已存的加工结果重建关键词索引；不调用模型，可重复执行。",
+        "operationId": "rebuild_index_api_keywords_rebuild_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KeywordRebuildResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/keywords/backfill": {
+      "post": {
+        "tags": [
+          "keywords"
+        ],
+        "summary": "Backfill Keywords",
+        "description": "为没有加工结果的存量消息入队；先用 dry_run 看条数再执行。",
+        "operationId": "backfill_keywords_api_keywords_backfill_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KeywordBackfillRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KeywordBackfillResponse"
                 }
               }
             }
@@ -2226,7 +2417,7 @@
           },
           "keywords": {
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/KeywordResponse"
             },
             "type": "array",
             "title": "Keywords"
@@ -2425,6 +2616,101 @@
         ],
         "title": "HealthResponse",
         "description": "来源健康检查响应。"
+      },
+      "KeywordBackfillRequest": {
+        "properties": {
+          "source_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Id"
+          },
+          "limit": {
+            "type": "integer",
+            "maximum": 200.0,
+            "minimum": 1.0,
+            "title": "Limit",
+            "default": 50
+          },
+          "dry_run": {
+            "type": "boolean",
+            "title": "Dry Run",
+            "default": false
+          }
+        },
+        "type": "object",
+        "title": "KeywordBackfillRequest",
+        "description": "存量回填请求；dry_run 只统计候选条数，不入队。"
+      },
+      "KeywordBackfillResponse": {
+        "properties": {
+          "candidates": {
+            "type": "integer",
+            "title": "Candidates"
+          },
+          "enqueued": {
+            "type": "integer",
+            "title": "Enqueued"
+          },
+          "skipped": {
+            "type": "integer",
+            "title": "Skipped"
+          },
+          "reasons": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Reasons"
+          }
+        },
+        "type": "object",
+        "required": [
+          "candidates",
+          "enqueued",
+          "skipped",
+          "reasons"
+        ],
+        "title": "KeywordBackfillResponse",
+        "description": "回填结果；reasons 是去重后的跳过原因。"
+      },
+      "KeywordRebuildResponse": {
+        "properties": {
+          "indexed": {
+            "type": "integer",
+            "title": "Indexed"
+          }
+        },
+        "type": "object",
+        "required": [
+          "indexed"
+        ],
+        "title": "KeywordRebuildResponse",
+        "description": "关键词索引重建结果：写入的关系表行数。"
+      },
+      "KeywordResponse": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          }
+        },
+        "type": "object",
+        "required": [
+          "text",
+          "kind"
+        ],
+        "title": "KeywordResponse",
+        "description": "一条检索关键词；text 用于展示，kind 用于检索优先级与界面标注。"
       },
       "MessageDetailResponse": {
         "properties": {
@@ -3502,6 +3788,60 @@
         ],
         "title": "ProviderResponse",
         "description": "provider 响应。"
+      },
+      "RelatedMessageResponse": {
+        "properties": {
+          "message_id": {
+            "type": "string",
+            "title": "Message Id"
+          },
+          "source_id": {
+            "type": "string",
+            "title": "Source Id"
+          },
+          "version_id": {
+            "type": "string",
+            "title": "Version Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "published_at": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Published At"
+          },
+          "collected_at": {
+            "type": "integer",
+            "title": "Collected At"
+          },
+          "shared": {
+            "items": {
+              "$ref": "#/components/schemas/KeywordResponse"
+            },
+            "type": "array",
+            "title": "Shared"
+          }
+        },
+        "type": "object",
+        "required": [
+          "message_id",
+          "source_id",
+          "version_id",
+          "title",
+          "published_at",
+          "collected_at",
+          "shared"
+        ],
+        "title": "RelatedMessageResponse",
+        "description": "相关消息；shared 是双方共有的关键词，按实体优先排列。"
       },
       "SourceCreateRequest": {
         "properties": {

@@ -57,7 +57,10 @@ def _fixture_content(system_prompt: str) -> dict[str, object]:
         return {
             "title": "精简标题",
             "summary": "计算平台已经发布，适合检索归档。",
-            "keywords": ["计算平台", "发布"],
+            "keywords": [
+                {"text": "计算平台", "kind": "entity"},
+                {"text": "发布", "kind": "event"},
+            ],
         }
     return {
         "title": "新计算平台",

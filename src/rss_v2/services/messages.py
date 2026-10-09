@@ -37,12 +37,18 @@ class MessageService:
         self,
         query: str | None = None,
         source_id: str | None = None,
+        keyword: str | None = None,
+        kind: str | None = None,
+        since: int | None = None,
+        until: int | None = None,
         limit: int = 50,
         offset: int = 0,
     ) -> list[MessageRow]:
         return [
             self._row(message, version)
-            for message, version in self.messages.list_messages(query, source_id, limit, offset)
+            for message, version in self.messages.list_messages(
+                query, source_id, keyword, kind, since, until, limit, offset
+            )
         ]
 
     def version_sample(self, version_id: str) -> PromptSample:

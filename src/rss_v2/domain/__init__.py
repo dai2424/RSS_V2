@@ -1,6 +1,14 @@
 """RSS v2 领域层。"""
 
 from .errors import ConflictError, DomainError, ExternalServiceError, NotFoundError
+from .keywords import (
+    KEYWORD_LIMIT,
+    Keyword,
+    KeywordKind,
+    RelatedMessage,
+    normalize_keyword,
+    normalize_keyword_list,
+)
 from .models import (
     LLM_TASK_TYPES,
     Category,
@@ -37,6 +45,7 @@ from .models import (
 )
 
 __all__ = [
+    "KEYWORD_LIMIT",
     "LLM_TASK_TYPES",
     "Category",
     "CollectionRun",
@@ -49,6 +58,8 @@ __all__ = [
     "FeedItem",
     "FeedSnapshot",
     "HealthCheck",
+    "Keyword",
+    "KeywordKind",
     "LLMCall",
     "LLMProtocol",
     "Message",
@@ -61,6 +72,7 @@ __all__ = [
     "Provider",
     "ProviderKey",
     "ProviderModel",
+    "RelatedMessage",
     "ResolvedTask",
     "Source",
     "SourceDeletion",
@@ -73,4 +85,6 @@ __all__ = [
     "TaskType",
     "Translation",
     "TranslationResult",
+    "normalize_keyword",
+    "normalize_keyword_list",
 ]

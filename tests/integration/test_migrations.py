@@ -30,12 +30,54 @@ def test_fresh_database_and_checksum(tmp_path: Path) -> None:
     shutil.copytree("migrations", migrations)
     database = SQLiteDatabase(tmp_path / "rss.db")
     runner = MigrationRunner(database, migrations)
-    assert len(runner.run()) == 11
+    assert len(runner.run()) == 12
     assert runner.run() == []
     path = migrations / "0001_initial.sql"
     path.write_text(path.read_text(encoding="utf-8") + "\n-- mutation\n", encoding="utf-8")
     with pytest.raises(RuntimeError, match="已被修改"):
         runner.run()
+
+
+def test_keyword_tables_and_structured_prompt_seed(tmp_path: Path) -> None:
+    """关键词关系表与结构化提示词版本：升级后启用版本换新，旧版本归档保留。"""
+
+    migrations = tmp_path / "migrations"
+    shutil.copytree("migrations", migrations)
+    database = SQLiteDatabase(tmp_path / "rss.db")
+    MigrationRunner(database, migrations).run()
+    connection = database.connect()
+    try:
+        columns = {
+            row["name"] for row in connection.execute("PRAGMA table_info(enrichment_keywords)")
+        }
+        assert {
+            "enrichment_id",
+            "message_version_id",
+            "ordinal",
+            "raw",
+            "normalized",
+            "kind",
+        } <= columns
+        indexes = {
+            row["name"] for row in connection.execute("PRAGMA index_list(enrichment_keywords)")
+        }
+        assert {"idx_enrichment_keywords_normalized", "idx_enrichment_keywords_version"} <= indexes
+        active = connection.execute(
+            "SELECT version, user_template FROM llm_prompts"
+            " WHERE task_kind='enrich_message' AND status='active'"
+        ).fetchall()
+        assert len(active) == 1 and active[0]["version"] == 2
+        # 旧版本仍可回溯，历史结果的 prompt_version 不会指向不存在的记录。
+        assert (
+            connection.execute(
+                "SELECT COUNT(*) FROM llm_prompts WHERE prompt_key='enrich' AND status='archived'"
+            ).fetchone()[0]
+            == 1
+        )
+        assert "kind" in active[0]["user_template"]
+        assert not connection.execute("PRAGMA foreign_key_check").fetchall()
+    finally:
+        connection.close()
 
 
 def test_failed_ddl_rolls_back_completely(tmp_path: Path) -> None:
@@ -61,7 +103,7 @@ def test_two_processes_do_not_apply_migration_twice(tmp_path: Path) -> None:
         results = list(
             pool.map(lambda _: MigrationRunner(database, Path("migrations")).run(), range(2))
         )
-    assert sum(len(result) for result in results) == 11
+    assert sum(len(result) for result in results) == 12
 
 
 def test_upgrade_preserves_versions_and_translations(tmp_path: Path) -> None:

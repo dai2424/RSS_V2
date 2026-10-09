@@ -574,6 +574,13 @@ def test_compatible_adapter_rejects_malformed_translation(
         ),
         # 关键词偶尔被写成顿号或逗号分隔的字符串。
         ('{"title":"精简标题","summary":"摘要","keywords":"甲, 乙、丙"}', ["甲", "乙", "丙"]),
+        # 结构化输出：合法类型保留，未知类型降级为主题词，而不是让整条结果失败。
+        (
+            '{"title":"精简标题","summary":"摘要","keywords":['
+            '{"text":"OpenAI","kind":"entity"},{"text":"定价","kind":"route"},'
+            '{"text":"发布 GPT-6","kind":"event"},{"text":"另一件事","kind":"event"}]}',
+            ["OpenAI", "定价", "发布 GPT-6", "另一件事"],
+        ),
     ],
 )
 @respx.mock
@@ -598,7 +605,9 @@ def test_compatible_adapter_accepts_recoverable_enrichment_shapes(
     assert client.get(f"/api/tasks/{task['id']}").json()["status"] == "succeeded"
     enrichment = client.get(f"/api/messages/{message_id}").json()["versions"][0]["enrichments"][0]
     assert enrichment["title"] == "精简标题"
-    assert enrichment["keywords"] == expected_keywords
+    assert [item["text"] for item in enrichment["keywords"]] == expected_keywords
+    # 事件词最多一个：多出来的降级为主题词，而不是直接丢弃。
+    assert [item["kind"] for item in enrichment["keywords"]].count("event") <= 1
 
 
 @pytest.mark.parametrize(

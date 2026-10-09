@@ -16,6 +16,7 @@ from starlette.responses import Response
 from rss_v2.api.routes import (
     categories_router,
     collection_router,
+    keywords_router,
     messages_router,
     prompts_router,
     providers_router,
@@ -48,6 +49,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(sources_router)
     app.include_router(collection_router)
     app.include_router(messages_router)
+    app.include_router(keywords_router)
     app.include_router(tasks_router)
     app.include_router(providers_router)
     app.include_router(prompts_router)

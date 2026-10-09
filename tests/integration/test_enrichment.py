@@ -5,7 +5,14 @@ from fastapi.testclient import TestClient
 from httpx import Response
 
 from rss_v2.bootstrap import Container
-from rss_v2.domain import EnrichmentResult, ExternalServiceError, Provider, TranslationResult
+from rss_v2.domain import (
+    EnrichmentResult,
+    ExternalServiceError,
+    Keyword,
+    KeywordKind,
+    Provider,
+    TranslationResult,
+)
 from rss_v2.llm import PromptPayload
 from rss_v2.tasks.worker import Worker
 
@@ -112,7 +119,11 @@ class FakeProvider:
     ) -> tuple[EnrichmentResult, dict[str, int], int]:
         self._check("enrich", model, secret)
         return (
-            EnrichmentResult("精简标题", "中文摘要说明发生了什么。", ("关键词甲", "关键词乙")),
+            EnrichmentResult(
+                "精简标题",
+                "中文摘要说明发生了什么。",
+                (Keyword("关键词甲", KeywordKind.ENTITY), Keyword("关键词乙", KeywordKind.TOPIC)),
+            ),
             {"total_tokens": 5},
             1,
         )
@@ -168,7 +179,10 @@ def test_collection_enqueues_translation_and_enrichment(client: TestClient) -> N
     version = message["latest_version"]
     assert version["translations"][0]["title"] == "中文标题"
     assert version["enrichments"][0]["title"] == "精简标题"
-    assert version["enrichments"][0]["keywords"] == ["关键词甲", "关键词乙"]
+    assert version["enrichments"][0]["keywords"] == [
+        {"text": "关键词甲", "kind": "entity"},
+        {"text": "关键词乙", "kind": "topic"},
+    ]
     assert version["enrichments"][0]["status"] == "succeeded"
     # 任务完成后不再排队，列表按任务类型分别展示真实状态。
     assert version["translation_task"]["status"] == "succeeded"
@@ -247,6 +261,19 @@ def test_search_matches_generated_content(client: TestClient) -> None:
     assert worker.run_once() is True
     assert worker.run_once() is True
 
+    # 关键词检索按匹配键精确/前缀命中，并可按类型收窄；全文兜底仍然可用。
+    hit = client.get("/api/messages", params={"keyword": "关键词乙"}).json()
+    assert len(hit) == 1
+    assert (
+        len(client.get("/api/messages", params={"keyword": "关键词乙", "kind": "topic"}).json())
+        == 1
+    )
+    assert (
+        client.get("/api/messages", params={"keyword": "关键词乙", "kind": "entity"}).json() == []
+    )
+    # 前缀命中同一主体的不同粒度，但不会像 LIKE 打 JSON 那样把 ai 命中到 openai。
+    assert client.get("/api/messages", params={"keyword": "关键词"}).json() != []
+
     hit = client.get("/api/messages", params={"q": "关键词乙"}).json()
     assert len(hit) == 1
     assert hit[0]["latest_version"]["enrichments"][0]["summary"] == "中文摘要说明发生了什么。"
@@ -280,7 +307,7 @@ def test_task_list_shows_target_model_and_prompt(client: TestClient) -> None:
     assert enriching["target_id"] == message["id"]
     assert enriching["target_label"] == message["latest_version"]["title"]
     assert enriching["model"] == "test-model"
-    assert enriching["prompt_version"] == "enrich-v1"
+    assert enriching["prompt_version"] == "enrich-v2"
 
     # 单个任务查询与重试返回同样的目标说明。
     single = client.get(f"/api/tasks/{enriching['id']}").json()

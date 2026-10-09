@@ -14,7 +14,12 @@ from typing import Any, TypeVar, cast
 import httpx
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
-from rss_v2.domain import ExternalServiceError
+from rss_v2.domain import (
+    ExternalServiceError,
+    Keyword,
+    KeywordKind,
+    normalize_keyword_list,
+)
 from rss_v2.llm import PromptPayload
 
 
@@ -28,6 +33,18 @@ class TranslationResponse(BaseModel):
     content: str
 
 
+class KeywordItem(BaseModel):
+    """模型返回的单条关键词。
+
+    多余字段忽略而不是报错：模型多给一个权重或说明，不该让整次调用作废。
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    text: str = Field(min_length=1)
+    kind: str = "topic"
+
+
 class EnrichmentResponse(BaseModel):
     """模型返回的结构化内容加工结果。"""
 
@@ -35,7 +52,7 @@ class EnrichmentResponse(BaseModel):
 
     title: str = Field(min_length=1)
     summary: str
-    keywords: list[str] = Field(default_factory=list)
+    keywords: list[str | KeywordItem] = Field(default_factory=list[str | KeywordItem])
 
     @field_validator("keywords", mode="before")
     @classmethod
@@ -46,9 +63,6 @@ class EnrichmentResponse(BaseModel):
             return [item for item in re.split(r"[,，、;；]", value)]
         return value
 
-
-#: 关键词上限：模型偶尔会多给，超出部分对检索没有额外价值，只增加存储与噪声。
-KEYWORD_LIMIT = 8
 
 USER_AGENT = "rss-v2/0.1"  # 上游要求客户端标识自身而非通用库名
 
@@ -83,15 +97,23 @@ def parse_envelope[T: BaseModel](response: httpx.Response, model: type[T], secre
         raise ExternalServiceError("llm_invalid_output", f"模型响应不符合协议：{detail}") from exc
 
 
-def keywords(values: list[str]) -> tuple[str, ...]:
-    """去空白、去重并截断关键词；顺序按模型给出的重要性保留。"""
+def keywords(values: list[str | KeywordItem]) -> tuple[Keyword, ...]:
+    """把模型输出折算成领域关键词：纯字符串与非法类型都按主题词处理。
 
-    seen: dict[str, None] = {}
+    类型只认 entity/topic/event；模型给出别的取值时降级为主题词，而不是让整次调用失败——
+    这个词本身可能仍然有用，为它作废整轮输出不划算。
+    """
+
+    items: list[Keyword] = []
     for value in values:
-        keyword = " ".join(value.split())
-        if keyword:
-            seen.setdefault(keyword, None)
-    return tuple(list(seen)[:KEYWORD_LIMIT])
+        raw = value if isinstance(value, str) else value.text
+        kind_text = KeywordKind.TOPIC.value if isinstance(value, str) else value.kind
+        try:
+            kind = KeywordKind(kind_text.strip().casefold())
+        except ValueError:
+            kind = KeywordKind.TOPIC
+        items.append(Keyword(text=raw, kind=kind))
+    return normalize_keyword_list(items)
 
 
 def stable_session_id(provider_id: str) -> str:

@@ -6,10 +6,18 @@ import sqlite3
 from typing import Any
 
 from rss_v2.adapters.sqlite.connection import SQLiteDatabase
+from rss_v2.adapters.sqlite.keywords import (
+    CURRENT_ENRICHMENT,
+    ESCAPE,
+    LATEST_VERSION,
+    like_pattern,
+    prefix_pattern,
+)
 from rss_v2.domain import (
     Message,
     MessageVersion,
     SourceLanguage,
+    normalize_keyword,
 )
 
 
@@ -151,6 +159,10 @@ class SQLiteMessageRepository:
         self,
         query: str | None = None,
         source_id: str | None = None,
+        keyword: str | None = None,
+        kind: str | None = None,
+        since: int | None = None,
+        until: int | None = None,
         limit: int = 50,
         offset: int = 0,
     ) -> list[tuple[Message, MessageVersion | None]]:
@@ -160,14 +172,40 @@ class SQLiteMessageRepository:
             clauses.append("m.source_id = ?")
             args.append(source_id)
         if query:
-            # 检索覆盖最新版本原文与最新机器生成内容：中文关键词要能命中英文来源的消息。
+            # 全文兜底：原文、最新译文、最新加工结果的标题与摘要，以及关键词的匹配键。
             clauses.append(
-                "(v.title LIKE ? OR v.summary LIKE ? OR v.content LIKE ?"
-                " OR t.title LIKE ? OR t.summary LIKE ? OR t.content LIKE ?"
-                " OR e.title LIKE ? OR e.summary LIKE ? OR e.keywords_json LIKE ?)"
+                f"(v.title LIKE ? ESCAPE '{ESCAPE}' OR v.summary LIKE ? ESCAPE '{ESCAPE}'"
+                f" OR v.content LIKE ? ESCAPE '{ESCAPE}'"
+                f" OR t.title LIKE ? ESCAPE '{ESCAPE}' OR t.summary LIKE ? ESCAPE '{ESCAPE}'"
+                f" OR t.content LIKE ? ESCAPE '{ESCAPE}'"
+                f" OR e.title LIKE ? ESCAPE '{ESCAPE}' OR e.summary LIKE ? ESCAPE '{ESCAPE}'"
+                " OR EXISTS (SELECT 1 FROM enrichment_keywords k"
+                f" WHERE k.enrichment_id = e.id AND k.normalized LIKE ? ESCAPE '{ESCAPE}'))"
             )
-            pattern = f"%{query.strip()}%"
+            pattern = like_pattern(query)
             args.extend([pattern] * 9)
+        if keyword:
+            normalized = normalize_keyword(keyword)
+            if normalized:
+                kind_clause = " AND k.kind = ?" if kind else ""
+                clauses.append(
+                    "EXISTS (SELECT 1 FROM enrichment_keywords k"
+                    f" WHERE k.enrichment_id = {CURRENT_ENRICHMENT}"
+                    f" AND (k.normalized = ? OR k.normalized LIKE ? ESCAPE '{ESCAPE}')"
+                    f"{kind_clause})"
+                )
+                args.extend([normalized, prefix_pattern(normalized)])
+                if kind:
+                    args.append(kind)
+            else:
+                # 输入没有可匹配的字面内容（例如全是标点）：明确返回空集，而不是忽略该条件。
+                clauses.append("0")
+        if since is not None:
+            clauses.append("COALESCE(v.published_at, v.collected_at) >= ?")
+            args.append(since)
+        if until is not None:
+            clauses.append("COALESCE(v.published_at, v.collected_at) <= ?")
+            args.append(until)
         where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
         connection = self.database.connect()
         try:
@@ -176,22 +214,16 @@ class SQLiteMessageRepository:
                 SELECT m.id AS message_id, m.source_id, m.external_id, m.created_at AS message_created_at,
                        m.updated_at AS message_updated_at, v.*
                 FROM messages m
-                LEFT JOIN message_versions v ON v.id = (
-                    SELECT v2.id FROM message_versions v2
-                    WHERE v2.message_id = m.id ORDER BY v2.version_number DESC LIMIT 1
-                )
+                LEFT JOIN message_versions v ON v.id = {LATEST_VERSION}
                 LEFT JOIN translations t ON t.id = (
                     SELECT t2.id FROM translations t2
                     WHERE t2.message_version_id = v.id AND t2.status = 'succeeded'
                     ORDER BY t2.updated_at DESC LIMIT 1
                 )
-                LEFT JOIN message_enrichments e ON e.id = (
-                    SELECT e2.id FROM message_enrichments e2
-                    WHERE e2.message_version_id = v.id AND e2.status = 'succeeded'
-                    ORDER BY e2.updated_at DESC LIMIT 1
-                )
+                LEFT JOIN message_enrichments e ON e.id = {CURRENT_ENRICHMENT}
                 {where}
-                ORDER BY m.updated_at DESC LIMIT ? OFFSET ?
+                ORDER BY COALESCE(v.published_at, v.collected_at) DESC, m.id
+                LIMIT ? OFFSET ?
                 """,
                 (*args, max(1, min(limit, 100)), max(0, offset)),
             ).fetchall()

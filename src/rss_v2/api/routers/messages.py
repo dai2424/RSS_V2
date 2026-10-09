@@ -6,6 +6,7 @@ from fastapi import APIRouter, Query, Request, status
 
 from rss_v2.api.presenters import (
     container,
+    related_message_response,
     task_response,
     version_response,
 )
@@ -13,6 +14,7 @@ from rss_v2.api.schemas import (
     MessageDetailResponse,
     MessageResponse,
     MessageVersionResponse,
+    RelatedMessageResponse,
     TaskResponse,
 )
 from rss_v2.domain import TaskType
@@ -41,11 +43,17 @@ def list_messages(
     request: Request,
     q: str | None = None,
     source_id: str | None = None,
+    keyword: str | None = None,
+    kind: str | None = None,
+    since: int | None = Query(default=None, description="发布时间下界，UTC 秒"),
+    until: int | None = Query(default=None, description="发布时间上界，UTC 秒"),
     limit: int = Query(default=50, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
 ) -> list[MessageResponse]:
     values: list[MessageResponse] = []
-    for row in container(request).message_service.list(q, source_id, limit, offset):
+    for row in container(request).message_service.list(
+        q, source_id, keyword, kind, since, until, limit, offset
+    ):
         values.append(
             MessageResponse(
                 id=row.message.id,
@@ -70,6 +78,20 @@ def get_message(message_id: str, request: Request) -> MessageDetailResponse:
         updated_at=message.updated_at,
         versions=[item for item in versions if item is not None],
     )
+
+
+@messages_router.get("/{message_id}/related", response_model=list[RelatedMessageResponse])
+def related_messages(
+    message_id: str,
+    request: Request,
+    limit: int = Query(default=8, ge=1, le=20),
+) -> list[RelatedMessageResponse]:
+    """共享关键词的其他消息；没有关键词时返回空列表。"""
+
+    return [
+        related_message_response(item)
+        for item in container(request).keyword_service.related(message_id, limit)
+    ]
 
 
 @messages_router.post(

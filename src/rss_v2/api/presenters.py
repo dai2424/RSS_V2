@@ -8,6 +8,7 @@ from rss_v2.api.schemas import (
     CategoryResponse,
     EnrichmentResponse,
     HealthResponse,
+    KeywordResponse,
     MessageVersionResponse,
     PromptCompileIssue,
     PromptCompileResponse,
@@ -17,6 +18,7 @@ from rss_v2.api.schemas import (
     ProviderKeyResponse,
     ProviderModelResponse,
     ProviderResponse,
+    RelatedMessageResponse,
     SourceResponse,
     TaskResponse,
     TaskSettingResponse,
@@ -34,6 +36,7 @@ from rss_v2.domain import (
     Provider,
     ProviderKey,
     ProviderModel,
+    RelatedMessage,
     Source,
     Task,
     TaskSettingView,
@@ -92,7 +95,9 @@ def enrichment_response(enrichment: Enrichment) -> EnrichmentResponse:
         status=enrichment.status,
         title=enrichment.title,
         summary=enrichment.summary,
-        keywords=list(enrichment.keywords),
+        keywords=[
+            KeywordResponse(text=item.text, kind=item.kind.value) for item in enrichment.keywords
+        ],
         provider_id=enrichment.provider_id,
         key_masked=enrichment.key_masked,
         model=enrichment.model,
@@ -263,6 +268,20 @@ def prompt_test_response(result: PromptTest) -> PromptTestResponse:
         output=result.output,
         error_code=result.error_code,
         error_message=result.error_message,
+    )
+
+
+def related_message_response(item: RelatedMessage) -> RelatedMessageResponse:
+    return RelatedMessageResponse(
+        message_id=item.message_id,
+        source_id=item.source_id,
+        version_id=item.version_id,
+        title=item.title,
+        published_at=item.published_at,
+        collected_at=item.collected_at,
+        shared=[
+            KeywordResponse(text=keyword.text, kind=keyword.kind.value) for keyword in item.shared
+        ],
     )
 
 

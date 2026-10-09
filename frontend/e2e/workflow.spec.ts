@@ -183,7 +183,7 @@ for (const width of [1280, 1440, 1920]) {
       .getByRole("row")
       .filter({ hasText: "内容加工" })
       .first();
-    await expect(enrichRow).toContainText("enrich-v1");
+    await expect(enrichRow).toContainText("enrich-v2");
     await expect(enrichRow.getByRole("link")).toHaveAttribute(
       "href",
       /^\/messages\//,
@@ -546,9 +546,9 @@ for (const width of [1280, 1440, 1920]) {
     await expect(page.getByText(/它正在启用/)).toBeVisible();
 
     // 切回内置版本（新版本随之归档），恢复全局启用状态。
-    await page.getByRole("button", { name: "enrich-v1" }).click();
+    await page.getByRole("button", { name: "enrich-v2" }).click();
     await expect(
-      page.getByRole("heading", { name: "enrich-v1", exact: true }),
+      page.getByRole("heading", { name: "enrich-v2", exact: true }),
     ).toBeVisible();
     const activate = page.getByRole("button", {
       name: "启用此版本",

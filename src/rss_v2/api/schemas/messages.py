@@ -25,6 +25,25 @@ class TranslationResponse(BaseModel):
     updated_at: int
 
 
+class KeywordResponse(BaseModel):
+    """一条检索关键词；text 用于展示，kind 用于检索优先级与界面标注。"""
+
+    text: str
+    kind: str
+
+
+class RelatedMessageResponse(BaseModel):
+    """相关消息；shared 是双方共有的关键词，按实体优先排列。"""
+
+    message_id: str
+    source_id: str
+    version_id: str
+    title: str
+    published_at: int | None
+    collected_at: int
+    shared: list[KeywordResponse]
+
+
 class EnrichmentResponse(BaseModel):
     """内容加工结果响应。"""
 
@@ -33,7 +52,7 @@ class EnrichmentResponse(BaseModel):
     status: str
     title: str | None
     summary: str | None
-    keywords: list[str]
+    keywords: list[KeywordResponse]
     provider_id: str | None
     key_masked: str | None
     model: str | None

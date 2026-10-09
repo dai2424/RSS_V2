@@ -9,6 +9,12 @@ export const statusLabels: Record<string, string> = {
   auto: "自动识别",
   mixed: "混合",
 };
+/** 关键词类型：与后端 entity/topic/event 对应，用于徽标提示。 */
+export const keywordKindLabels: Record<string, string> = {
+  entity: "实体：公司、产品、人物、机构、地点等具名对象",
+  topic: "主题：能概括话题的领域词",
+  event: "事件：本条消息里发生的事",
+};
 export function formatTime(value: number | string | null | undefined): string {
   if (!value) return "未知";
   const date = new Date(typeof value === "number" ? value * 1000 : value);

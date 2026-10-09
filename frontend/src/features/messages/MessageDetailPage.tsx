@@ -4,6 +4,7 @@ import { Link, useParams } from "react-router-dom";
 import { api, requireResponse } from "../../api/client";
 import { Button, ErrorState, PageHeader } from "../../components/ui";
 import { formatTime, statusLabels } from "../../lib/display";
+import { RelatedMessages } from "./RelatedMessages";
 import { VersionCard } from "./VersionCard";
 
 export function MessageDetailPage() {
@@ -132,6 +133,7 @@ export function MessageDetailPage() {
         />
       )}
       {version && <VersionCard version={version} />}
+      <RelatedMessages messageId={messageId} />
     </div>
   );
 }

@@ -17,6 +17,7 @@ from rss_v2.domain import (
     Provider,
     ProviderKey,
     ProviderModel,
+    RelatedMessage,
     Source,
     SourceDeletion,
     Task,
@@ -106,9 +107,19 @@ class MessageRepository(Protocol):
         self,
         query: str | None = None,
         source_id: str | None = None,
+        keyword: str | None = None,
+        kind: str | None = None,
+        since: int | None = None,
+        until: int | None = None,
         limit: int = 50,
         offset: int = 0,
-    ) -> list[tuple[Message, MessageVersion | None]]: ...
+    ) -> list[tuple[Message, MessageVersion | None]]:
+        """按全文、来源、关键词与时间范围筛选，默认按发布时间从新到旧。
+
+        keyword 走 enrichment_keywords 的匹配键，kind 只在该条件存在时生效；
+        since/until 是 UTC 秒，比较 COALESCE(published_at, collected_at)。
+        """
+        ...
 
     def versions(self, message_id: str) -> list[MessageVersion]: ...
 
@@ -227,6 +238,22 @@ class EnrichmentRepository(Protocol):
     def save(self, enrichment: Enrichment, lease_token: str | None = None) -> Enrichment: ...
 
     def get(self, enrichment_id: str) -> Enrichment | None: ...
+
+
+class KeywordRepository(Protocol):
+    """关键词索引、相关消息与回填候选端口。"""
+
+    def rebuild_index(self) -> int:
+        """按已存的关键词快照重建关系表，返回写入行数；不调用模型。"""
+        ...
+
+    def related_messages(self, message_id: str, limit: int = 8) -> list[RelatedMessage]:
+        """与指定消息共享关键词的其他消息，按共享实体优先、时间新近排序。"""
+        ...
+
+    def messages_missing_enrichment(self, source_id: str | None, limit: int) -> list[str]:
+        """还没有成功加工结果的消息 id，按发布时间从新到旧。"""
+        ...
 
 
 class VersionProcessing(Protocol):

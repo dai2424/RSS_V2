@@ -43,12 +43,12 @@ export function Card({
 export function Badge({
   children,
   tone = "neutral",
-}: {
-  children: ReactNode;
+  ...props
+}: HTMLAttributes<HTMLDivElement> & {
   tone?: "neutral" | "success" | "danger" | "warning";
 }) {
   return (
-    <BaseBadge variant="secondary" className={"badge-" + tone}>
+    <BaseBadge variant="secondary" className={"badge-" + tone} {...props}>
       {children}
     </BaseBadge>
   );

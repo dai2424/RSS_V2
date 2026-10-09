@@ -462,6 +462,25 @@ tbody tr:hover {
   flex-direction: column;
   gap: 4px;
 }
+.related-messages {
+  margin-top: 24px;
+}
+.related-list {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.related-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
 .badge-row {
   display: flex;
   flex-wrap: wrap;

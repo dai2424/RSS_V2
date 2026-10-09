@@ -167,6 +167,26 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/messages/{message_id}/related": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Related Messages
+     * @description 共享关键词的其他消息；没有关键词时返回空列表。
+     */
+    get: operations["related_messages_api_messages__message_id__related_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/messages/{message_id}/translate": {
     parameters: {
       query?: never;
@@ -195,6 +215,46 @@ export interface paths {
     put?: never;
     /** Enrich Message */
     post: operations["enrich_message_api_messages__message_id__enrich_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/keywords/rebuild": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Rebuild Index
+     * @description 按已存的加工结果重建关键词索引；不调用模型，可重复执行。
+     */
+    post: operations["rebuild_index_api_keywords_rebuild_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/keywords/backfill": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Backfill Keywords
+     * @description 为没有加工结果的存量消息入队；先用 dry_run 看条数再执行。
+     */
+    post: operations["backfill_keywords_api_keywords_backfill_post"];
     delete?: never;
     options?: never;
     head?: never;
@@ -724,7 +784,7 @@ export interface components {
       /** Summary */
       summary: string | null;
       /** Keywords */
-      keywords: string[];
+      keywords: components["schemas"]["KeywordResponse"][];
       /** Provider Id */
       provider_id: string | null;
       /** Key Masked */
@@ -772,6 +832,56 @@ export interface components {
       error_code: string | null;
       /** Error Message */
       error_message: string | null;
+    };
+    /**
+     * KeywordBackfillRequest
+     * @description 存量回填请求；dry_run 只统计候选条数，不入队。
+     */
+    KeywordBackfillRequest: {
+      /** Source Id */
+      source_id?: string | null;
+      /**
+       * Limit
+       * @default 50
+       */
+      limit: number;
+      /**
+       * Dry Run
+       * @default false
+       */
+      dry_run: boolean;
+    };
+    /**
+     * KeywordBackfillResponse
+     * @description 回填结果；reasons 是去重后的跳过原因。
+     */
+    KeywordBackfillResponse: {
+      /** Candidates */
+      candidates: number;
+      /** Enqueued */
+      enqueued: number;
+      /** Skipped */
+      skipped: number;
+      /** Reasons */
+      reasons: string[];
+    };
+    /**
+     * KeywordRebuildResponse
+     * @description 关键词索引重建结果：写入的关系表行数。
+     */
+    KeywordRebuildResponse: {
+      /** Indexed */
+      indexed: number;
+    };
+    /**
+     * KeywordResponse
+     * @description 一条检索关键词；text 用于展示，kind 用于检索优先级与界面标注。
+     */
+    KeywordResponse: {
+      /** Text */
+      text: string;
+      /** Kind */
+      kind: string;
     };
     /**
      * MessageDetailResponse
@@ -1210,6 +1320,26 @@ export interface components {
       extra_headers: {
         [key: string]: string;
       };
+    };
+    /**
+     * RelatedMessageResponse
+     * @description 相关消息；shared 是双方共有的关键词，按实体优先排列。
+     */
+    RelatedMessageResponse: {
+      /** Message Id */
+      message_id: string;
+      /** Source Id */
+      source_id: string;
+      /** Version Id */
+      version_id: string;
+      /** Title */
+      title: string;
+      /** Published At */
+      published_at: number | null;
+      /** Collected At */
+      collected_at: number;
+      /** Shared */
+      shared: components["schemas"]["KeywordResponse"][];
     };
     /**
      * SourceCreateRequest
@@ -1845,6 +1975,12 @@ export interface operations {
       query?: {
         q?: string | null;
         source_id?: string | null;
+        keyword?: string | null;
+        kind?: string | null;
+        /** @description 发布时间下界，UTC 秒 */
+        since?: number | null;
+        /** @description 发布时间上界，UTC 秒 */
+        until?: number | null;
         limit?: number;
         offset?: number;
       };
@@ -1892,6 +2028,39 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["MessageDetailResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  related_messages_api_messages__message_id__related_get: {
+    parameters: {
+      query?: {
+        limit?: number;
+      };
+      header?: never;
+      path: {
+        message_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["RelatedMessageResponse"][];
         };
       };
       /** @description Validation Error */
@@ -1954,6 +2123,59 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["TaskResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  rebuild_index_api_keywords_rebuild_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["KeywordRebuildResponse"];
+        };
+      };
+    };
+  };
+  backfill_keywords_api_keywords_backfill_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["KeywordBackfillRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["KeywordBackfillResponse"];
         };
       };
       /** @description Validation Error */

@@ -16,6 +16,11 @@ from .catalog import (
     SourceResponse,
     SourceTestResponse,
 )
+from .keywords import (
+    KeywordBackfillRequest,
+    KeywordBackfillResponse,
+    KeywordRebuildResponse,
+)
 from .llm import (
     ConnectionTestRequest,
     ConnectionTestResponse,
@@ -43,9 +48,11 @@ from .llm import (
 )
 from .messages import (
     EnrichmentResponse,
+    KeywordResponse,
     MessageDetailResponse,
     MessageResponse,
     MessageVersionResponse,
+    RelatedMessageResponse,
     TaskResponse,
     TranslationResponse,
 )
@@ -60,6 +67,10 @@ __all__ = [
     "ConnectionTestResponse",
     "EnrichmentResponse",
     "HealthResponse",
+    "KeywordBackfillRequest",
+    "KeywordBackfillResponse",
+    "KeywordRebuildResponse",
+    "KeywordResponse",
     "MessageDetailResponse",
     "MessageResponse",
     "MessageVersionResponse",
@@ -82,6 +93,7 @@ __all__ = [
     "ProviderModelResponse",
     "ProviderPatchRequest",
     "ProviderResponse",
+    "RelatedMessageResponse",
     "SourceCreateRequest",
     "SourceDeleteResponse",
     "SourceDetailResponse",

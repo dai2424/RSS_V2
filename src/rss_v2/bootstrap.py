@@ -13,6 +13,7 @@ from rss_v2.adapters.rss.feedparser_client import HTTPXFeedClient
 from rss_v2.adapters.sqlite.collections import SQLiteCollectionRunRepository
 from rss_v2.adapters.sqlite.connection import SQLiteDatabase
 from rss_v2.adapters.sqlite.enrichments import SQLiteEnrichmentRepository
+from rss_v2.adapters.sqlite.keywords import SQLiteKeywordRepository
 from rss_v2.adapters.sqlite.llm import SQLiteLLMCallRepository, SQLiteLLMConfigRepository
 from rss_v2.adapters.sqlite.messages import SQLiteMessageRepository
 from rss_v2.adapters.sqlite.migrations import MigrationRunner
@@ -31,6 +32,7 @@ from rss_v2.adapters.sqlite.v1_import import SQLiteV1Importer
 from rss_v2.domain import LLMProtocol, Provider
 from rss_v2.services.collection import CollectionService
 from rss_v2.services.enrichment import EnrichmentService
+from rss_v2.services.keywords import KeywordService
 from rss_v2.services.llm_failover import LLMFailover
 from rss_v2.services.messages import MessageService
 from rss_v2.services.processing import ProcessingService
@@ -58,6 +60,7 @@ class Container:
     tasks: SQLiteTaskRepository
     translations: SQLiteTranslationRepository
     enrichments: SQLiteEnrichmentRepository
+    keywords: SQLiteKeywordRepository
     llm_config: SQLiteLLMConfigRepository
     llm_calls: SQLiteLLMCallRepository
     prompts: SQLitePromptRepository
@@ -71,6 +74,7 @@ class Container:
     prompt_service: PromptService
     task_setting_service: TaskSettingService
     message_service: MessageService
+    keyword_service: KeywordService
     task_service: TaskService
     provider_service: ProviderService
 
@@ -105,6 +109,7 @@ def build_container(settings: Settings | None = None, migrate: bool = True) -> C
     tasks = SQLiteTaskRepository(database)
     translations = SQLiteTranslationRepository(database)
     enrichments = SQLiteEnrichmentRepository(database)
+    keywords = SQLiteKeywordRepository(database)
     llm_config = SQLiteLLMConfigRepository(database)
     llm_calls = SQLiteLLMCallRepository(database)
     prompts = SQLitePromptRepository(database)
@@ -164,6 +169,7 @@ def build_container(settings: Settings | None = None, migrate: bool = True) -> C
     )
     task_setting_service = TaskSettingService(task_settings, resolver)
     message_service = MessageService(messages, translations, enrichments)
+    keyword_service = KeywordService(keywords, enrichment_service.create_task)
     task_service = TaskService(tasks, messages, sources)
     provider_service = ProviderService(llm_config)
     return Container(
@@ -177,6 +183,7 @@ def build_container(settings: Settings | None = None, migrate: bool = True) -> C
         tasks,
         translations,
         enrichments,
+        keywords,
         llm_config,
         llm_calls,
         prompts,
@@ -190,6 +197,7 @@ def build_container(settings: Settings | None = None, migrate: bool = True) -> C
         prompt_service,
         task_setting_service,
         message_service,
+        keyword_service,
         task_service,
         provider_service,
     )

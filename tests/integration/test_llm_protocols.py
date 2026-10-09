@@ -197,7 +197,7 @@ def test_anthropic_messages_enrichment_and_error_mapping(client: TestClient) -> 
     result, tokens, _ = adapter.enrich(
         provider, "test-model", "secret-main", PromptPayload("系统", "用户"), "enrich-v1"
     )
-    assert result.keywords == ("关键词", "发布")
+    assert [item.text for item in result.keywords] == ["关键词", "发布"]
     assert tokens["total_tokens"] == 18
 
     route.mock(return_value=httpx.Response(429, json={"error": {"message": "slow down"}}))

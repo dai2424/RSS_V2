@@ -6,6 +6,8 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any
 
+from rss_v2.domain.keywords import Keyword
+
 
 class SourceLanguage(StrEnum):
     """来源声明语言。"""
@@ -308,7 +310,7 @@ class Enrichment:
     status: str  # queued/running/succeeded/failed；译文还允许 pending
     title: str | None  # 精简后的标题，过长时压缩
     summary: str | None  # 中文摘要，用于列表展示和检索
-    keywords: tuple[str, ...]  # 检索关键词；空元组表示没有可用关键词
+    keywords: tuple[Keyword, ...]  # 检索关键词；空元组表示没有可用关键词
     provider_id: str | None  # 模型服务 UUID
     key_masked: str | None  # 所用密钥的掩码标签，禁止保存密钥值
     model: str | None  # 实际使用的模型标识
@@ -326,7 +328,7 @@ class EnrichmentResult:
 
     title: str  # 精简标题纯文本
     summary: str  # 摘要纯文本
-    keywords: tuple[str, ...]  # 检索关键词
+    keywords: tuple[Keyword, ...]  # 检索关键词；展示用 text，匹配用 normalized
 
 
 @dataclass(frozen=True, slots=True)
