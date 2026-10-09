@@ -92,7 +92,7 @@ export function MessagesPage() {
     setParams(next);
   };
   return (
-    <div className="page">
+    <div className="page page-wide">
       <PageHeader title="消息" description="原文、版本和机器翻译。" />
       <Card>
         <div className="toolbar card-pad">

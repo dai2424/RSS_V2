@@ -23,7 +23,7 @@ export function PromptsPage() {
   const active =
     list?.find((item) => item.id === selected) ?? list?.[0] ?? null;
   return (
-    <div className="page">
+    <div className="page page-wide">
       <PageHeader
         title="提示词"
         description="按任务类型管理提示词：启用后生效，未被引用过的版本可以就地编辑或删除，其余只能另存新版本或归档。"

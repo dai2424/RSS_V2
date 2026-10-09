@@ -69,7 +69,7 @@ export function MessageDetailPage() {
       />
     );
   return (
-    <div className="page">
+    <div className="page page-reading">
       <PageHeader
         title={version?.title ?? "消息详情"}
         description="原文与机器译文分别保存，历史版本可查看。"

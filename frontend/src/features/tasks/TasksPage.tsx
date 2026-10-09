@@ -37,7 +37,7 @@ export function TasksPage() {
       void queryClient.invalidateQueries({ queryKey: ["tasks"] }),
   });
   return (
-    <div className="page">
+    <div className="page page-wide">
       <PageHeader
         title="任务"
         description="状态每 3 秒刷新；独立 worker 负责执行和恢复。"

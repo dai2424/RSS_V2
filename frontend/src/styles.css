@@ -145,7 +145,8 @@ a {
 .main-content {
   flex: 1;
   min-width: 0;
-  max-width: 1480px;
+  /* 外壳上限只负责兜底，具体页面宽度由 .page 系列决定：1800 = 最宽页面 1600 + 两侧内边距上限 64×2 */
+  max-width: 1800px;
   padding: 36px clamp(20px, 4vw, 64px);
 }
 .mobile-header {
@@ -208,9 +209,20 @@ code {
     transition-duration: 0.01ms !important;
   }
 }
+/* 页面容器分三档，宽度按内容类型给固定上限，不随窗口按比例拉伸：
+   .page         详情与表单（默认）
+   .page-reading 阅读正文页：正文上限 + 卡片左右内边距 24px×2
+   .page-wide    列表与配置页：列宽可比对，宽屏下继续变宽但不无限拉伸
+   取值依据见 docs/项目说明/Web界面规范.md 第 3 节。 */
 .page {
   margin: 0 auto;
   max-width: 1180px;
+}
+.page-reading {
+  max-width: calc(48rem + 48px);
+}
+.page-wide {
+  max-width: 1600px;
 }
 .page-header {
   align-items: flex-start;
@@ -349,8 +361,9 @@ textarea {
 .category-form {
   margin-top: 20px;
 }
+/* 摘要预览：跟随标题列变宽，但仍限制行宽，不让宽屏把整行拉成难读的长句 */
 .cell-subtitle {
-  max-width: 300px;
+  max-width: 36rem;
   overflow-wrap: anywhere;
 }
 .page-header p {
@@ -497,9 +510,11 @@ tbody tr:hover {
   gap: 16px;
   grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr);
 }
+/* 阅读正文约 48rem：根字号 14px 下 672px，16px 正文约 42 个汉字一行；窗口再宽也不放宽（规范第 4 节） */
 .prose {
   color: hsl(var(--foreground));
   line-height: 1.75;
+  max-width: 48rem;
   white-space: pre-wrap;
 }
 .prose h2 {

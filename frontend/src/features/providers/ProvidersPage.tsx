@@ -68,7 +68,7 @@ export function ProvidersPage() {
     [list, selectedId],
   );
   return (
-    <div className="page">
+    <div className="page page-wide">
       <PageHeader
         title="模型配置"
         description="管理兼容模型服务：连接、模型列表与 API Key；数值越小，优先级越高。"

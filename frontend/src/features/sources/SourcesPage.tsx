@@ -63,7 +63,7 @@ export function SourcesPage() {
       onError: (error) => showToast({ type: "error", content: error.message }),
     });
   return (
-    <div className="page">
+    <div className="page page-wide">
       <PageHeader
         title="RSS 来源"
         description="来源管理、分类与健康检查。"

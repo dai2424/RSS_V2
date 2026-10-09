@@ -16,7 +16,7 @@ export function TaskSettingsPage() {
   });
   const active = categoryId || categories.data?.[0]?.id || "";
   return (
-    <div className="page">
+    <div className="page page-wide">
       <div className="page-header">
         <div>
           <h1>任务分配</h1>
