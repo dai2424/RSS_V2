@@ -30,7 +30,7 @@ def test_fresh_database_and_checksum(tmp_path: Path) -> None:
     shutil.copytree("migrations", migrations)
     database = SQLiteDatabase(tmp_path / "rss.db")
     runner = MigrationRunner(database, migrations)
-    assert len(runner.run()) == 12
+    assert len(runner.run()) == 13
     assert runner.run() == []
     path = migrations / "0001_initial.sql"
     path.write_text(path.read_text(encoding="utf-8") + "\n-- mutation\n", encoding="utf-8")
@@ -75,6 +75,23 @@ def test_keyword_tables_and_structured_prompt_seed(tmp_path: Path) -> None:
             == 1
         )
         assert "kind" in active[0]["user_template"]
+        # 别名与合并记录：别名指向最终规范词，合并记录保留撤销时间。
+        alias_columns = {
+            row["name"] for row in connection.execute("PRAGMA table_info(keyword_aliases)")
+        }
+        assert {
+            "alias_norm",
+            "canonical_norm",
+            "merge_id",
+            "previous_canonical",
+            "previous_merge_id",
+        } <= alias_columns
+        merge_columns = {
+            row["name"] for row in connection.execute("PRAGMA table_info(keyword_merges)")
+        }
+        assert {"target_norm", "target_raw", "members_json", "affected_messages", "undone_at"} <= (
+            merge_columns
+        )
         assert not connection.execute("PRAGMA foreign_key_check").fetchall()
     finally:
         connection.close()
@@ -103,7 +120,7 @@ def test_two_processes_do_not_apply_migration_twice(tmp_path: Path) -> None:
         results = list(
             pool.map(lambda _: MigrationRunner(database, Path("migrations")).run(), range(2))
         )
-    assert sum(len(result) for result in results) == 12
+    assert sum(len(result) for result in results) == 13
 
 
 def test_upgrade_preserves_versions_and_translations(tmp_path: Path) -> None:

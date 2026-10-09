@@ -1,5 +1,8 @@
 """关键词的存储、索引与检索。
 
+共享的 SQL 片段与匹配模式在 keyword_sql.py，别名与合并在 keyword_aliases.py，
+本模块只负责关键词索引本身与检索支撑。
+
 `message_enrichments.keywords_json` 是一份快照（模型当时的原样输出），真正的检索面是
 `enrichment_keywords` 关系表：每行一个匹配键。本模块是这张表唯一的读写入口，检索、
 相关消息与索引重建都从这里走，避免同一段 SQL 在多处漂移。
@@ -12,55 +15,15 @@ import sqlite3
 from typing import Any, cast
 
 from rss_v2.adapters.sqlite.connection import SQLiteDatabase
-from rss_v2.domain import Keyword, KeywordKind, RelatedMessage
-
-#: LIKE 默认把 % 与 _ 当通配符；用户输入必须按字面匹配，因此统一转义并声明 ESCAPE。
-ESCAPE = "\\"
-
-#: 某个版本"当前生效"的加工结果：最近一次成功的那套。检索、相关消息与列表展示共用同一条
-#: 定义，否则历史提示词版本产出的关键词会继续参与匹配，换提示词后的结果无法收敛。
-CURRENT_ENRICHMENT = (
-    "(SELECT e.id FROM message_enrichments e"
-    " WHERE e.message_version_id = v.id AND e.status = 'succeeded'"
-    " ORDER BY e.updated_at DESC LIMIT 1)"
+from rss_v2.adapters.sqlite.keyword_aliases import history, merge, preview, resolve_key, undo
+from rss_v2.adapters.sqlite.keyword_sql import (
+    CURRENT_ENRICHMENT,
+    KIND_WEIGHT,
+    LATEST_VERSION,
+    LATEST_VERSION_OF_MESSAGE,
+    RESOLVED_KEY,
 )
-
-#: 最新版本：列表、相关消息都只比较每条消息的最新版本。
-LATEST_VERSION = (
-    "(SELECT v2.id FROM message_versions v2"
-    " WHERE v2.message_id = m.id ORDER BY v2.version_number DESC LIMIT 1)"
-)
-
-#: 指定消息 id 的最新版本，用于没有 messages 别名的子查询。
-LATEST_VERSION_OF_MESSAGE = (
-    "(SELECT v2.id FROM message_versions v2 WHERE v2.message_id = ?"
-    " ORDER BY v2.version_number DESC LIMIT 1)"
-)
-
-#: 相关度计分：实体重合比主题与事件更能说明"说的是同一件事"。
-KIND_WEIGHT = {"entity": 4, "topic": 2, "event": 1}
-
-
-def escape_like(value: str) -> str:
-    """反斜杠、百分号与下划线都按字面处理；调用方的 SQL 必须带 ESCAPE。"""
-
-    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-
-
-def like_pattern(value: str) -> str:
-    """包含匹配的转义模式。"""
-
-    return f"%{escape_like(value.strip())}%"
-
-
-def prefix_pattern(value: str) -> str:
-    """前缀匹配的转义模式。
-
-    关键词用前缀而不是包含匹配：输入"尊界"要能命中"尊界v800"（同一主体的不同粒度），
-    但"ai"不该命中"openai"——那正是旧实现里把 LIKE 打在 JSON 文本上的误命中。
-    """
-
-    return f"{escape_like(value)}%"
+from rss_v2.domain import Keyword, KeywordKind, MergePreview, MergeRecord, RelatedMessage
 
 
 def parse_keywords(value: str) -> tuple[Keyword, ...]:
@@ -174,29 +137,38 @@ class SQLiteKeywordRepository:
         try:
             base_rows = connection.execute(
                 f"""
-                SELECT k.raw, k.normalized, k.kind FROM enrichment_keywords k
+                SELECT {RESOLVED_KEY} AS keyword_key, k.raw, k.kind
+                FROM enrichment_keywords k
+                LEFT JOIN keyword_aliases a ON a.alias_norm = k.normalized
                 WHERE k.enrichment_id = (
                     SELECT e.id FROM message_enrichments e
                     WHERE e.message_version_id = {LATEST_VERSION_OF_MESSAGE}
                       AND e.status = 'succeeded'
                     ORDER BY e.updated_at DESC LIMIT 1)
+                ORDER BY k.ordinal
                 """,
                 (message_id,),
             ).fetchall()
-            base: dict[str, int] = {
-                str(row["normalized"]): KIND_WEIGHT.get(str(row["kind"]), 1) for row in base_rows
-            }
+            # 同一规范词在一行里只算一次：合并后同一消息可能同时存在两种写法。
+            base: dict[str, Keyword] = {}
+            for row in base_rows:
+                base.setdefault(
+                    str(row["keyword_key"]),
+                    Keyword(text=str(row["raw"]), kind=KeywordKind(str(row["kind"]))),
+                )
             if not base:
                 return []
             placeholders = ",".join("?" for _ in base)
             rows = connection.execute(
                 f"""
-                SELECT m.id AS message_id, m.source_id, v.id AS version_id, v.title,
-                       v.published_at, v.collected_at, k.raw, k.normalized, k.kind
+                SELECT DISTINCT m.id AS message_id, m.source_id, v.id AS version_id,
+                       v.title, v.published_at, v.collected_at,
+                       {RESOLVED_KEY} AS keyword_key
                 FROM enrichment_keywords k
                 JOIN message_versions v ON v.id = k.message_version_id
                 JOIN messages m ON m.id = v.message_id
-                WHERE k.normalized IN ({placeholders})
+                LEFT JOIN keyword_aliases a ON a.alias_norm = k.normalized
+                WHERE {RESOLVED_KEY} IN ({placeholders})
                   AND k.enrichment_id = {CURRENT_ENRICHMENT}
                   AND v.id = {LATEST_VERSION}
                   AND m.id <> ?
@@ -207,14 +179,18 @@ class SQLiteKeywordRepository:
             connection.close()
 
         scores: dict[str, int] = {}
-        shared: dict[str, list[Keyword]] = {}
+        shared: dict[str, dict[str, Keyword]] = {}
         latest: dict[str, sqlite3.Row] = {}
         for row in rows:
             key = str(row["message_id"])
-            scores[key] = scores.get(key, 0) + base.get(str(row["normalized"]), 1)
-            shared.setdefault(key, []).append(
-                Keyword(text=str(row["raw"]), kind=KeywordKind(str(row["kind"])))
-            )
+            keyword_key = str(row["keyword_key"])
+            # 同一规范词的多写法只展示一次，避免"已合并的写法"在界面上重复出现。
+            scored = shared.setdefault(key, {})
+            if keyword_key in scored:
+                continue
+            # 展示用基准消息的写法：合并之后不该再把同一个概念显示成两个词。
+            scored[keyword_key] = base[keyword_key]
+            scores[key] = scores.get(key, 0) + KIND_WEIGHT.get(base[keyword_key].kind.value, 1)
             latest.setdefault(key, row)
 
         def rank(key: str) -> tuple[int, int]:
@@ -232,10 +208,35 @@ class SQLiteKeywordRepository:
                     title=str(row["title"]),
                     published_at=row["published_at"],
                     collected_at=int(row["collected_at"]),
-                    shared=tuple(shared[key]),
+                    shared=tuple(shared[key].values()),
                 )
             )
         return result
+
+    def resolve_key(self, key: str) -> str:
+        """把输入键解析到规范词；不是别名时原样返回。"""
+
+        return resolve_key(self.database, key)
+
+    def merge_preview(self, sources: list[str], target: str) -> MergePreview:
+        """合并影响面预览；与执行共用同一份计算。"""
+
+        return preview(self.database, sources, target)
+
+    def merge(self, sources: list[str], target: str) -> MergeRecord:
+        """把若干写法并入目标规范词。"""
+
+        return merge(self.database, sources, target)
+
+    def undo_merge(self, merge_id: str) -> int:
+        """撤销一次合并，返回恢复的行数。"""
+
+        return undo(self.database, merge_id)
+
+    def merges(self, limit: int = 20) -> list[MergeRecord]:
+        """最近的合并记录，包含已撤销的那些。"""
+
+        return history(self.database, limit)
 
     def messages_missing_enrichment(self, source_id: str | None, limit: int) -> list[str]:
         """没有成功加工结果的最新版本，按发布时间从新到旧。

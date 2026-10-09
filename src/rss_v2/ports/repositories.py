@@ -10,6 +10,8 @@ from rss_v2.domain import (
     Enrichment,
     HealthCheck,
     LLMCall,
+    MergePreview,
+    MergeRecord,
     Message,
     MessageVersion,
     Prompt,
@@ -253,6 +255,26 @@ class KeywordRepository(Protocol):
 
     def messages_missing_enrichment(self, source_id: str | None, limit: int) -> list[str]:
         """还没有成功加工结果的消息 id，按发布时间从新到旧。"""
+        ...
+
+    def resolve_key(self, key: str) -> str:
+        """把匹配键解析到规范词；不是别名时原样返回。"""
+        ...
+
+    def merge_preview(self, sources: list[str], target: str) -> MergePreview:
+        """合并影响面预览：合并后的词频、受影响消息数与全部写法。"""
+        ...
+
+    def merge(self, sources: list[str], target: str) -> MergeRecord:
+        """把若干规范词并入目标词，写别名表并留下可撤销的记录。"""
+        ...
+
+    def undo_merge(self, merge_id: str) -> int:
+        """撤销一次合并，返回恢复的别名行数。"""
+        ...
+
+    def merges(self, limit: int = 20) -> list[MergeRecord]:
+        """最近的合并记录，包含已撤销的那些。"""
         ...
 
 

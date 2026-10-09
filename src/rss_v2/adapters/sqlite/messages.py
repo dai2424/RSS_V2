@@ -5,11 +5,13 @@ from __future__ import annotations
 import sqlite3
 from typing import Any
 
+from rss_v2.adapters.sqlite import keyword_aliases as keyword_repository
 from rss_v2.adapters.sqlite.connection import SQLiteDatabase
-from rss_v2.adapters.sqlite.keywords import (
+from rss_v2.adapters.sqlite.keyword_sql import (
     CURRENT_ENRICHMENT,
     ESCAPE,
     LATEST_VERSION,
+    RESOLVED_KEY,
     like_pattern,
     prefix_pattern,
 )
@@ -185,16 +187,18 @@ class SQLiteMessageRepository:
             pattern = like_pattern(query)
             args.extend([pattern] * 9)
         if keyword:
-            normalized = normalize_keyword(keyword)
-            if normalized:
+            # 输入先解析到规范词：搜索被合并掉的写法时，命中它并入的那个词条。
+            resolved = keyword_repository.resolve_key(self.database, normalize_keyword(keyword))
+            if resolved:
                 kind_clause = " AND k.kind = ?" if kind else ""
                 clauses.append(
                     "EXISTS (SELECT 1 FROM enrichment_keywords k"
+                    " LEFT JOIN keyword_aliases a ON a.alias_norm = k.normalized"
                     f" WHERE k.enrichment_id = {CURRENT_ENRICHMENT}"
-                    f" AND (k.normalized = ? OR k.normalized LIKE ? ESCAPE '{ESCAPE}')"
+                    f" AND ({RESOLVED_KEY} = ? OR {RESOLVED_KEY} LIKE ? ESCAPE '{ESCAPE}')"
                     f"{kind_clause})"
                 )
-                args.extend([normalized, prefix_pattern(normalized)])
+                args.extend([resolved, prefix_pattern(resolved)])
                 if kind:
                     args.append(kind)
             else:

@@ -5,161 +5,39 @@ from typing import Any
 import respx
 from fastapi.testclient import TestClient
 from httpx import Response
+from keyword_support import (
+    KeywordProvider,
+    collect,
+    configure_model,
+    create_source,
+    disable_enrich,
+    enrich_all,
+    feed,
+    search,
+)
 
 from rss_v2.bootstrap import Container
-from rss_v2.domain import (
-    EnrichmentResult,
-    Keyword,
-    KeywordKind,
-    Provider,
-    TranslationResult,
-)
-from rss_v2.llm import PromptPayload
-from rss_v2.tasks.worker import Worker
-
-CATEGORY_ID = "8cabd1f6-c0c3-4b32-863d-3836cf5a8171"
-
-#: 三条消息：两条共享实体"尊界"，一条只谈 OpenAI，用来验证前缀匹配与相关度排序。
-LONG_TEXT = "这段描述足够长，用来触发内容加工任务。" * 20
+from rss_v2.domain import Keyword, KeywordKind
 
 
-def feed(items: list[tuple[str, str, str]]) -> bytes:
-    """按 (guid, 标题, 发布时间) 生成最小 RSS。"""
+def provider() -> KeywordProvider:
+    """按标题返回不同关键词：两条共享实体"尊界"，一条只谈 OpenAI。"""
 
-    entries = "".join(
-        f"""<item>
-  <guid>{guid}</guid>
-  <title>{title}</title>
-  <link>https://example.test/{guid}</link>
-  <description><![CDATA[{LONG_TEXT}]]></description>
-  <pubDate>{published}</pubDate>
-</item>
-"""
-        for guid, title, published in items
-    )
-    return f"""<?xml version="1.0" encoding="UTF-8"?>
-<rss version="2.0"><channel>
-<title>Example Tech</title>
-<link>https://example.test/</link>
-<description>Example feed</description>
-{entries}</channel></rss>"""
-
-
-def create_source(client: TestClient, url: str) -> str:
-    response = client.post(
-        "/api/sources",
-        json={
-            "name": "Example Tech",
-            "url": url,
-            "platform": "Example",
-            "language": "auto",
-            "category_id": CATEGORY_ID,
-        },
-    )
-    assert response.status_code == 201, response.text
-    return response.json()["id"]
-
-
-def configure_model(client: TestClient) -> None:
-    provider = client.post(
-        "/api/llm/providers", json={"name": "primary", "base_url": "https://llm.test/v1"}
-    )
-    assert provider.status_code == 201, provider.text
-    provider_id = provider.json()["id"]
-    assert (
-        client.post(f"/api/llm/providers/{provider_id}/models", json={"model": "test-model"})
-    ).status_code == 201
-    assert (
-        client.post(f"/api/llm/providers/{provider_id}/keys", json={"secret": "secret-main"})
-    ).status_code == 201
-
-
-def disable_enrich(client: TestClient, source_id: str) -> None:
-    """只留手动入队，避免自动任务干扰候选统计。"""
-
-    response = client.put(
-        f"/api/task-settings/source/{source_id}",
-        json={"settings": [{"task_kind": "enrich_message", "enabled": False}]},
-    )
-    assert response.status_code == 200, response.text
-
-
-def collect(client: TestClient, source_id: str) -> Worker:
-    run = client.post("/api/collection/runs", json={"source_ids": [source_id]})
-    assert run.status_code == 202, run.text
-    worker = Worker(client.app.state.container)
-    assert worker.run_once() is True
-    return worker
-
-
-class KeywordProvider:
-    """按标题返回不同关键词的假模型，用来构造跨消息共享的关键词。"""
-
-    def __init__(self) -> None:
-        self.calls = 0
-
-    def translate(
-        self,
-        provider: Provider,
-        model: str,
-        secret: str,
-        prompt: PromptPayload,
-        prompt_version: str,
-    ) -> tuple[TranslationResult, dict[str, int], int]:
-        return TranslationResult("中文标题", "中文摘要", "中文正文"), {}, 1
-
-    def probe(
-        self, provider: Provider, model: str, secret: str, prompt: PromptPayload
-    ) -> tuple[str, dict[str, int], int]:
-        return "ok", {}, 1
-
-    def enrich(
-        self,
-        provider: Provider,
-        model: str,
-        secret: str,
-        prompt: PromptPayload,
-        prompt_version: str,
-    ) -> tuple[EnrichmentResult, dict[str, int], int]:
-        self.calls += 1
-        text = prompt.user
-        if "尊界V800" in text:
-            keywords = (
+    return KeywordProvider(
+        mapping={
+            "尊界V800": (
                 Keyword("尊界", KeywordKind.ENTITY),
                 Keyword("尊界V800", KeywordKind.ENTITY),
                 Keyword("刹车测试", KeywordKind.EVENT),
-            )
-        elif "尊界S800" in text:
-            keywords = (
+            ),
+            "尊界S800": (
                 Keyword("尊界", KeywordKind.ENTITY),
                 Keyword("尊界S800", KeywordKind.ENTITY),
                 Keyword("交付", KeywordKind.TOPIC),
-            )
-        else:
-            keywords = (
-                Keyword("OpenAI", KeywordKind.ENTITY),
-                Keyword("定价", KeywordKind.TOPIC),
-            )
-        return EnrichmentResult("精简标题", "中文摘要。", keywords), {"total_tokens": 5}, 1
-
-
-def enrich_all(client: TestClient, fake: KeywordProvider) -> None:
-    """逐条入队并执行，直到没有排队的模型任务。"""
-
-    container: Container = client.app.state.container
-    container.enrichment_service.provider = fake
-    worker = Worker(container)
-    for message in client.get("/api/messages").json():
-        created = client.post(f"/api/messages/{message['id']}/enrich")
-        assert created.status_code == 202, created.text
-    while worker.run_once():
-        pass
-
-
-def search(client: TestClient, **params: str) -> list[dict[str, Any]]:
-    response = client.get("/api/messages", params=params)
-    assert response.status_code == 200, response.text
-    return list(response.json())
+            ),
+        },
+        default=(Keyword("OpenAI", KeywordKind.ENTITY), Keyword("定价", KeywordKind.TOPIC)),
+    )
 
 
 @respx.mock
@@ -252,7 +130,7 @@ def test_keyword_search_is_normalized_and_kind_aware(client: TestClient) -> None
     configure_model(client)
     source_id = create_source(client, url)
     collect(client, source_id)
-    enrich_all(client, KeywordProvider())
+    enrich_all(client, provider())
 
     # 前缀命中同一主体的不同粒度。
     assert len(search(client, keyword="尊界")) == 2
@@ -289,7 +167,7 @@ def test_related_messages_rank_shared_entities(client: TestClient) -> None:
     configure_model(client)
     source_id = create_source(client, url)
     collect(client, source_id)
-    enrich_all(client, KeywordProvider())
+    enrich_all(client, provider())
 
     first = search(client)[0]
     related = client.get(f"/api/messages/{first['id']}/related")

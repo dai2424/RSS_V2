@@ -99,3 +99,27 @@ def normalize_keyword_list(
         if len(result) >= limit:
             break
     return tuple(result)
+
+
+@dataclass(frozen=True, slots=True)
+class MergePreview:
+    """一次合并的影响面；预览与执行共用同一份计算，避免两处口径不一致。"""
+
+    sources: tuple[str, ...]  # 将被并入的规范词键
+    target: str  # 目标规范词键
+    forms: tuple[Keyword, ...]  # 合并后该词条下的全部写法
+    mentions: int  # 合并后的出现次数（词位）
+    messages: int  # 受影响的消息数（按版本去重）
+
+
+@dataclass(frozen=True, slots=True)
+class MergeRecord:
+    """一次合并的记录；已撤销的记录保留下来供审计。"""
+
+    id: str  # 合并 UUID
+    target_key: str  # 合并后的规范词键
+    target_raw: str  # 当时的展示写法
+    members: tuple[Keyword, ...]  # 合并时被并入的写法快照（不可变，只用于展示）
+    messages: int  # 合并时受影响的消息数
+    created_at: int  # 创建时间，UTC 秒
+    undone_at: int | None  # 撤销时间，UTC 秒；为空表示仍然生效

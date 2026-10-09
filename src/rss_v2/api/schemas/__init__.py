@@ -19,7 +19,12 @@ from .catalog import (
 from .keywords import (
     KeywordBackfillRequest,
     KeywordBackfillResponse,
+    KeywordMergePreviewResponse,
+    KeywordMergeRecordResponse,
+    KeywordMergeRequest,
+    KeywordMergeResponse,
     KeywordRebuildResponse,
+    KeywordUndoResponse,
 )
 from .llm import (
     ConnectionTestRequest,
@@ -69,7 +74,12 @@ __all__ = [
     "HealthResponse",
     "KeywordBackfillRequest",
     "KeywordBackfillResponse",
+    "KeywordMergePreviewResponse",
+    "KeywordMergeRecordResponse",
+    "KeywordMergeRequest",
+    "KeywordMergeResponse",
     "KeywordRebuildResponse",
+    "KeywordUndoResponse",
     "KeywordResponse",
     "MessageDetailResponse",
     "MessageResponse",

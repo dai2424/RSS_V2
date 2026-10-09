@@ -8,6 +8,9 @@ from rss_v2.api.schemas import (
     CategoryResponse,
     EnrichmentResponse,
     HealthResponse,
+    KeywordMergePreviewResponse,
+    KeywordMergeRecordResponse,
+    KeywordMergeResponse,
     KeywordResponse,
     MessageVersionResponse,
     PromptCompileIssue,
@@ -29,6 +32,8 @@ from rss_v2.domain import (
     Category,
     Enrichment,
     HealthCheck,
+    MergePreview,
+    MergeRecord,
     MessageVersion,
     Prompt,
     PromptTest,
@@ -269,6 +274,42 @@ def prompt_test_response(result: PromptTest) -> PromptTestResponse:
         error_code=result.error_code,
         error_message=result.error_message,
     )
+
+
+def _merge_preview_response(item: MergePreview) -> KeywordMergePreviewResponse:
+    return KeywordMergePreviewResponse(
+        target=item.target,
+        sources=list(item.sources),
+        forms=[
+            KeywordResponse(text=keyword.text, kind=keyword.kind.value) for keyword in item.forms
+        ],
+        mentions=item.mentions,
+        messages=item.messages,
+    )
+
+
+def merge_record_response(item: MergeRecord) -> KeywordMergeRecordResponse:
+    return KeywordMergeRecordResponse(
+        id=item.id,
+        target_key=item.target_key,
+        target_raw=item.target_raw,
+        members=[
+            KeywordResponse(text=keyword.text, kind=keyword.kind.value) for keyword in item.members
+        ],
+        messages=item.messages,
+        created_at=item.created_at,
+        undone_at=item.undone_at,
+    )
+
+
+def merge_response(record: MergeRecord, preview: MergePreview) -> KeywordMergeResponse:
+    return KeywordMergeResponse(
+        record=merge_record_response(record), preview=_merge_preview_response(preview)
+    )
+
+
+def merge_preview_response(item: MergePreview) -> KeywordMergePreviewResponse:
+    return _merge_preview_response(item)
 
 
 def related_message_response(item: RelatedMessage) -> RelatedMessageResponse:
