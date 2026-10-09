@@ -403,6 +403,15 @@ tbody tr:hover {
   font-size: 12px;
   margin-top: 4px;
 }
+/* 短字段（次数、耗时、时间）不换行，避免被长内容挤成竖排。 */
+.cell-nowrap {
+  white-space: nowrap;
+}
+/* 失败原因单独占一行：任务行的窄列放不下整句原因。 */
+.task-error td {
+  border-bottom: 1px solid hsl(var(--border));
+  padding-top: 0;
+}
 /* 列表摘要截断到两行，完整内容在详情页阅读。 */
 .clamp-2 {
   -webkit-box-orient: vertical;

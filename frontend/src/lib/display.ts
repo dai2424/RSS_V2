@@ -21,6 +21,15 @@ export function formatTime(value: number | string | null | undefined): string {
     }).format(date) + " 上海"
   );
 }
+/** 任务耗时：按量级给到秒 / 分 / 时，负数与非法输入算未知。 */
+export function formatDuration(seconds: number): string {
+  if (!Number.isFinite(seconds) || seconds < 0) return "未知";
+  if (seconds < 60) return `${seconds} 秒`;
+  if (seconds < 3600)
+    return `${Math.floor(seconds / 60)} 分 ${seconds % 60} 秒`;
+  return `${Math.floor(seconds / 3600)} 时 ${Math.floor((seconds % 3600) / 60)} 分`;
+}
+
 export function safeLink(url: string): string | undefined {
   try {
     const parsed = new URL(url);

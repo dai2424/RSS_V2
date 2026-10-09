@@ -1350,6 +1350,9 @@ export interface components {
     /**
      * TaskResponse
      * @description 任务状态响应。
+     *
+     *     model / prompt_version 来自非敏感的任务快照；target_* 由任务列表的服务层解析
+     *     （消息标题或来源名），嵌入在消息详情里的任务不填目标，因此给默认值。
      */
     TaskResponse: {
       /** Id */
@@ -1376,6 +1379,22 @@ export interface components {
       created_at: number;
       /** Updated At */
       updated_at: number;
+      /** Model */
+      model?: string | null;
+      /** Prompt Version */
+      prompt_version?: string | null;
+      /**
+       * Target Kind
+       * @default
+       */
+      target_kind: string;
+      /** Target Id */
+      target_id?: string | null;
+      /**
+       * Target Label
+       * @default
+       */
+      target_label: string;
     };
     /**
      * TaskSettingItem

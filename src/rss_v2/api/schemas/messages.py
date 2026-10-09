@@ -87,7 +87,11 @@ class MessageDetailResponse(BaseModel):
 
 
 class TaskResponse(BaseModel):
-    """任务状态响应。"""
+    """任务状态响应。
+
+    model / prompt_version 来自非敏感的任务快照；target_* 由任务列表的服务层解析
+    （消息标题或来源名），嵌入在消息详情里的任务不填目标，因此给默认值。
+    """
 
     id: str
     task_type: str
@@ -101,3 +105,8 @@ class TaskResponse(BaseModel):
     error_message: str | None
     created_at: int
     updated_at: int
+    model: str | None = None
+    prompt_version: str | None = None
+    target_kind: str = ""
+    target_id: str | None = None
+    target_label: str = ""

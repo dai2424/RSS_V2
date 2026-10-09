@@ -164,7 +164,7 @@ def build_container(settings: Settings | None = None, migrate: bool = True) -> C
     )
     task_setting_service = TaskSettingService(task_settings, resolver)
     message_service = MessageService(messages, translations, enrichments)
-    task_service = TaskService(tasks)
+    task_service = TaskService(tasks, messages, sources)
     provider_service = ProviderService(llm_config)
     return Container(
         actual_settings,

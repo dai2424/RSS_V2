@@ -37,6 +37,7 @@ from rss_v2.domain import (
     Source,
     Task,
     TaskSettingView,
+    TaskView,
     Translation,
 )
 from rss_v2.domain.prompts import CompiledPrompt, spec_for
@@ -130,8 +131,44 @@ def version_response(
     )
 
 
+def _snapshot_text(value: object) -> str | None:
+    """任务快照里的文本字段；缺失或空串统一算未知。"""
+
+    text = str(value or "").strip()
+    return text or None
+
+
 def task_response(task: Task) -> TaskResponse:
-    return TaskResponse.model_validate(task, from_attributes=True)
+    """任务响应；模型与提示词版本从任务快照读取，都是非敏感参数。"""
+
+    return TaskResponse(
+        id=task.id,
+        task_type=task.task_type,
+        idempotency_key=task.idempotency_key,
+        status=task.status,
+        attempts=task.attempts,
+        lease_until=task.lease_until,
+        input_version_id=task.input_version_id,
+        output_version_id=task.output_version_id,
+        error_code=task.error_code,
+        error_message=task.error_message,
+        created_at=task.created_at,
+        updated_at=task.updated_at,
+        model=_snapshot_text(task.payload.get("model")),
+        prompt_version=_snapshot_text(task.payload.get("prompt_version")),
+    )
+
+
+def task_view_response(view: TaskView) -> TaskResponse:
+    """任务列表项：在任务响应上补目标说明。"""
+
+    return task_response(view.task).model_copy(
+        update={
+            "target_kind": view.target_kind,
+            "target_id": view.target_id or None,
+            "target_label": view.target_label,
+        }
+    )
 
 
 def provider_key_response(key: ProviderKey) -> ProviderKeyResponse:

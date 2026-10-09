@@ -253,3 +253,35 @@ def test_search_matches_generated_content(client: TestClient) -> None:
     translated = client.get("/api/messages", params={"q": "中文正文"}).json()
     assert len(translated) == 1
     assert client.get("/api/messages", params={"q": "不存在的词"}).json() == []
+
+
+@respx.mock
+def test_task_list_shows_target_model_and_prompt(client: TestClient) -> None:
+    """任务列表带目标说明与执行参数：消息任务给标题，采集任务给来源名。"""
+
+    respx.get("https://target.test/feed").mock(
+        return_value=Response(200, content=feed(LONG_ENGLISH_TITLE, LONG_ENGLISH_SUMMARY))
+    )
+    configure_model(client)
+    source_id = create_source(client, "https://target.test/feed")
+    collect(client, source_id)
+    rows = client.get("/api/tasks", params={"limit": 25}).json()
+
+    collecting = next(item for item in rows if item["task_type"] == "collect_source")
+    assert collecting["target_kind"] == "source"
+    assert collecting["target_id"] == source_id
+    assert collecting["target_label"] == "Example Tech"
+    # 采集任务不调模型，也不属于任何提示词版本。
+    assert collecting["model"] is None and collecting["prompt_version"] is None
+
+    message = client.get("/api/messages").json()[0]
+    enriching = next(item for item in rows if item["task_type"] == "enrich_message")
+    assert enriching["target_kind"] == "message"
+    assert enriching["target_id"] == message["id"]
+    assert enriching["target_label"] == message["latest_version"]["title"]
+    assert enriching["model"] == "test-model"
+    assert enriching["prompt_version"] == "enrich-v1"
+
+    # 单个任务查询与重试返回同样的目标说明。
+    single = client.get(f"/api/tasks/{enriching['id']}").json()
+    assert single["target_label"] == enriching["target_label"]

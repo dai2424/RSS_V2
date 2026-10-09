@@ -1,6 +1,8 @@
+import { Fragment } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { api, requireResponse } from "../../api/client";
+import type { components } from "../../api/generated";
 import {
   Badge,
   Button,
@@ -9,7 +11,32 @@ import {
   ErrorState,
   PageHeader,
 } from "../../components/ui";
-import { formatTime, statusLabels } from "../../lib/display";
+import { formatDuration, formatTime, statusLabels } from "../../lib/display";
+
+type Task = components["schemas"]["TaskResponse"];
+
+const TASK_LABELS: Record<string, string> = {
+  collect_source: "采集 RSS",
+  enrich_message: "内容加工",
+  translate_message: "翻译消息",
+};
+
+/** 任务已经结束的状态；只有这两种状态的耗时才有意义。 */
+const FINISHED = new Set(["succeeded", "failed"]);
+
+/** 目标链接：消息任务跳消息详情，采集任务跳来源详情。 */
+function targetPath(task: Task): string | null {
+  if (!task.target_id) return null;
+  if (task.target_kind === "source") return `/sources/${task.target_id}`;
+  if (task.target_kind === "message") return `/messages/${task.target_id}`;
+  return null;
+}
+
+/** 耗时：排队等待也算在内，所以只在任务结束后显示。 */
+function durationCell(task: Task) {
+  if (!FINISHED.has(task.status)) return <span className="muted">—</span>;
+  return formatDuration(task.updated_at - task.created_at);
+}
 
 export function TasksPage() {
   const [params, setParams] = useSearchParams();
@@ -40,7 +67,7 @@ export function TasksPage() {
     <div className="page page-wide">
       <PageHeader
         title="任务"
-        description="状态每 3 秒刷新；独立 worker 负责执行和恢复。"
+        description="状态每 3 秒刷新；独立 worker 负责执行和恢复。目标是任务作用于的消息或来源。"
       />
       <Card>
         <div className="toolbar card-pad">
@@ -81,58 +108,91 @@ export function TasksPage() {
               <thead>
                 <tr>
                   <th>任务</th>
+                  <th>目标</th>
                   <th>状态</th>
                   <th>尝试</th>
+                  <th>模型</th>
+                  <th>提示词</th>
+                  <th title="从创建到结束的时间，含排队等待">耗时</th>
                   <th>创建时间</th>
                   <th>操作</th>
                 </tr>
               </thead>
               <tbody>
-                {tasks.data.map((task) => (
-                  <tr key={task.id}>
-                    <td>
-                      <strong>
-                        {task.task_type === "collect_source"
-                          ? "采集 RSS"
-                          : task.task_type === "enrich_message"
-                            ? "内容加工"
-                            : "翻译消息"}
-                      </strong>
-                      <div className="cell-subtitle">{task.id}</div>
+                {tasks.data.map((task) => {
+                  const path = targetPath(task);
+                  return (
+                    <Fragment key={task.id}>
+                      <tr>
+                        <td>
+                          <strong>
+                            {TASK_LABELS[task.task_type] ?? task.task_type}
+                          </strong>
+                          <div className="cell-subtitle" title={task.id}>
+                            {task.id.slice(0, 8)}
+                          </div>
+                        </td>
+                        <td>
+                          {path ? (
+                            <Link
+                              className="cell-title"
+                              title={task.target_label}
+                              to={path}
+                            >
+                              {task.target_label}
+                            </Link>
+                          ) : (
+                            <span className="muted">—</span>
+                          )}
+                        </td>
+                        <td>
+                          <Badge
+                            tone={
+                              task.status === "succeeded"
+                                ? "success"
+                                : task.status === "failed"
+                                  ? "danger"
+                                  : "warning"
+                            }
+                          >
+                            {statusLabels[task.status]}
+                          </Badge>
+                        </td>
+                        <td className="cell-nowrap">{task.attempts}</td>
+                        <td>
+                          {task.model ?? <span className="muted">—</span>}
+                        </td>
+                        <td>
+                          {task.prompt_version ?? (
+                            <span className="muted">—</span>
+                          )}
+                        </td>
+                        <td>{durationCell(task)}</td>
+                        <td>{formatTime(task.created_at)}</td>
+                        <td>
+                          {task.status === "failed" && (
+                            <Button
+                              className="secondary"
+                              disabled={retry.isPending}
+                              onClick={() => retry.mutate(task.id)}
+                            >
+                              重试任务
+                            </Button>
+                          )}
+                        </td>
+                      </tr>
                       {task.error_message && (
-                        <span className="field-error">
-                          {task.error_message}
-                        </span>
+                        <tr className="task-error">
+                          <td colSpan={9}>
+                            <span className="field-error">
+                              {task.error_message}
+                            </span>
+                          </td>
+                        </tr>
                       )}
-                    </td>
-                    <td>
-                      <Badge
-                        tone={
-                          task.status === "succeeded"
-                            ? "success"
-                            : task.status === "failed"
-                              ? "danger"
-                              : "warning"
-                        }
-                      >
-                        {statusLabels[task.status]}
-                      </Badge>
-                    </td>
-                    <td>{task.attempts}</td>
-                    <td>{formatTime(task.created_at)}</td>
-                    <td>
-                      {task.status === "failed" && (
-                        <Button
-                          className="secondary"
-                          disabled={retry.isPending}
-                          onClick={() => retry.mutate(task.id)}
-                        >
-                          重试任务
-                        </Button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                    </Fragment>
+                  );
+                })}
               </tbody>
             </table>
           </div>

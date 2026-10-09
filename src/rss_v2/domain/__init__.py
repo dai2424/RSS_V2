@@ -31,6 +31,7 @@ from .models import (
     TaskSettingView,
     TaskStatus,
     TaskType,
+    TaskView,
     Translation,
     TranslationResult,
 )
@@ -68,6 +69,7 @@ __all__ = [
     "TaskSetting",
     "TaskSettingView",
     "TaskStatus",
+    "TaskView",
     "TaskType",
     "Translation",
     "TranslationResult",

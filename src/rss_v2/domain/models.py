@@ -374,6 +374,20 @@ class Task:
 
 
 @dataclass(frozen=True, slots=True)
+class TaskView:
+    """任务列表的展示视图：任务本体 + 它作用于哪条消息或哪个来源。
+
+    目标说明在服务层解析（消息取最新版本标题、采集取来源名），因为任务快照里
+    只有 UUID；界面要的是"这条任务在干什么"，不是一串标识。
+    """
+
+    task: Task  # 任务本体
+    target_kind: str  # message 消息 / source 来源 / unknown 无法解析
+    target_id: str  # 目标 UUID；无法解析时为空
+    target_label: str  # 目标标题或来源名；无法解析时回落为短标识
+
+
+@dataclass(frozen=True, slots=True)
 class Provider:
     """LLM provider 的非敏感连接配置。"""
 

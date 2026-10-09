@@ -175,6 +175,23 @@ for (const width of [1280, 1440, 1920]) {
     await expect(
       page.getByRole("heading", { name: "任务", exact: true }),
     ).toBeVisible();
+    // 任务列表说清在干什么：采集任务指向来源，加工任务指向消息并给出模型与提示词。
+    await expect(
+      page.getByRole("row").filter({ hasText: "采集 RSS" }).first(),
+    ).toContainText("测试来源" + suffix);
+    const enrichRow = page
+      .getByRole("row")
+      .filter({ hasText: "内容加工" })
+      .first();
+    await expect(enrichRow).toContainText("enrich-v1");
+    await expect(enrichRow.getByRole("link")).toHaveAttribute(
+      "href",
+      /^\/messages\//,
+    );
+    await page.screenshot({
+      path: testInfo.outputPath(`tasks-${width}.png`),
+      fullPage: true,
+    });
     await page.goto("/sources");
     const row = page.getByRole("row").filter({ hasText: "测试来源" + suffix });
     await expect(page.getByText(/共 \d+ 条 · 第 1 页/)).toBeVisible();
