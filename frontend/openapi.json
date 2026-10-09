@@ -1293,6 +1293,470 @@
         }
       }
     },
+    "/api/llm/prompts": {
+      "get": {
+        "tags": [
+          "prompts"
+        ],
+        "summary": "List Prompts",
+        "description": "列出提示词版本；可按任务类型过滤。",
+        "operationId": "list_prompts_api_llm_prompts_get",
+        "parameters": [
+          {
+            "name": "task_kind",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 60
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Task Kind"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PromptResponse"
+                  },
+                  "title": "Response List Prompts Api Llm Prompts Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "prompts"
+        ],
+        "summary": "Create Prompt",
+        "description": "新建提示词版本；同 prompt_key 的版本号自动递增。",
+        "operationId": "create_prompt_api_llm_prompts_post",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PromptCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/llm/prompts/specs": {
+      "get": {
+        "tags": [
+          "prompts"
+        ],
+        "summary": "List Specs",
+        "description": "任务规格：界面用它渲染占位符提示与输出字段要求。",
+        "operationId": "list_specs_api_llm_prompts_specs_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "type": "array",
+                  "title": "Response List Specs Api Llm Prompts Specs Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/llm/prompts/compile": {
+      "post": {
+        "tags": [
+          "prompts"
+        ],
+        "summary": "Compile Prompt Template",
+        "description": "编译校验与样例预览；不写库。",
+        "operationId": "compile_prompt_template_api_llm_prompts_compile_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PromptCompileRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptCompileResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/llm/prompts/{prompt_id}": {
+      "get": {
+        "tags": [
+          "prompts"
+        ],
+        "summary": "Get Prompt",
+        "operationId": "get_prompt_api_llm_prompts__prompt_id__get",
+        "parameters": [
+          {
+            "name": "prompt_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Prompt Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/llm/prompts/{prompt_id}/activate": {
+      "post": {
+        "tags": [
+          "prompts"
+        ],
+        "summary": "Activate Prompt",
+        "description": "启用版本；同任务类型的其它启用版本自动归档。",
+        "operationId": "activate_prompt_api_llm_prompts__prompt_id__activate_post",
+        "parameters": [
+          {
+            "name": "prompt_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Prompt Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/llm/prompts/{prompt_id}/archive": {
+      "post": {
+        "tags": [
+          "prompts"
+        ],
+        "summary": "Archive Prompt",
+        "operationId": "archive_prompt_api_llm_prompts__prompt_id__archive_post",
+        "parameters": [
+          {
+            "name": "prompt_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Prompt Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/llm/prompts/{prompt_id}/test": {
+      "post": {
+        "tags": [
+          "prompts"
+        ],
+        "summary": "Test Prompt",
+        "description": "用样例输入试跑；会消耗一次真实模型调用，只写调用审计。",
+        "operationId": "test_prompt_api_llm_prompts__prompt_id__test_post",
+        "parameters": [
+          {
+            "name": "prompt_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Prompt Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PromptTestRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptTestResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/task-settings/{scope}/{scope_id}": {
+      "get": {
+        "tags": [
+          "task-settings"
+        ],
+        "summary": "Get Task Settings",
+        "description": "某来源或分类的任务分配；带生效值与来源层级。",
+        "operationId": "get_task_settings_api_task_settings__scope___scope_id__get",
+        "parameters": [
+          {
+            "name": "scope",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Scope"
+            }
+          },
+          {
+            "name": "scope_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Scope Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TaskSettingResponse"
+                  },
+                  "title": "Response Get Task Settings Api Task Settings  Scope   Scope Id  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "task-settings"
+        ],
+        "summary": "Replace Task Settings",
+        "description": "整组覆盖任务分配；空值表示继承上一层。",
+        "operationId": "replace_task_settings_api_task_settings__scope___scope_id__put",
+        "parameters": [
+          {
+            "name": "scope",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Scope"
+            }
+          },
+          {
+            "name": "scope_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Scope Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaskSettingsUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TaskSettingResponse"
+                  },
+                  "title": "Response Replace Task Settings Api Task Settings  Scope   Scope Id  Put"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/health": {
       "get": {
         "summary": "Health",
@@ -2017,6 +2481,367 @@
         ],
         "title": "MessageVersionResponse",
         "description": "消息版本响应。"
+      },
+      "PromptCompileIssue": {
+        "properties": {
+          "field": {
+            "type": "string",
+            "title": "Field"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "field",
+          "message"
+        ],
+        "title": "PromptCompileIssue",
+        "description": "一条编译问题。"
+      },
+      "PromptCompileRequest": {
+        "properties": {
+          "task_kind": {
+            "type": "string",
+            "maxLength": 60,
+            "minLength": 1,
+            "title": "Task Kind"
+          },
+          "system_template": {
+            "type": "string",
+            "maxLength": 20000,
+            "title": "System Template",
+            "default": ""
+          },
+          "user_template": {
+            "type": "string",
+            "maxLength": 20000,
+            "title": "User Template",
+            "default": ""
+          },
+          "sample": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PromptSampleRequest"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "task_kind"
+        ],
+        "title": "PromptCompileRequest",
+        "description": "编译校验请求；只校验和预览，不写库。"
+      },
+      "PromptCompileResponse": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "title": "Ok"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/PromptCompileIssue"
+            },
+            "type": "array",
+            "title": "Errors"
+          },
+          "warnings": {
+            "items": {
+              "$ref": "#/components/schemas/PromptCompileIssue"
+            },
+            "type": "array",
+            "title": "Warnings"
+          },
+          "system": {
+            "type": "string",
+            "title": "System"
+          },
+          "user": {
+            "type": "string",
+            "title": "User"
+          },
+          "variables": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Variables"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ok",
+          "errors",
+          "warnings",
+          "system",
+          "user",
+          "variables"
+        ],
+        "title": "PromptCompileResponse",
+        "description": "编译结果：问题清单与样例渲染结果。"
+      },
+      "PromptCreateRequest": {
+        "properties": {
+          "task_kind": {
+            "type": "string",
+            "maxLength": 60,
+            "minLength": 1,
+            "title": "Task Kind"
+          },
+          "prompt_key": {
+            "type": "string",
+            "maxLength": 41,
+            "minLength": 1,
+            "title": "Prompt Key"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 100,
+            "title": "Name",
+            "default": ""
+          },
+          "system_template": {
+            "type": "string",
+            "maxLength": 20000,
+            "title": "System Template",
+            "default": ""
+          },
+          "user_template": {
+            "type": "string",
+            "maxLength": 20000,
+            "minLength": 1,
+            "title": "User Template"
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 500,
+            "title": "Note",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "task_kind",
+          "prompt_key",
+          "user_template"
+        ],
+        "title": "PromptCreateRequest",
+        "description": "新建提示词版本请求；编译不通过会被拒绝。"
+      },
+      "PromptResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "task_kind": {
+            "type": "string",
+            "title": "Task Kind"
+          },
+          "prompt_key": {
+            "type": "string",
+            "title": "Prompt Key"
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version"
+          },
+          "version_string": {
+            "type": "string",
+            "title": "Version String"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "system_template": {
+            "type": "string",
+            "title": "System Template"
+          },
+          "user_template": {
+            "type": "string",
+            "title": "User Template"
+          },
+          "note": {
+            "type": "string",
+            "title": "Note"
+          },
+          "created_at": {
+            "type": "integer",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "integer",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "task_kind",
+          "prompt_key",
+          "version",
+          "version_string",
+          "name",
+          "status",
+          "system_template",
+          "user_template",
+          "note",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "PromptResponse",
+        "description": "提示词版本响应。"
+      },
+      "PromptSampleRequest": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 2000,
+            "title": "Title",
+            "default": ""
+          },
+          "summary": {
+            "type": "string",
+            "maxLength": 20000,
+            "title": "Summary",
+            "default": ""
+          },
+          "content": {
+            "type": "string",
+            "maxLength": 50000,
+            "title": "Content",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "PromptSampleRequest",
+        "description": "编译预览与试跑的样例输入。"
+      },
+      "PromptTestRequest": {
+        "properties": {
+          "message_version_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message Version Id"
+          },
+          "sample": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PromptSampleRequest"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          }
+        },
+        "type": "object",
+        "title": "PromptTestRequest",
+        "description": "试跑请求；用真实消息或手填样例，会消耗一次模型调用。"
+      },
+      "PromptTestResponse": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "title": "Ok"
+          },
+          "model": {
+            "type": "string",
+            "title": "Model"
+          },
+          "key_masked": {
+            "type": "string",
+            "title": "Key Masked"
+          },
+          "latency_ms": {
+            "type": "integer",
+            "title": "Latency Ms"
+          },
+          "total_tokens": {
+            "type": "integer",
+            "title": "Total Tokens"
+          },
+          "system": {
+            "type": "string",
+            "title": "System"
+          },
+          "user": {
+            "type": "string",
+            "title": "User"
+          },
+          "output": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Output"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "error_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ok",
+          "model",
+          "key_masked",
+          "latency_ms",
+          "total_tokens",
+          "system",
+          "user",
+          "output",
+          "error_code",
+          "error_message"
+        ],
+        "title": "PromptTestResponse",
+        "description": "试跑结果；只返回密钥掩码与结构化输出。"
       },
       "ProviderCreateRequest": {
         "properties": {
@@ -2948,6 +3773,139 @@
         ],
         "title": "TaskResponse",
         "description": "任务状态响应。"
+      },
+      "TaskSettingItem": {
+        "properties": {
+          "task_kind": {
+            "type": "string",
+            "maxLength": 60,
+            "minLength": 1,
+            "title": "Task Kind"
+          },
+          "enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enabled"
+          },
+          "prompt_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prompt Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "task_kind"
+        ],
+        "title": "TaskSettingItem",
+        "description": "单个任务类型的分配；enabled 与 prompt_id 为空表示继承上一层。"
+      },
+      "TaskSettingResponse": {
+        "properties": {
+          "task_kind": {
+            "type": "string",
+            "title": "Task Kind"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enabled"
+          },
+          "prompt_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prompt Id"
+          },
+          "effective_enabled": {
+            "type": "boolean",
+            "title": "Effective Enabled"
+          },
+          "effective_prompt_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effective Prompt Id"
+          },
+          "effective_prompt_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effective Prompt Version"
+          },
+          "scope": {
+            "type": "string",
+            "title": "Scope"
+          }
+        },
+        "type": "object",
+        "required": [
+          "task_kind",
+          "label",
+          "enabled",
+          "prompt_id",
+          "effective_enabled",
+          "effective_prompt_id",
+          "effective_prompt_version",
+          "scope"
+        ],
+        "title": "TaskSettingResponse",
+        "description": "任务分配响应；带生效值与来源层级，便于界面显示\"继承\"还是\"已覆盖\"。"
+      },
+      "TaskSettingsUpdateRequest": {
+        "properties": {
+          "settings": {
+            "items": {
+              "$ref": "#/components/schemas/TaskSettingItem"
+            },
+            "type": "array",
+            "maxItems": 50,
+            "title": "Settings"
+          }
+        },
+        "type": "object",
+        "required": [
+          "settings"
+        ],
+        "title": "TaskSettingsUpdateRequest",
+        "description": "整组覆盖某作用域的任务分配；列表为空表示全部回到继承。"
       },
       "TranslationResponse": {
         "properties": {

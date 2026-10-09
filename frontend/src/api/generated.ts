@@ -381,6 +381,168 @@ export interface paths {
     patch: operations["update_provider_key_api_llm_providers__provider_id__keys__key_id__patch"];
     trace?: never;
   };
+  "/api/llm/prompts": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * List Prompts
+     * @description 列出提示词版本；可按任务类型过滤。
+     */
+    get: operations["list_prompts_api_llm_prompts_get"];
+    put?: never;
+    /**
+     * Create Prompt
+     * @description 新建提示词版本；同 prompt_key 的版本号自动递增。
+     */
+    post: operations["create_prompt_api_llm_prompts_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/llm/prompts/specs": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * List Specs
+     * @description 任务规格：界面用它渲染占位符提示与输出字段要求。
+     */
+    get: operations["list_specs_api_llm_prompts_specs_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/llm/prompts/compile": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Compile Prompt Template
+     * @description 编译校验与样例预览；不写库。
+     */
+    post: operations["compile_prompt_template_api_llm_prompts_compile_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/llm/prompts/{prompt_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get Prompt */
+    get: operations["get_prompt_api_llm_prompts__prompt_id__get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/llm/prompts/{prompt_id}/activate": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Activate Prompt
+     * @description 启用版本；同任务类型的其它启用版本自动归档。
+     */
+    post: operations["activate_prompt_api_llm_prompts__prompt_id__activate_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/llm/prompts/{prompt_id}/archive": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Archive Prompt */
+    post: operations["archive_prompt_api_llm_prompts__prompt_id__archive_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/llm/prompts/{prompt_id}/test": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Test Prompt
+     * @description 用样例输入试跑；会消耗一次真实模型调用，只写调用审计。
+     */
+    post: operations["test_prompt_api_llm_prompts__prompt_id__test_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/task-settings/{scope}/{scope_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Get Task Settings
+     * @description 某来源或分类的任务分配；带生效值与来源层级。
+     */
+    get: operations["get_task_settings_api_task_settings__scope___scope_id__get"];
+    /**
+     * Replace Task Settings
+     * @description 整组覆盖任务分配；空值表示继承上一层。
+     */
+    put: operations["replace_task_settings_api_task_settings__scope___scope_id__put"];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/health": {
     parameters: {
       query?: never;
@@ -644,6 +806,170 @@ export interface components {
       enrichments: components["schemas"]["EnrichmentResponse"][];
       translation_task?: components["schemas"]["TaskResponse"] | null;
       enrichment_task?: components["schemas"]["TaskResponse"] | null;
+    };
+    /**
+     * PromptCompileIssue
+     * @description 一条编译问题。
+     */
+    PromptCompileIssue: {
+      /** Field */
+      field: string;
+      /** Message */
+      message: string;
+    };
+    /**
+     * PromptCompileRequest
+     * @description 编译校验请求；只校验和预览，不写库。
+     */
+    PromptCompileRequest: {
+      /** Task Kind */
+      task_kind: string;
+      /**
+       * System Template
+       * @default
+       */
+      system_template: string;
+      /**
+       * User Template
+       * @default
+       */
+      user_template: string;
+      sample?: components["schemas"]["PromptSampleRequest"] | null;
+    };
+    /**
+     * PromptCompileResponse
+     * @description 编译结果：问题清单与样例渲染结果。
+     */
+    PromptCompileResponse: {
+      /** Ok */
+      ok: boolean;
+      /** Errors */
+      errors: components["schemas"]["PromptCompileIssue"][];
+      /** Warnings */
+      warnings: components["schemas"]["PromptCompileIssue"][];
+      /** System */
+      system: string;
+      /** User */
+      user: string;
+      /** Variables */
+      variables: string[];
+    };
+    /**
+     * PromptCreateRequest
+     * @description 新建提示词版本请求；编译不通过会被拒绝。
+     */
+    PromptCreateRequest: {
+      /** Task Kind */
+      task_kind: string;
+      /** Prompt Key */
+      prompt_key: string;
+      /**
+       * Name
+       * @default
+       */
+      name: string;
+      /**
+       * System Template
+       * @default
+       */
+      system_template: string;
+      /** User Template */
+      user_template: string;
+      /**
+       * Note
+       * @default
+       */
+      note: string;
+    };
+    /**
+     * PromptResponse
+     * @description 提示词版本响应。
+     */
+    PromptResponse: {
+      /** Id */
+      id: string;
+      /** Task Kind */
+      task_kind: string;
+      /** Prompt Key */
+      prompt_key: string;
+      /** Version */
+      version: number;
+      /** Version String */
+      version_string: string;
+      /** Name */
+      name: string;
+      /** Status */
+      status: string;
+      /** System Template */
+      system_template: string;
+      /** User Template */
+      user_template: string;
+      /** Note */
+      note: string;
+      /** Created At */
+      created_at: number;
+      /** Updated At */
+      updated_at: number;
+    };
+    /**
+     * PromptSampleRequest
+     * @description 编译预览与试跑的样例输入。
+     */
+    PromptSampleRequest: {
+      /**
+       * Title
+       * @default
+       */
+      title: string;
+      /**
+       * Summary
+       * @default
+       */
+      summary: string;
+      /**
+       * Content
+       * @default
+       */
+      content: string;
+    };
+    /**
+     * PromptTestRequest
+     * @description 试跑请求；用真实消息或手填样例，会消耗一次模型调用。
+     */
+    PromptTestRequest: {
+      /** Message Version Id */
+      message_version_id?: string | null;
+      sample?: components["schemas"]["PromptSampleRequest"] | null;
+      /** Model */
+      model?: string | null;
+    };
+    /**
+     * PromptTestResponse
+     * @description 试跑结果；只返回密钥掩码与结构化输出。
+     */
+    PromptTestResponse: {
+      /** Ok */
+      ok: boolean;
+      /** Model */
+      model: string;
+      /** Key Masked */
+      key_masked: string;
+      /** Latency Ms */
+      latency_ms: number;
+      /** Total Tokens */
+      total_tokens: number;
+      /** System */
+      system: string;
+      /** User */
+      user: string;
+      /** Output */
+      output: {
+        [key: string]: unknown;
+      };
+      /** Error Code */
+      error_code: string | null;
+      /** Error Message */
+      error_message: string | null;
     };
     /**
      * ProviderCreateRequest
@@ -967,6 +1293,48 @@ export interface components {
       created_at: number;
       /** Updated At */
       updated_at: number;
+    };
+    /**
+     * TaskSettingItem
+     * @description 单个任务类型的分配；enabled 与 prompt_id 为空表示继承上一层。
+     */
+    TaskSettingItem: {
+      /** Task Kind */
+      task_kind: string;
+      /** Enabled */
+      enabled?: boolean | null;
+      /** Prompt Id */
+      prompt_id?: string | null;
+    };
+    /**
+     * TaskSettingResponse
+     * @description 任务分配响应；带生效值与来源层级，便于界面显示"继承"还是"已覆盖"。
+     */
+    TaskSettingResponse: {
+      /** Task Kind */
+      task_kind: string;
+      /** Label */
+      label: string;
+      /** Enabled */
+      enabled: boolean | null;
+      /** Prompt Id */
+      prompt_id: string | null;
+      /** Effective Enabled */
+      effective_enabled: boolean;
+      /** Effective Prompt Id */
+      effective_prompt_id: string | null;
+      /** Effective Prompt Version */
+      effective_prompt_version: string | null;
+      /** Scope */
+      scope: string;
+    };
+    /**
+     * TaskSettingsUpdateRequest
+     * @description 整组覆盖某作用域的任务分配；列表为空表示全部回到继承。
+     */
+    TaskSettingsUpdateRequest: {
+      /** Settings */
+      settings: components["schemas"]["TaskSettingItem"][];
     };
     /**
      * TranslationResponse
@@ -1844,6 +2212,321 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["ProviderKeyResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  list_prompts_api_llm_prompts_get: {
+    parameters: {
+      query?: {
+        task_kind?: string | null;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PromptResponse"][];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  create_prompt_api_llm_prompts_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["PromptCreateRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PromptResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  list_specs_api_llm_prompts_specs_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            [key: string]: unknown;
+          }[];
+        };
+      };
+    };
+  };
+  compile_prompt_template_api_llm_prompts_compile_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["PromptCompileRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PromptCompileResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  get_prompt_api_llm_prompts__prompt_id__get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        prompt_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PromptResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  activate_prompt_api_llm_prompts__prompt_id__activate_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        prompt_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PromptResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  archive_prompt_api_llm_prompts__prompt_id__archive_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        prompt_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PromptResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  test_prompt_api_llm_prompts__prompt_id__test_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        prompt_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["PromptTestRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PromptTestResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  get_task_settings_api_task_settings__scope___scope_id__get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        scope: string;
+        scope_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["TaskSettingResponse"][];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  replace_task_settings_api_task_settings__scope___scope_id__put: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        scope: string;
+        scope_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["TaskSettingsUpdateRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["TaskSettingResponse"][];
         };
       };
       /** @description Validation Error */

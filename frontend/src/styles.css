@@ -939,3 +939,29 @@ p.alert {
     animation: none;
   }
 }
+
+/* 提示词正文：等宽显示并保留换行，便于核对占位符与渲染结果 */
+.prompt-preview {
+  margin-top: 16px;
+}
+.prompt-text {
+  background: hsl(var(--background));
+  border: 1px solid hsl(var(--border));
+  border-radius: 8px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  margin: 6px 0 12px;
+  max-height: 320px;
+  overflow: auto;
+  padding: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.issue-list {
+  margin: 8px 0 0;
+  padding-left: 18px;
+}
+.provider-list-group {
+  font-size: 12px;
+  margin: 8px 0 4px;
+}

@@ -12,6 +12,7 @@ import { formatTime, statusLabels } from "../../lib/display";
 import { useSourceDetail } from "./useSourceDetail";
 import { SourceMetadata, SourceHealth } from "./SourceHistory";
 import { SourceDeleteDialog } from "./SourceDeleteDialog";
+import { TaskSettingTable } from "../taskSettings/TaskSettingTable";
 
 /** 来源详情和操作入口；历史展示与数据用例分别维护。 */
 export function SourceDetailPage() {
@@ -140,6 +141,11 @@ export function SourceDetailPage() {
         source={deleting ? { id: item.id, name: item.name } : null}
         onClose={() => setDeleting(false)}
         onDeleted={() => navigate("/sources", { replace: true })}
+      />
+      <TaskSettingTable
+        scope="source"
+        scopeId={item.id}
+        title="本来源的任务与提示词"
       />
     </div>
   );

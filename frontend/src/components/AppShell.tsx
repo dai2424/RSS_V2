@@ -14,6 +14,8 @@ const navigation = [
   ["/messages", "消息"],
   ["/tasks", "任务"],
   ["/settings/providers", "模型配置"],
+  ["/settings/prompts", "提示词"],
+  ["/settings/tasks", "任务分配"],
 ] as const;
 export function AppShell() {
   const [open, setOpen] = useState(false);

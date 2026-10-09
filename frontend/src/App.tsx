@@ -40,6 +40,16 @@ const Providers = lazy(() =>
     default: m.ProvidersPage,
   })),
 );
+const Prompts = lazy(() =>
+  import("./features/prompts/PromptsPage").then((m) => ({
+    default: m.PromptsPage,
+  })),
+);
+const TaskSettings = lazy(() =>
+  import("./features/taskSettings/TaskSettingsPage").then((m) => ({
+    default: m.TaskSettingsPage,
+  })),
+);
 const router = createBrowserRouter(
   createRoutesFromElements(
     <Route element={<AppShell />}>
@@ -52,6 +62,8 @@ const router = createBrowserRouter(
       <Route path="/messages/:messageId" element={<MessageDetail />} />
       <Route path="/tasks" element={<Tasks />} />
       <Route path="/settings/providers" element={<Providers />} />
+      <Route path="/settings/prompts" element={<Prompts />} />
+      <Route path="/settings/tasks" element={<TaskSettings />} />
       <Route path="*" element={<Navigate to="/sources" replace />} />
     </Route>,
   ),

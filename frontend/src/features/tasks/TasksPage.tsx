@@ -94,7 +94,9 @@ export function TasksPage() {
                       <strong>
                         {task.task_type === "collect_source"
                           ? "采集 RSS"
-                          : "翻译消息"}
+                          : task.task_type === "enrich_message"
+                            ? "内容加工"
+                            : "翻译消息"}
                       </strong>
                       <div className="cell-subtitle">{task.id}</div>
                       {task.error_message && (
