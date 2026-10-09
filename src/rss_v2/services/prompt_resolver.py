@@ -75,10 +75,17 @@ class PromptResolver:
 
         return self.prompts.active_for(task_kind)
 
-    def snapshot(self, prompt_id: str) -> Prompt:
-        """按任务快照读取提示词；归档版本仍可执行，被删除则明确失败。"""
+    def snapshot(self, prompt_id: str, version_string: str = "") -> Prompt:
+        """按任务快照读取提示词；归档版本仍可执行，被删除则明确失败。
+
+        提示词入库之前的任务快照只有 `prompt_version`、没有 `prompt_id`（入库前
+        提示词硬编码在适配器里）。这类任务用版本串找回同一条记录，升级后仍能执行、
+        也能重试；两者都对不上才判定提示词真的不存在。
+        """
 
         prompt = self.prompts.get(prompt_id) if prompt_id else None
+        if prompt is None and version_string:
+            prompt = self.prompts.by_version_string(version_string)
         if prompt is None:
             raise DomainError("prompt_missing", "任务快照的提示词已不存在，请重新创建任务")
         return prompt

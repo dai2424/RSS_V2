@@ -178,6 +178,19 @@ class Prompt:
 
         return f"{self.prompt_key}-v{self.version}"
 
+    @staticmethod
+    def split_version_string(version_string: str) -> tuple[str, int] | None:
+        """把 `{prompt_key}-v{version}` 拆回业务键与版本号；格式不符返回 None。
+
+        从右侧按最后一个 `-v` 拆分：业务键本身允许短横线与数字（如 `news-v2`），
+        从左拆会把键切错。提示词入库之前的任务快照只带版本串，靠它找回对应版本。
+        """
+
+        key, separator, version = version_string.rpartition("-v")
+        if not separator or not key or not version.isdigit():
+            return None
+        return key, int(version)
+
 
 @dataclass(frozen=True, slots=True)
 class PromptUsage:

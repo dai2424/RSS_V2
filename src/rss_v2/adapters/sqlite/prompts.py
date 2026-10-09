@@ -77,6 +77,23 @@ class SQLitePromptRepository:
         finally:
             connection.close()
 
+    def by_version_string(self, version_string: str) -> Prompt | None:
+        """按版本串取版本；格式不符直接返回 None，不做猜测。"""
+
+        parsed = Prompt.split_version_string(version_string)
+        if parsed is None:
+            return None
+        prompt_key, version = parsed
+        connection = self.database.connect()
+        try:
+            row = connection.execute(
+                "SELECT * FROM llm_prompts WHERE prompt_key=? AND version=?",
+                (prompt_key, version),
+            ).fetchone()
+            return _prompt(row) if row else None
+        finally:
+            connection.close()
+
     def active_for(self, task_kind: str) -> Prompt | None:
         connection = self.database.connect()
         try:
@@ -167,10 +184,15 @@ class SQLitePromptRepository:
                 "SELECT count(*) FROM message_enrichments WHERE prompt_version=?",
                 (version_string,),
             )
+            # 提示词入库之前的任务快照没有 prompt_id，只有版本串；那种引用同样
+            # 说明这条记录被用过，既影响能否删除，也影响升级后能否继续执行。
             tasks = _count(
                 connection,
-                "SELECT count(*) FROM tasks WHERE json_extract(payload_json,'$.prompt_id')=?",
-                (prompt_id,),
+                "SELECT count(*) FROM tasks"
+                " WHERE json_extract(payload_json,'$.prompt_id')=?"
+                " OR (json_extract(payload_json,'$.prompt_id') IS NULL"
+                " AND json_extract(payload_json,'$.prompt_version')=?)",
+                (prompt_id, version_string),
             )
             bindings = _count(
                 connection, "SELECT count(*) FROM task_settings WHERE prompt_id=?", (prompt_id,)

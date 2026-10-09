@@ -1,5 +1,6 @@
 """提示词库、任务分配与试跑的集成测试。"""
 
+import json
 import sqlite3
 
 import respx
@@ -7,7 +8,13 @@ from fastapi.testclient import TestClient
 from httpx import Response
 
 from rss_v2.bootstrap import Container
-from rss_v2.domain import EnrichmentResult, ExternalServiceError, Provider, TranslationResult
+from rss_v2.domain import (
+    EnrichmentResult,
+    ExternalServiceError,
+    Prompt,
+    Provider,
+    TranslationResult,
+)
 from rss_v2.llm import PromptPayload
 from rss_v2.tasks.worker import Worker
 
@@ -125,6 +132,9 @@ def prompts(client: TestClient, task_kind: str | None = None) -> list[dict[str, 
 
 #: 能通过编译的翻译模板；新建与就地编辑共用，避免测试之间的模板漂移。
 GOOD_TEMPLATE = "输出 title、summary、content：{{title}} {{summary}} {{content}}"
+
+#: 内容加工模板；任务规格不同，必须声明 keywords 才能通过编译。
+GOOD_ENRICH_TEMPLATE = "输出 title、summary、keywords：{{title}} {{summary}} {{content}}"
 
 
 def create_prompt(client: TestClient, **overrides: object) -> dict[str, object]:
@@ -589,3 +599,144 @@ def test_usage_matches_version_string_exactly(client: TestClient) -> None:
     assert usage_of(client, str(latest["id"]))["calls"] == 1
     # v1 确实没被引用过，所以仍可编辑。
     assert client.patch(f"/api/llm/prompts/{first['id']}", json=edit_body()).status_code == 200
+
+
+def test_version_string_parsing_is_right_anchored() -> None:
+    """版本串解析从右边拆分：业务键里的短横线与数字不会被切错。"""
+
+    assert Prompt.split_version_string("translation-v1") == ("translation", 1)
+    assert Prompt.split_version_string("news-v2-v3") == ("news-v2", 3)
+    assert Prompt.split_version_string("enrich-v10") == ("enrich", 10)
+    for broken in ("broken", "enrich-vX", "-v1", "enrich-v", ""):
+        assert Prompt.split_version_string(broken) is None
+
+
+def strip_prompt_snapshot(container: Container, task_id: str, *keys: str) -> dict[str, object]:
+    """把任务快照改成提示词入库之前的形状；keys 指定要移除的字段。"""
+
+    connection = container.database.connect()
+    try:
+        arguments: list[object] = [task_id, *(f"$.{key}" for key in keys)]
+        connection.execute(
+            f"UPDATE tasks SET payload_json=json_remove(payload_json,{','.join('?' * len(keys))})"
+            " WHERE id=?",
+            (*arguments[1:], arguments[0]),
+        )
+        row = connection.execute("SELECT payload_json FROM tasks WHERE id=?", (task_id,)).fetchone()
+    finally:
+        connection.close()
+    return dict(json.loads(row["payload_json"]))
+
+
+@respx.mock
+def test_task_snapshot_without_prompt_id_runs_by_version_string(client: TestClient) -> None:
+    """提示词入库之前的任务快照只有版本串，升级后仍能执行（线上故障的回归）。"""
+
+    container: Container = client.app.state.container
+    respx.get("https://legacy.test/feed").mock(
+        return_value=Response(200, content=feed("Long english headline", LONG_ENGLISH_SUMMARY))
+    )
+    configure_model(client)
+    source_id = create_source(client, "https://legacy.test/feed")
+    # 只留内容加工，避免翻译任务插队影响断言。
+    client.put(
+        f"/api/task-settings/source/{source_id}",
+        json={"settings": [{"task_kind": "translate_message", "enabled": False}]},
+    )
+    worker = Worker(container)
+    run = client.post("/api/collection/runs", json={"source_ids": [source_id]})
+    assert run.status_code == 202, run.text
+    assert worker.run_once() is True
+
+    queued = client.get("/api/tasks", params={"status": "queued"}).json()
+    assert [item["task_type"] for item in queued] == ["enrich_message"]
+    task = queued[0]
+    payload = strip_prompt_snapshot(container, str(task["id"]), "prompt_id")
+    assert "prompt_id" not in payload and payload["prompt_version"] == "enrich-v1"
+
+    container.enrichment_service.provider = FakeProvider()
+    assert worker.run_once() is True
+
+    message_id = str(client.get("/api/messages").json()[0]["id"])
+    version = client.get(f"/api/messages/{message_id}").json()["versions"][0]
+    assert version["enrichments"][0]["prompt_version"] == "enrich-v1"
+    assert client.get(f"/api/tasks/{task['id']}").json()["status"] == "succeeded"
+
+
+@respx.mock
+def test_task_snapshot_without_any_prompt_reference_fails(client: TestClient) -> None:
+    """快照里既没有 id 也没有版本串时仍然明确失败，不猜一个提示词顶上。"""
+
+    container: Container = client.app.state.container
+    respx.get("https://noref.test/feed").mock(
+        return_value=Response(200, content=feed("Long english headline", LONG_ENGLISH_SUMMARY))
+    )
+    configure_model(client)
+    source_id = create_source(client, "https://noref.test/feed")
+    client.put(
+        f"/api/task-settings/source/{source_id}",
+        json={"settings": [{"task_kind": "translate_message", "enabled": False}]},
+    )
+    worker = Worker(container)
+    run = client.post("/api/collection/runs", json={"source_ids": [source_id]})
+    assert run.status_code == 202, run.text
+    assert worker.run_once() is True
+
+    task = client.get("/api/tasks", params={"status": "queued"}).json()[0]
+    payload = strip_prompt_snapshot(container, str(task["id"]), "prompt_id", "prompt_version")
+    assert payload == {
+        "message_id": payload["message_id"],
+        "provider_id": payload["provider_id"],
+        "model": payload["model"],
+    }
+
+    container.enrichment_service.provider = FakeProvider()
+    assert worker.run_once() is True
+
+    failed = client.get(f"/api/tasks/{task['id']}").json()
+    assert failed["status"] == "failed"
+    assert failed["error_message"] == "任务快照的提示词已不存在，请重新创建任务"
+
+
+@respx.mock
+def test_legacy_task_reference_blocks_prompt_edit_and_delete(client: TestClient) -> None:
+    """旧形状任务引用的版本同样算被使用：不能就地编辑，也不能删除。"""
+
+    container: Container = client.app.state.container
+    respx.get("https://legacy-bind.test/feed").mock(
+        return_value=Response(200, content=feed("Long english headline", LONG_ENGLISH_SUMMARY))
+    )
+    configure_model(client)
+    source_id = create_source(client, "https://legacy-bind.test/feed")
+    custom = create_prompt(
+        client,
+        task_kind="enrich_message",
+        prompt_key="legacy-bind",
+        user_template=GOOD_ENRICH_TEMPLATE,
+    )
+    saved = client.put(
+        f"/api/task-settings/source/{source_id}",
+        json={
+            "settings": [
+                {"task_kind": "translate_message", "enabled": False},
+                {"task_kind": "enrich_message", "prompt_id": custom["id"]},
+            ]
+        },
+    )
+    assert saved.status_code == 200, saved.text
+    worker = Worker(container)
+    run = client.post("/api/collection/runs", json={"source_ids": [source_id]})
+    assert run.status_code == 202, run.text
+    assert worker.run_once() is True
+
+    task = client.get("/api/tasks", params={"status": "queued"}).json()[0]
+    payload = strip_prompt_snapshot(container, str(task["id"]), "prompt_id")
+    assert payload["prompt_version"] == "legacy-bind-v1"
+
+    usage = usage_of(client, str(custom["id"]))
+    assert usage["tasks"] >= 1 and usage["used"] is True
+    blocked = client.patch(
+        f"/api/llm/prompts/{custom['id']}", json=edit_body(user_template=GOOD_ENRICH_TEMPLATE)
+    )
+    assert blocked.status_code == 400 and blocked.json()["code"] == "prompt_used"
+    assert client.delete(f"/api/llm/prompts/{custom['id']}").status_code == 400

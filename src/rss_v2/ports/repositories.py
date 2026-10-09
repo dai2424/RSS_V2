@@ -246,6 +246,14 @@ class PromptRepository(Protocol):
 
     def get(self, prompt_id: str) -> Prompt | None: ...
 
+    def by_version_string(self, version_string: str) -> Prompt | None:
+        """按 `{prompt_key}-v{version}` 取版本。
+
+        提示词入库之前的任务快照只带版本串、没有 prompt_id，执行与重试都靠它找回；
+        版本串格式不符时返回 None，由调用方给出明确错误。
+        """
+        ...
+
     def active_for(self, task_kind: str) -> Prompt | None: ...
 
     def next_version(self, prompt_key: str) -> int: ...
@@ -261,6 +269,7 @@ class PromptRepository(Protocol):
 
         版本串必须精确匹配：`translation-v1` 不能命中 `translation-v10`，
         但试跑写下的 `{版本串}+prompt-test` 算使用，因为审计里已存在该版本串。
+        任务快照按 id 统计，入库之前的老快照只有版本串，同样算引用。
         """
         ...
 

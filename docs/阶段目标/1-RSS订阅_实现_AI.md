@@ -42,6 +42,7 @@
 - 试跑真实调用一次模型：写 `llm_calls`（`task_id` 为空、版本串带 `+prompt-test`）、复用 Key 冷却，但不写译文或加工结果。
 - 任务类型不写死：`task_kind` 无 SQL CHECK，规格由 `domain/prompts.py` 的 `TASK_SPECS` 提供；新增任务类型的清单与已知边界（聚合类任务需要新的输入与结果模型）记在决策记录里。
 - `api/schemas.py` 因新增模型超过 400 行阈值，拆成 `api/schemas/` 包（catalog / messages / llm），原导入路径通过 `__init__` 重导出保持不变。
+- 升级兼容：提示词入库之前的任务快照只带版本串（`prompt_version`）没有 `prompt_id`，执行时按版本串经 `PromptRepository.by_version_string` 找回同一条记录，排队中的老任务仍能跑、能重试；这种引用同样计入 `usage.tasks`，所以被老任务引用的版本仍然不能改也不能删。
 - 提示词 CRUD 补全（`PromptUsage`）：新建全新业务键从 v1 开始；名称与版本说明随时可改；**未被任何引用**的版本可以就地改文本或真删除（`PATCH` / `DELETE`），被引用过的只能另存新版本或归档，启用中的版本要先启用另一个才能删。判定口径集中在 `PromptRepository.usage`：调用审计（含试跑的 `+prompt-test`，版本串精确匹配，`v1` 不会命中 `v10`）、译文与加工结果、任务快照 `payload_json.prompt_id`、来源与分类的任务分配四类引用；`used` 由四项计数派生，界面按项说明影响。理由与界面限制见决策记录[《2026-10-09-提示词就地编辑与删除》](../决策记录/2026-10-09-提示词就地编辑与删除.md)。
 
 ## 模型访问协议（2026-10-09）

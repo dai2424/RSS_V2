@@ -117,7 +117,8 @@ class TranslationService:
         version = self._input_version(task)
         prompt_version = str(task.payload.get("prompt_version", ""))
         payload = self.prompts.payload(
-            self.prompts.snapshot(str(task.payload.get("prompt_id", ""))), version
+            self.prompts.snapshot(str(task.payload.get("prompt_id", "")), prompt_version),
+            version,
         )
         completed = next(
             (
