@@ -6,9 +6,12 @@ from fastapi import APIRouter, Query, Request
 
 from rss_v2.api.presenters import (
     container,
+    task_deletion_response,
     task_view_response,
 )
 from rss_v2.api.schemas import (
+    TaskClearFailedRequest,
+    TaskDeletionResponse,
     TaskListResponse,
     TaskResponse,
 )
@@ -42,3 +45,17 @@ def retry_task(task_id: str, request: Request) -> TaskResponse:
     """重新排队失败任务。"""
     service = container(request).task_service
     return task_view_response(service.view(service.retry(task_id)))
+
+
+@tasks_router.post("/clear-failed", response_model=TaskDeletionResponse)
+def clear_failed_tasks(request: Request, payload: TaskClearFailedRequest) -> TaskDeletionResponse:
+    """清理全部失败任务；dry_run 先看条数。"""
+
+    return task_deletion_response(container(request).task_service.clear_failed(payload.dry_run))
+
+
+@tasks_router.delete("/{task_id}", response_model=TaskDeletionResponse)
+def delete_task(task_id: str, request: Request) -> TaskDeletionResponse:
+    """删除已结束的任务；排队与运行中的任务拒绝删除。"""
+
+    return task_deletion_response(container(request).task_service.delete(task_id))

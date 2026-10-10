@@ -416,7 +416,11 @@ export interface paths {
     get: operations["get_task_api_tasks__task_id__get"];
     put?: never;
     post?: never;
-    delete?: never;
+    /**
+     * Delete Task
+     * @description 删除已结束的任务；排队与运行中的任务拒绝删除。
+     */
+    delete: operations["delete_task_api_tasks__task_id__delete"];
     options?: never;
     head?: never;
     patch?: never;
@@ -456,6 +460,26 @@ export interface paths {
      * @description 重新排队失败任务。
      */
     post: operations["retry_task_api_tasks__task_id__retry_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/tasks/clear-failed": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Clear Failed Tasks
+     * @description 清理全部失败任务；dry_run 先看条数。
+     */
+    post: operations["clear_failed_tasks_api_tasks_clear_failed_post"];
     delete?: never;
     options?: never;
     head?: never;
@@ -1850,6 +1874,27 @@ export interface components {
       health: components["schemas"]["HealthResponse"];
     };
     /**
+     * TaskClearFailedRequest
+     * @description 清理失败任务请求；dry_run 只返回条数。
+     */
+    TaskClearFailedRequest: {
+      /**
+       * Dry Run
+       * @default false
+       */
+      dry_run: boolean;
+    };
+    /**
+     * TaskDeletionResponse
+     * @description 清理任务的结果：命中多少条、实际删除多少条。
+     */
+    TaskDeletionResponse: {
+      /** Candidates */
+      candidates: number;
+      /** Deleted */
+      deleted: number;
+    };
+    /**
      * TaskListResponse
      * @description 任务列表响应。
      */
@@ -2865,6 +2910,37 @@ export interface operations {
       };
     };
   };
+  delete_task_api_tasks__task_id__delete: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        task_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["TaskDeletionResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
   list_tasks_api_tasks_get: {
     parameters: {
       query?: {
@@ -2916,6 +2992,39 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["TaskResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  clear_failed_tasks_api_tasks_clear_failed_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["TaskClearFailedRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["TaskDeletionResponse"];
         };
       };
       /** @description Validation Error */

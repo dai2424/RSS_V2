@@ -112,3 +112,89 @@ test("任务列表展示目标、执行参数与失败原因", async ({ page }, 
   });
   await expect(page.locator("body")).toHaveJSProperty("scrollWidth", 1440);
 });
+
+test("任务删除入口：未结束禁用，清理失败任务先预览", async ({ page }) => {
+  const base = {
+    idempotency_key: "key",
+    lease_until: null,
+    input_version_id: null,
+    output_version_id: null,
+    error_code: null,
+    error_message: null,
+    model: "deepseek-v4.1-flash",
+    prompt_version: "enrich-v2",
+    target_kind: "message",
+    target_id: "m-1",
+    target_label: "示例消息",
+  };
+  await page.route("**/api/tasks?**", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        items: [
+          {
+            ...base,
+            id: "queued-task",
+            task_type: "enrich_message",
+            status: "queued",
+            attempts: 0,
+            created_at: 1759999000,
+            updated_at: 1759999000,
+          },
+          {
+            ...base,
+            id: "failed-task",
+            task_type: "enrich_message",
+            status: "failed",
+            attempts: 2,
+            created_at: 1759998000,
+            updated_at: 1759998125,
+          },
+        ],
+        total: 2,
+      }),
+    }),
+  );
+  const clearBodies: unknown[] = [];
+  await page.route("**/api/tasks/clear-failed", async (route) => {
+    const body = route.request().postDataJSON();
+    clearBodies.push(body);
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(
+        body.dry_run
+          ? { candidates: 1, deleted: 0 }
+          : { candidates: 1, deleted: 1 },
+      ),
+    });
+  });
+
+  await page.goto("/tasks");
+  // 排队中的任务不能删：按钮禁用并说明原因。
+  const queuedRow = page.getByRole("row").filter({ hasText: "已排队" });
+  const queuedDelete = queuedRow.getByRole("button", { name: "删除" });
+  await expect(queuedDelete).toBeDisabled();
+  await expect(queuedDelete).toHaveAttribute(
+    "title",
+    "排队中或运行中的任务不能删除",
+  );
+
+  // 失败任务可以删：确认弹层说明结果与审计保留，Esc 可退出。
+  const failedRow = page.getByRole("row").filter({ hasText: "失败" }).first();
+  await failedRow.getByRole("button", { name: "删除" }).click();
+  const dialog = page.getByRole("alertdialog", { name: "删除任务" });
+  await expect(dialog).toContainText("模型调用审计");
+  await expect(dialog).toContainText("不可恢复");
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
+
+  // 清理失败任务：先预览条数，再按条数确认。
+  await page.getByRole("button", { name: "清理失败任务" }).click();
+  const clearDialog = page.getByRole("alertdialog", { name: "清理失败任务" });
+  await expect(clearDialog).toContainText("将删除 1 个失败任务");
+  await clearDialog.getByRole("button", { name: "清理 1 个任务" }).click();
+  await expect(page.getByText("已清理 1 个失败任务。")).toBeVisible();
+  expect(clearBodies).toEqual([{ dry_run: true }, { dry_run: false }]);
+});

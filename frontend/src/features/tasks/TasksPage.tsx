@@ -1,4 +1,4 @@
-import { Fragment } from "react";
+import { Fragment, useState } from "react";
 import {
   keepPreviousData,
   useMutation,
@@ -19,6 +19,7 @@ import {
 import { Pagination } from "../../components/Pagination";
 import { sizeParams, usePaginationParams } from "../../lib/usePaginationParams";
 import { formatDuration, formatTime, statusLabels } from "../../lib/display";
+import { ClearFailedDialog, TaskDeleteDialog } from "./TaskDeleteDialog";
 
 type Task = components["schemas"]["TaskResponse"];
 
@@ -62,6 +63,8 @@ export function TasksPage() {
       return requireResponse(r.response, r.data, r.error);
     },
   });
+  const [pendingDelete, setPendingDelete] = useState<Task | null>(null);
+  const [clearing, setClearing] = useState(false);
   const rows = tasks.data?.items ?? [];
   const total = tasks.data?.total ?? 0;
   const retry = useMutation({
@@ -99,6 +102,9 @@ export function TasksPage() {
           </select>
           <Button className="secondary" onClick={() => void tasks.refetch()}>
             刷新
+          </Button>
+          <Button className="danger-outline" onClick={() => setClearing(true)}>
+            清理失败任务
           </Button>
         </div>
         {tasks.isLoading && <div className="loading">正在加载任务…</div>}
@@ -215,6 +221,18 @@ export function TasksPage() {
                               重试任务
                             </Button>
                           )}
+                          <Button
+                            className="danger-outline"
+                            disabled={!FINISHED.has(task.status)}
+                            title={
+                              FINISHED.has(task.status)
+                                ? undefined
+                                : "排队中或运行中的任务不能删除"
+                            }
+                            onClick={() => setPendingDelete(task)}
+                          >
+                            删除
+                          </Button>
                         </td>
                       </tr>
                       {task.error_message && (
@@ -245,6 +263,11 @@ export function TasksPage() {
           />
         )}
       </Card>
+      <TaskDeleteDialog
+        task={pendingDelete}
+        onClose={() => setPendingDelete(null)}
+      />
+      <ClearFailedDialog open={clearing} onClose={() => setClearing(false)} />
     </div>
   );
 }

@@ -218,6 +218,17 @@ class TaskRepository(Protocol):
         retry_delay_seconds: int = 60,
     ) -> Task: ...
 
+    def delete_finished(self, task_ids: list[str]) -> int:
+        """删除已结束（成功或失败）的任务，返回实际删除条数。
+
+        排队与运行中的任务不在这里删：正在跑的任务被删掉后，worker 回写时会取不到行。
+        """
+        ...
+
+    def delete_failed(self) -> int:
+        """删除全部失败任务，返回删除条数。"""
+        ...
+
     def reclaim_expired(self, now: int) -> int: ...
 
 

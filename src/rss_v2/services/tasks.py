@@ -8,7 +8,7 @@
 from collections.abc import Sequence
 from dataclasses import dataclass
 
-from rss_v2.domain import DomainError, Task, TaskStatus, TaskType, TaskView
+from rss_v2.domain import DomainError, Task, TaskDeletion, TaskStatus, TaskType, TaskView
 from rss_v2.ports import MessageRepository, SourceRepository, TaskRepository
 
 #: 无法解析目标时回落的标识长度，够在一眼内区分不同目标。
@@ -62,6 +62,26 @@ class TaskService:
     def for_version(self, version_id: str, task_type: TaskType) -> Task | None:
         """查询版本最近的一类任务；翻译与内容加工分别展示状态。"""
         return self.tasks.latest_for_version(version_id, task_type)
+
+    def delete(self, task_id: str) -> TaskDeletion:
+        """删除已结束的任务。
+
+        排队与运行中的任务不能删：运行中的任务被删会让 worker 在回写时崩，排队中的
+        collect_source 任务被删会让采集运行永远停在 running。仓储层用状态条件再挡一次。
+        """
+
+        task = self.get(task_id)
+        if task.status not in (TaskStatus.SUCCEEDED, TaskStatus.FAILED):
+            raise DomainError("task_not_finished", "排队中或运行中的任务不能删除")
+        return TaskDeletion(candidates=1, deleted=self.tasks.delete_finished([task_id]))
+
+    def clear_failed(self, dry_run: bool) -> TaskDeletion:
+        """清理全部失败任务；先预览条数再执行。"""
+
+        candidates = self.tasks.count(TaskStatus.FAILED)
+        if dry_run:
+            return TaskDeletion(candidates=candidates, deleted=0)
+        return TaskDeletion(candidates=candidates, deleted=self.tasks.delete_failed())
 
     def retry(self, task_id: str) -> Task:
         """明确重试失败任务。"""

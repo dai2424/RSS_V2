@@ -1,6 +1,6 @@
 """RSS v2 领域层。"""
 
-from .deletions import MessageDeletion
+from .deletions import MessageDeletion, TaskDeletion
 from .errors import ConflictError, DomainError, ExternalServiceError, NotFoundError
 from .keywords import (
     KEYWORD_LIMIT,
@@ -96,6 +96,7 @@ __all__ = [
     "SourceDeletion",
     "SourceLanguage",
     "Task",
+    "TaskDeletion",
     "TaskSetting",
     "TaskSettingView",
     "TaskStatus",

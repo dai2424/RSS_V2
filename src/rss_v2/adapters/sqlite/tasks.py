@@ -213,6 +213,27 @@ class SQLiteTaskRepository:
             raise KeyError(task_id)
         return result
 
+    def delete_finished(self, task_ids: list[str]) -> int:
+        """删除已结束的任务；状态条件写在 SQL 里，作为服务层校验之外的兜底。"""
+
+        if not task_ids:
+            return 0
+        placeholders = ",".join("?" for _ in task_ids)
+        with self.database.transaction() as connection:
+            cursor = connection.execute(
+                "DELETE FROM tasks WHERE id IN ("
+                f"{placeholders}) AND status IN ('succeeded', 'failed')",
+                tuple(task_ids),
+            )
+            return int(cursor.rowcount)
+
+    def delete_failed(self) -> int:
+        """清理全部失败任务。"""
+
+        with self.database.transaction() as connection:
+            cursor = connection.execute("DELETE FROM tasks WHERE status = 'failed'")
+            return int(cursor.rowcount)
+
     def renew(self, task_id: str, lease_token: str, now: int, lease_seconds: int) -> bool:
         """仅持有当前 token 的 worker 可以续租。"""
         with self.database.transaction() as connection:

@@ -17,3 +17,11 @@ class MessageDeletion:
     translations: int  # 随之删除的译文数
     enrichments: int  # 随之删除的加工结果数（关键词随加工结果级联删除）
     tasks: int  # 一并删除的翻译与加工任务数
+
+
+@dataclass(frozen=True, slots=True)
+class TaskDeletion:
+    """清理任务的结果：命中多少条、实际删掉多少条。"""
+
+    candidates: int  # 命中的任务数（单条删除恒为 1）
+    deleted: int  # 实际删除的任务数；状态守卫可能让并发场景下少删

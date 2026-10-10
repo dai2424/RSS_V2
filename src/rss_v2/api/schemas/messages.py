@@ -156,3 +156,16 @@ class MessageBulkDeleteRequest(BaseModel):
 
     message_ids: list[str] = Field(min_length=1, max_length=200)
     dry_run: bool = False
+
+
+class TaskDeletionResponse(BaseModel):
+    """清理任务的结果：命中多少条、实际删除多少条。"""
+
+    candidates: int
+    deleted: int
+
+
+class TaskClearFailedRequest(BaseModel):
+    """清理失败任务请求；dry_run 只返回条数。"""
+
+    dry_run: bool = False

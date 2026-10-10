@@ -20,6 +20,7 @@ from rss_v2.api.schemas import (
     ProviderModelResponse,
     ProviderResponse,
     SourceResponse,
+    TaskDeletionResponse,
     TaskResponse,
     TaskSettingResponse,
     TranslationResponse,
@@ -39,6 +40,7 @@ from rss_v2.domain import (
     ProviderModel,
     Source,
     Task,
+    TaskDeletion,
     TaskSettingView,
     TaskView,
     Translation,
@@ -141,6 +143,10 @@ def _snapshot_text(value: object) -> str | None:
 
     text = str(value or "").strip()
     return text or None
+
+
+def task_deletion_response(item: TaskDeletion) -> TaskDeletionResponse:
+    return TaskDeletionResponse(candidates=item.candidates, deleted=item.deleted)
 
 
 def message_deletion_response(item: MessageDeletion) -> MessageDeletionResponse:
