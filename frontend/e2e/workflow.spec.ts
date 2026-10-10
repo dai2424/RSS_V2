@@ -1,32 +1,6 @@
 import { test, expect } from "@playwright/test";
-import { execFileSync } from "node:child_process";
-import { resolve } from "node:path";
-import type { APIRequestContext } from "@playwright/test";
 
-function runWorkerOnce() {
-  execFileSync(
-    "uv",
-    ["run", "python", "-m", "rss_v2.main", "worker", "--once"],
-    {
-      cwd: resolve(".."),
-      env: {
-        ...process.env,
-        RSS_RUNTIME_DIR: resolve("../runtime/e2e"),
-      },
-      stdio: "pipe",
-    },
-  );
-}
-
-/** 反复执行 worker 直到队列排空，避免历史滞留任务抢占单次执行机会。 */
-async function drainWorker(request: APIRequestContext) {
-  for (let i = 0; i < 20; i += 1) {
-    runWorkerOnce();
-    const queued = await (await request.get("/api/tasks?status=queued")).json();
-    if (!queued.length) return;
-  }
-  throw new Error("任务队列未能排空，可能存在反复失败的任务。");
-}
+import { drainWorker } from "./support";
 
 for (const width of [1280, 1440, 1920]) {
   test(`RSS 主流程与键盘操作 ${width}px`, async ({

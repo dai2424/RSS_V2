@@ -862,6 +862,205 @@
         }
       }
     },
+    "/api/keywords": {
+      "get": {
+        "tags": [
+          "keywords"
+        ],
+        "summary": "List Keywords",
+        "description": "词表：按出现次数排序的规范词，默认折叠只出现一次的词。",
+        "operationId": "list_keywords_api_keywords_get",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Kind"
+            }
+          },
+          {
+            "name": "min_count",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "description": "最小出现次数，1 表示包含孤词",
+              "default": 2,
+              "title": "Min Count"
+            },
+            "description": "最小出现次数，1 表示包含孤词"
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "最近出现时间下界，UTC 秒",
+              "title": "Since"
+            },
+            "description": "最近出现时间下界，UTC 秒"
+          },
+          {
+            "name": "until",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "最近出现时间上界，UTC 秒",
+              "title": "Until"
+            },
+            "description": "最近出现时间上界，UTC 秒"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 25,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KeywordListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/keywords/overview": {
+      "get": {
+        "tags": [
+          "keywords"
+        ],
+        "summary": "Keyword Overview",
+        "description": "概览：规模、类型构成、长尾、趋势、来源分布与覆盖与回填进度。",
+        "operationId": "keyword_overview_api_keywords_overview_get",
+        "parameters": [
+          {
+            "name": "days",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 90,
+              "minimum": 1,
+              "description": "趋势天数，含今天",
+              "default": 14,
+              "title": "Days"
+            },
+            "description": "趋势天数，含今天"
+          },
+          {
+            "name": "top_sources",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 50,
+              "minimum": 1,
+              "default": 10,
+              "title": "Top Sources"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KeywordOverviewResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/keywords/rebuild": {
       "post": {
         "tags": [
@@ -909,6 +1108,141 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/KeywordBackfillResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/keywords/merges": {
+      "get": {
+        "tags": [
+          "keywords"
+        ],
+        "summary": "List Merges",
+        "description": "最近的合并记录；已撤销的记录也在列表里。",
+        "operationId": "list_merges_api_keywords_merges_get",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/KeywordMergeRecordResponse"
+                  },
+                  "title": "Response List Merges Api Keywords Merges Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/keywords/merge": {
+      "post": {
+        "tags": [
+          "keywords"
+        ],
+        "summary": "Merge Keywords",
+        "description": "合并同指写法；dry_run 只返回影响面。",
+        "operationId": "merge_keywords_api_keywords_merge_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KeywordMergeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KeywordMergeResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/keywords/merges/{merge_id}/undo": {
+      "post": {
+        "tags": [
+          "keywords"
+        ],
+        "summary": "Undo Merge",
+        "description": "撤销一次合并；别名按原值回填。",
+        "operationId": "undo_merge_api_keywords_merges__merge_id__undo_post",
+        "parameters": [
+          {
+            "name": "merge_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Merge Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KeywordUndoResponse"
                 }
               }
             }
@@ -2679,6 +3013,377 @@
         "title": "KeywordBackfillResponse",
         "description": "回填结果；reasons 是去重后的跳过原因。"
       },
+      "KeywordBucketResponse": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "terms": {
+            "type": "integer",
+            "title": "Terms"
+          }
+        },
+        "type": "object",
+        "required": [
+          "label",
+          "terms"
+        ],
+        "title": "KeywordBucketResponse",
+        "description": "长尾分布的一档。"
+      },
+      "KeywordEntryResponse": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "mentions": {
+            "type": "integer",
+            "title": "Mentions"
+          },
+          "sources": {
+            "type": "integer",
+            "title": "Sources"
+          },
+          "first_seen_at": {
+            "type": "integer",
+            "title": "First Seen At"
+          },
+          "last_seen_at": {
+            "type": "integer",
+            "title": "Last Seen At"
+          },
+          "aliases": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Aliases"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "text",
+          "kind",
+          "mentions",
+          "sources",
+          "first_seen_at",
+          "last_seen_at",
+          "aliases"
+        ],
+        "title": "KeywordEntryResponse",
+        "description": "词表一行：规范词、展示写法、规模与首末出现时间。"
+      },
+      "KeywordKindStatResponse": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "terms": {
+            "type": "integer",
+            "title": "Terms"
+          },
+          "mentions": {
+            "type": "integer",
+            "title": "Mentions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "terms",
+          "mentions"
+        ],
+        "title": "KeywordKindStatResponse",
+        "description": "某一类型的关键词规模。"
+      },
+      "KeywordListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/KeywordEntryResponse"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total"
+        ],
+        "title": "KeywordListResponse",
+        "description": "词表分页结果。"
+      },
+      "KeywordMergePreviewResponse": {
+        "properties": {
+          "target": {
+            "type": "string",
+            "title": "Target"
+          },
+          "sources": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Sources"
+          },
+          "forms": {
+            "items": {
+              "$ref": "#/components/schemas/KeywordResponse"
+            },
+            "type": "array",
+            "title": "Forms"
+          },
+          "mentions": {
+            "type": "integer",
+            "title": "Mentions"
+          },
+          "messages": {
+            "type": "integer",
+            "title": "Messages"
+          }
+        },
+        "type": "object",
+        "required": [
+          "target",
+          "sources",
+          "forms",
+          "mentions",
+          "messages"
+        ],
+        "title": "KeywordMergePreviewResponse",
+        "description": "合并影响面：合并后的词频、受影响消息数与全部写法。"
+      },
+      "KeywordMergeRecordResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "target_key": {
+            "type": "string",
+            "title": "Target Key"
+          },
+          "target_raw": {
+            "type": "string",
+            "title": "Target Raw"
+          },
+          "members": {
+            "items": {
+              "$ref": "#/components/schemas/KeywordResponse"
+            },
+            "type": "array",
+            "title": "Members"
+          },
+          "messages": {
+            "type": "integer",
+            "title": "Messages"
+          },
+          "created_at": {
+            "type": "integer",
+            "title": "Created At"
+          },
+          "undone_at": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Undone At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "target_key",
+          "target_raw",
+          "members",
+          "messages",
+          "created_at",
+          "undone_at"
+        ],
+        "title": "KeywordMergeRecordResponse",
+        "description": "一次合并的记录；已撤销的记录保留供审计。"
+      },
+      "KeywordMergeRequest": {
+        "properties": {
+          "keys": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 20,
+            "minItems": 1,
+            "title": "Keys"
+          },
+          "target": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Target"
+          },
+          "dry_run": {
+            "type": "boolean",
+            "title": "Dry Run",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "keys",
+          "target"
+        ],
+        "title": "KeywordMergeRequest",
+        "description": "合并请求；dry_run 只返回影响面，不写别名。"
+      },
+      "KeywordMergeResponse": {
+        "properties": {
+          "record": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/KeywordMergeRecordResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "preview": {
+            "$ref": "#/components/schemas/KeywordMergePreviewResponse"
+          }
+        },
+        "type": "object",
+        "required": [
+          "record",
+          "preview"
+        ],
+        "title": "KeywordMergeResponse",
+        "description": "合并结果：影响面，以及执行后的记录（dry_run 时为空）。"
+      },
+      "KeywordOverviewResponse": {
+        "properties": {
+          "messages": {
+            "type": "integer",
+            "title": "Messages"
+          },
+          "enriched": {
+            "type": "integer",
+            "title": "Enriched"
+          },
+          "pending": {
+            "type": "integer",
+            "title": "Pending"
+          },
+          "terms": {
+            "type": "integer",
+            "title": "Terms"
+          },
+          "mentions": {
+            "type": "integer",
+            "title": "Mentions"
+          },
+          "singletons": {
+            "type": "integer",
+            "title": "Singletons"
+          },
+          "average_per_message": {
+            "type": "number",
+            "title": "Average Per Message"
+          },
+          "aliases": {
+            "type": "integer",
+            "title": "Aliases"
+          },
+          "merges": {
+            "type": "integer",
+            "title": "Merges"
+          },
+          "kinds": {
+            "items": {
+              "$ref": "#/components/schemas/KeywordKindStatResponse"
+            },
+            "type": "array",
+            "title": "Kinds"
+          },
+          "long_tail": {
+            "items": {
+              "$ref": "#/components/schemas/KeywordBucketResponse"
+            },
+            "type": "array",
+            "title": "Long Tail"
+          },
+          "trend": {
+            "items": {
+              "$ref": "#/components/schemas/KeywordTrendPointResponse"
+            },
+            "type": "array",
+            "title": "Trend"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/KeywordSourceStatResponse"
+            },
+            "type": "array",
+            "title": "Sources"
+          },
+          "tasks_queued": {
+            "type": "integer",
+            "title": "Tasks Queued"
+          },
+          "tasks_running": {
+            "type": "integer",
+            "title": "Tasks Running"
+          },
+          "tasks_succeeded": {
+            "type": "integer",
+            "title": "Tasks Succeeded"
+          },
+          "tasks_failed": {
+            "type": "integer",
+            "title": "Tasks Failed"
+          }
+        },
+        "type": "object",
+        "required": [
+          "messages",
+          "enriched",
+          "pending",
+          "terms",
+          "mentions",
+          "singletons",
+          "average_per_message",
+          "aliases",
+          "merges",
+          "kinds",
+          "long_tail",
+          "trend",
+          "sources",
+          "tasks_queued",
+          "tasks_running",
+          "tasks_succeeded",
+          "tasks_failed"
+        ],
+        "title": "KeywordOverviewResponse",
+        "description": "概览：规模、分布与覆盖；字段含义见 KeywordOverview。"
+      },
       "KeywordRebuildResponse": {
         "properties": {
           "indexed": {
@@ -2711,6 +3416,81 @@
         ],
         "title": "KeywordResponse",
         "description": "一条检索关键词；text 用于展示，kind 用于检索优先级与界面标注。"
+      },
+      "KeywordSourceStatResponse": {
+        "properties": {
+          "source_id": {
+            "type": "string",
+            "title": "Source Id"
+          },
+          "source_name": {
+            "type": "string",
+            "title": "Source Name"
+          },
+          "terms": {
+            "type": "integer",
+            "title": "Terms"
+          },
+          "mentions": {
+            "type": "integer",
+            "title": "Mentions"
+          },
+          "top": {
+            "items": {
+              "$ref": "#/components/schemas/KeywordResponse"
+            },
+            "type": "array",
+            "title": "Top"
+          }
+        },
+        "type": "object",
+        "required": [
+          "source_id",
+          "source_name",
+          "terms",
+          "mentions",
+          "top"
+        ],
+        "title": "KeywordSourceStatResponse",
+        "description": "来源维度的关键词规模。"
+      },
+      "KeywordTrendPointResponse": {
+        "properties": {
+          "day": {
+            "type": "string",
+            "title": "Day"
+          },
+          "mentions": {
+            "type": "integer",
+            "title": "Mentions"
+          },
+          "new_terms": {
+            "type": "integer",
+            "title": "New Terms"
+          }
+        },
+        "type": "object",
+        "required": [
+          "day",
+          "mentions",
+          "new_terms"
+        ],
+        "title": "KeywordTrendPointResponse",
+        "description": "某一天的关键词产出。"
+      },
+      "KeywordUndoResponse": {
+        "properties": {
+          "restored": {
+            "type": "integer",
+            "title": "Restored"
+          }
+        },
+        "type": "object",
+        "required": [
+          "restored"
+        ],
+        "title": "KeywordUndoResponse",
+        "description": "撤销结果：恢复的别名行数。"
       },
       "MessageDetailResponse": {
         "properties": {

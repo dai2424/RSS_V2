@@ -35,6 +35,9 @@
   --destructive-foreground: 0 0% 100%;
   --input: 215 16% 55%;
   --ring: 221 83% 51%;
+  /* 图表序列色：只区分"词位数"与"新增词"，分类图统一用主色加文字标签，不靠颜色表意。 */
+  --chart-series-1: hsl(var(--primary));
+  --chart-series-2: hsl(var(--muted-foreground));
   --radius: 0.75rem;
   --success: 142 77% 94%;
   --success-foreground: 142 72% 29%;
@@ -461,6 +464,62 @@ tbody tr:hover {
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+/* 关键词页：概览指标、图表与词表。 */
+.keyword-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.keyword-metric {
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  border-radius: 12px;
+  padding: 12px 16px;
+}
+.keyword-metric dt {
+  color: hsl(var(--muted-foreground));
+  font-size: 13px;
+}
+.keyword-metric dd {
+  font-size: 22px;
+  font-weight: 600;
+  margin: 4px 0 0;
+}
+.keyword-charts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.keyword-chart {
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  border-radius: 12px;
+  margin: 0;
+  padding: 16px;
+}
+.keyword-chart figcaption {
+  color: hsl(var(--muted-foreground));
+  font-size: 13px;
+  margin-top: 8px;
+}
+.keyword-chart details {
+  margin-top: 8px;
+}
+.keyword-chart table {
+  font-size: 13px;
+  margin-top: 8px;
+  width: 100%;
+}
+.keyword-chart svg:focus-visible,
+.keyword-table tr:focus-within {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+.keyword-table select {
+  min-height: 36px;
 }
 .related-messages {
   margin-top: 24px;

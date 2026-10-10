@@ -7,6 +7,11 @@ import {
   RouterProvider,
 } from "react-router-dom";
 import { AppShell } from "./components/AppShell";
+const Keywords = lazy(() =>
+  import("./features/keywords/KeywordsPage").then((m) => ({
+    default: m.KeywordsPage,
+  })),
+);
 const Sources = lazy(() =>
   import("./features/sources/SourcesPage").then((m) => ({
     default: m.SourcesPage,
@@ -64,6 +69,7 @@ const router = createBrowserRouter(
       <Route path="/settings/providers" element={<Providers />} />
       <Route path="/settings/prompts" element={<Prompts />} />
       <Route path="/settings/tasks" element={<TaskSettings />} />
+      <Route path="/settings/keywords" element={<Keywords />} />
       <Route path="*" element={<Navigate to="/sources" replace />} />
     </Route>,
   ),

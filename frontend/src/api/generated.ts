@@ -221,6 +221,46 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/keywords": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * List Keywords
+     * @description 词表：按出现次数排序的规范词，默认折叠只出现一次的词。
+     */
+    get: operations["list_keywords_api_keywords_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/keywords/overview": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Keyword Overview
+     * @description 概览：规模、类型构成、长尾、趋势、来源分布与覆盖与回填进度。
+     */
+    get: operations["keyword_overview_api_keywords_overview_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/keywords/rebuild": {
     parameters: {
       query?: never;
@@ -255,6 +295,66 @@ export interface paths {
      * @description 为没有加工结果的存量消息入队；先用 dry_run 看条数再执行。
      */
     post: operations["backfill_keywords_api_keywords_backfill_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/keywords/merges": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * List Merges
+     * @description 最近的合并记录；已撤销的记录也在列表里。
+     */
+    get: operations["list_merges_api_keywords_merges_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/keywords/merge": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Merge Keywords
+     * @description 合并同指写法；dry_run 只返回影响面。
+     */
+    post: operations["merge_keywords_api_keywords_merge_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/keywords/merges/{merge_id}/undo": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Undo Merge
+     * @description 撤销一次合并；别名按原值回填。
+     */
+    post: operations["undo_merge_api_keywords_merges__merge_id__undo_post"];
     delete?: never;
     options?: never;
     head?: never;
@@ -866,6 +966,159 @@ export interface components {
       reasons: string[];
     };
     /**
+     * KeywordBucketResponse
+     * @description 长尾分布的一档。
+     */
+    KeywordBucketResponse: {
+      /** Label */
+      label: string;
+      /** Terms */
+      terms: number;
+    };
+    /**
+     * KeywordEntryResponse
+     * @description 词表一行：规范词、展示写法、规模与首末出现时间。
+     */
+    KeywordEntryResponse: {
+      /** Key */
+      key: string;
+      /** Text */
+      text: string;
+      /** Kind */
+      kind: string;
+      /** Mentions */
+      mentions: number;
+      /** Sources */
+      sources: number;
+      /** First Seen At */
+      first_seen_at: number;
+      /** Last Seen At */
+      last_seen_at: number;
+      /** Aliases */
+      aliases: string[];
+    };
+    /**
+     * KeywordKindStatResponse
+     * @description 某一类型的关键词规模。
+     */
+    KeywordKindStatResponse: {
+      /** Kind */
+      kind: string;
+      /** Terms */
+      terms: number;
+      /** Mentions */
+      mentions: number;
+    };
+    /**
+     * KeywordListResponse
+     * @description 词表分页结果。
+     */
+    KeywordListResponse: {
+      /** Items */
+      items: components["schemas"]["KeywordEntryResponse"][];
+      /** Total */
+      total: number;
+    };
+    /**
+     * KeywordMergePreviewResponse
+     * @description 合并影响面：合并后的词频、受影响消息数与全部写法。
+     */
+    KeywordMergePreviewResponse: {
+      /** Target */
+      target: string;
+      /** Sources */
+      sources: string[];
+      /** Forms */
+      forms: components["schemas"]["KeywordResponse"][];
+      /** Mentions */
+      mentions: number;
+      /** Messages */
+      messages: number;
+    };
+    /**
+     * KeywordMergeRecordResponse
+     * @description 一次合并的记录；已撤销的记录保留供审计。
+     */
+    KeywordMergeRecordResponse: {
+      /** Id */
+      id: string;
+      /** Target Key */
+      target_key: string;
+      /** Target Raw */
+      target_raw: string;
+      /** Members */
+      members: components["schemas"]["KeywordResponse"][];
+      /** Messages */
+      messages: number;
+      /** Created At */
+      created_at: number;
+      /** Undone At */
+      undone_at: number | null;
+    };
+    /**
+     * KeywordMergeRequest
+     * @description 合并请求；dry_run 只返回影响面，不写别名。
+     */
+    KeywordMergeRequest: {
+      /** Keys */
+      keys: string[];
+      /** Target */
+      target: string;
+      /**
+       * Dry Run
+       * @default false
+       */
+      dry_run: boolean;
+    };
+    /**
+     * KeywordMergeResponse
+     * @description 合并结果：影响面，以及执行后的记录（dry_run 时为空）。
+     */
+    KeywordMergeResponse: {
+      record: components["schemas"]["KeywordMergeRecordResponse"] | null;
+      preview: components["schemas"]["KeywordMergePreviewResponse"];
+    };
+    /**
+     * KeywordOverviewResponse
+     * @description 概览：规模、分布与覆盖；字段含义见 KeywordOverview。
+     */
+    KeywordOverviewResponse: {
+      /** Messages */
+      messages: number;
+      /** Enriched */
+      enriched: number;
+      /** Pending */
+      pending: number;
+      /** Terms */
+      terms: number;
+      /** Mentions */
+      mentions: number;
+      /** Singletons */
+      singletons: number;
+      /** Average Per Message */
+      average_per_message: number;
+      /** Aliases */
+      aliases: number;
+      /** Merges */
+      merges: number;
+      /** Kinds */
+      kinds: components["schemas"]["KeywordKindStatResponse"][];
+      /** Long Tail */
+      long_tail: components["schemas"]["KeywordBucketResponse"][];
+      /** Trend */
+      trend: components["schemas"]["KeywordTrendPointResponse"][];
+      /** Sources */
+      sources: components["schemas"]["KeywordSourceStatResponse"][];
+      /** Tasks Queued */
+      tasks_queued: number;
+      /** Tasks Running */
+      tasks_running: number;
+      /** Tasks Succeeded */
+      tasks_succeeded: number;
+      /** Tasks Failed */
+      tasks_failed: number;
+    };
+    /**
      * KeywordRebuildResponse
      * @description 关键词索引重建结果：写入的关系表行数。
      */
@@ -882,6 +1135,42 @@ export interface components {
       text: string;
       /** Kind */
       kind: string;
+    };
+    /**
+     * KeywordSourceStatResponse
+     * @description 来源维度的关键词规模。
+     */
+    KeywordSourceStatResponse: {
+      /** Source Id */
+      source_id: string;
+      /** Source Name */
+      source_name: string;
+      /** Terms */
+      terms: number;
+      /** Mentions */
+      mentions: number;
+      /** Top */
+      top: components["schemas"]["KeywordResponse"][];
+    };
+    /**
+     * KeywordTrendPointResponse
+     * @description 某一天的关键词产出。
+     */
+    KeywordTrendPointResponse: {
+      /** Day */
+      day: string;
+      /** Mentions */
+      mentions: number;
+      /** New Terms */
+      new_terms: number;
+    };
+    /**
+     * KeywordUndoResponse
+     * @description 撤销结果：恢复的别名行数。
+     */
+    KeywordUndoResponse: {
+      /** Restored */
+      restored: number;
     };
     /**
      * MessageDetailResponse
@@ -2136,6 +2425,79 @@ export interface operations {
       };
     };
   };
+  list_keywords_api_keywords_get: {
+    parameters: {
+      query?: {
+        q?: string | null;
+        kind?: string | null;
+        /** @description 最小出现次数，1 表示包含孤词 */
+        min_count?: number;
+        /** @description 最近出现时间下界，UTC 秒 */
+        since?: number | null;
+        /** @description 最近出现时间上界，UTC 秒 */
+        until?: number | null;
+        limit?: number;
+        offset?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["KeywordListResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  keyword_overview_api_keywords_overview_get: {
+    parameters: {
+      query?: {
+        /** @description 趋势天数，含今天 */
+        days?: number;
+        top_sources?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["KeywordOverviewResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
   rebuild_index_api_keywords_rebuild_post: {
     parameters: {
       query?: never;
@@ -2176,6 +2538,101 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["KeywordBackfillResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  list_merges_api_keywords_merges_get: {
+    parameters: {
+      query?: {
+        limit?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["KeywordMergeRecordResponse"][];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  merge_keywords_api_keywords_merge_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["KeywordMergeRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["KeywordMergeResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  undo_merge_api_keywords_merges__merge_id__undo_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        merge_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["KeywordUndoResponse"];
         };
       };
       /** @description Validation Error */
