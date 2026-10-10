@@ -161,7 +161,11 @@ export interface paths {
     get: operations["get_message_api_messages__message_id__get"];
     put?: never;
     post?: never;
-    delete?: never;
+    /**
+     * Delete Message
+     * @description 删除一条消息及其版本、译文、加工结果与相关任务。
+     */
+    delete: operations["delete_message_api_messages__message_id__delete"];
     options?: never;
     head?: never;
     patch?: never;
@@ -181,6 +185,46 @@ export interface paths {
     get: operations["related_messages_api_messages__message_id__related_get"];
     put?: never;
     post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/messages/{message_id}/impact": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Message Impact
+     * @description 删除影响面预览：确认弹层据此说明会删掉什么。
+     */
+    get: operations["message_impact_api_messages__message_id__impact_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/messages/bulk-delete": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Bulk Delete Messages
+     * @description 批量删除消息；dry_run 只返回影响面。
+     */
+    post: operations["bulk_delete_messages_api_messages_bulk_delete_post"];
     delete?: never;
     options?: never;
     head?: never;
@@ -1171,6 +1215,35 @@ export interface components {
     KeywordUndoResponse: {
       /** Restored */
       restored: number;
+    };
+    /**
+     * MessageBulkDeleteRequest
+     * @description 批量删除请求；dry_run 只返回影响面。
+     */
+    MessageBulkDeleteRequest: {
+      /** Message Ids */
+      message_ids: string[];
+      /**
+       * Dry Run
+       * @default false
+       */
+      dry_run: boolean;
+    };
+    /**
+     * MessageDeletionResponse
+     * @description 删除影响面或删除结果；两种场景共用同一形状。
+     */
+    MessageDeletionResponse: {
+      /** Messages */
+      messages: number;
+      /** Versions */
+      versions: number;
+      /** Translations */
+      translations: number;
+      /** Enrichments */
+      enrichments: number;
+      /** Tasks */
+      tasks: number;
     };
     /**
      * MessageDetailResponse
@@ -2350,6 +2423,37 @@ export interface operations {
       };
     };
   };
+  delete_message_api_messages__message_id__delete: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        message_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["MessageDeletionResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
   related_messages_api_messages__message_id__related_get: {
     parameters: {
       query?: {
@@ -2370,6 +2474,70 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["RelatedMessageResponse"][];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  message_impact_api_messages__message_id__impact_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        message_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["MessageDeletionResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  bulk_delete_messages_api_messages_bulk_delete_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["MessageBulkDeleteRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["MessageDeletionResponse"];
         };
       };
       /** @description Validation Error */

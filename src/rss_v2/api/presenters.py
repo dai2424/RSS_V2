@@ -9,6 +9,7 @@ from rss_v2.api.schemas import (
     EnrichmentResponse,
     HealthResponse,
     KeywordResponse,
+    MessageDeletionResponse,
     MessageVersionResponse,
     PromptCompileIssue,
     PromptCompileResponse,
@@ -28,6 +29,7 @@ from rss_v2.domain import (
     Category,
     Enrichment,
     HealthCheck,
+    MessageDeletion,
     MessageVersion,
     Prompt,
     PromptTest,
@@ -139,6 +141,16 @@ def _snapshot_text(value: object) -> str | None:
 
     text = str(value or "").strip()
     return text or None
+
+
+def message_deletion_response(item: MessageDeletion) -> MessageDeletionResponse:
+    return MessageDeletionResponse(
+        messages=item.messages,
+        versions=item.versions,
+        translations=item.translations,
+        enrichments=item.enrichments,
+        tasks=item.tasks,
+    )
 
 
 def task_response(task: Task) -> TaskResponse:

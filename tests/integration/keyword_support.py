@@ -26,15 +26,15 @@ CATEGORY_ID = "8cabd1f6-c0c3-4b32-863d-3836cf5a8171"
 LONG_TEXT = "这段描述足够长，用来触发内容加工任务。" * 20
 
 
-def feed(items: list[tuple[str, str, str]]) -> bytes:
-    """按 (guid, 标题, 发布时间) 生成最小 RSS。"""
+def feed(items: list[tuple[str, str, str]], text: str = LONG_TEXT) -> bytes:
+    """按 (guid, 标题, 发布时间) 生成最小 RSS；text 用来切换中英文场景。"""
 
     entries = "".join(
         f"""<item>
   <guid>{guid}</guid>
   <title>{title}</title>
   <link>https://example.test/{guid}</link>
-  <description><![CDATA[{LONG_TEXT}]]></description>
+  <description><![CDATA[{text}]]></description>
   <pubDate>{published}</pubDate>
 </item>
 """

@@ -1,5 +1,6 @@
 """RSS v2 领域层。"""
 
+from .deletions import MessageDeletion
 from .errors import ConflictError, DomainError, ExternalServiceError, NotFoundError
 from .keywords import (
     KEYWORD_LIMIT,
@@ -79,6 +80,7 @@ __all__ = [
     "MergeRecord",
     "LLMProtocol",
     "Message",
+    "MessageDeletion",
     "MessageVersion",
     "NotFoundError",
     "Prompt",

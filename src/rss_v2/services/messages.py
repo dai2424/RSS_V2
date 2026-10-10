@@ -8,6 +8,7 @@ from rss_v2.domain import (
     DomainError,
     Enrichment,
     Message,
+    MessageDeletion,
     MessageVersion,
     PromptSample,
     Translation,
@@ -71,6 +72,26 @@ class MessageService:
         if version is None:
             raise DomainError("version_not_found", "消息版本不存在")
         return PromptSample(version.title, version.summary, version.content)
+
+    def impact(self, message_ids: list[str]) -> MessageDeletion:
+        """删除影响面预览。"""
+
+        return self.messages.message_impact(message_ids)
+
+    def delete(self, message_id: str) -> MessageDeletion:
+        """删除一条消息；不存在时明确失败，而不是静默返回 0。"""
+
+        if self.messages.get_message(message_id) is None:
+            raise DomainError("message_not_found", "消息不存在")
+        return self.messages.delete_messages([message_id])
+
+    def delete_many(self, message_ids: list[str]) -> MessageDeletion:
+        """批量删除消息；条数上限由接口层校验，这里只保证至少删了一条。"""
+
+        deleted = self.messages.delete_messages(message_ids)
+        if deleted.messages == 0:
+            raise DomainError("message_not_found", "消息不存在")
+        return deleted
 
     def count_for_source(self, source_id: str) -> int:
         """来源下的消息条数，用于删除确认中的影响说明。"""

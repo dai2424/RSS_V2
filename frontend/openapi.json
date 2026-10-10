@@ -713,6 +713,47 @@
             }
           }
         }
+      },
+      "delete": {
+        "tags": [
+          "messages"
+        ],
+        "summary": "Delete Message",
+        "description": "删除一条消息及其版本、译文、加工结果与相关任务。",
+        "operationId": "delete_message_api_messages__message_id__delete",
+        "parameters": [
+          {
+            "name": "message_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Message Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageDeletionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/messages/{message_id}/related": {
@@ -757,6 +798,91 @@
                     "$ref": "#/components/schemas/RelatedMessageResponse"
                   },
                   "title": "Response Related Messages Api Messages  Message Id  Related Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/messages/{message_id}/impact": {
+      "get": {
+        "tags": [
+          "messages"
+        ],
+        "summary": "Message Impact",
+        "description": "删除影响面预览：确认弹层据此说明会删掉什么。",
+        "operationId": "message_impact_api_messages__message_id__impact_get",
+        "parameters": [
+          {
+            "name": "message_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Message Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageDeletionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/messages/bulk-delete": {
+      "post": {
+        "tags": [
+          "messages"
+        ],
+        "summary": "Bulk Delete Messages",
+        "description": "批量删除消息；dry_run 只返回影响面。",
+        "operationId": "bulk_delete_messages_api_messages_bulk_delete_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MessageBulkDeleteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageDeletionResponse"
                 }
               }
             }
@@ -3483,6 +3609,64 @@
         ],
         "title": "KeywordUndoResponse",
         "description": "撤销结果：恢复的别名行数。"
+      },
+      "MessageBulkDeleteRequest": {
+        "properties": {
+          "message_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 200,
+            "minItems": 1,
+            "title": "Message Ids"
+          },
+          "dry_run": {
+            "type": "boolean",
+            "title": "Dry Run",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "message_ids"
+        ],
+        "title": "MessageBulkDeleteRequest",
+        "description": "批量删除请求；dry_run 只返回影响面。"
+      },
+      "MessageDeletionResponse": {
+        "properties": {
+          "messages": {
+            "type": "integer",
+            "title": "Messages"
+          },
+          "versions": {
+            "type": "integer",
+            "title": "Versions"
+          },
+          "translations": {
+            "type": "integer",
+            "title": "Translations"
+          },
+          "enrichments": {
+            "type": "integer",
+            "title": "Enrichments"
+          },
+          "tasks": {
+            "type": "integer",
+            "title": "Tasks"
+          }
+        },
+        "type": "object",
+        "required": [
+          "messages",
+          "versions",
+          "translations",
+          "enrichments",
+          "tasks"
+        ],
+        "title": "MessageDeletionResponse",
+        "description": "删除影响面或删除结果；两种场景共用同一形状。"
       },
       "MessageDetailResponse": {
         "properties": {

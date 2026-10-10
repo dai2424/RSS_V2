@@ -15,6 +15,7 @@ from rss_v2.domain import (
     MergePreview,
     MergeRecord,
     Message,
+    MessageDeletion,
     MessageVersion,
     Prompt,
     PromptUsage,
@@ -123,6 +124,14 @@ class MessageRepository(Protocol):
         keyword 走 enrichment_keywords 的匹配键，kind 只在该条件存在时生效；
         since/until 是 UTC 秒，比较 COALESCE(published_at, collected_at)。
         """
+        ...
+
+    def message_impact(self, message_ids: list[str]) -> MessageDeletion:
+        """删除影响面预览：消息、版本、译文、加工结果与任务各有多少。"""
+        ...
+
+    def delete_messages(self, message_ids: list[str]) -> MessageDeletion:
+        """删除这些消息及其从属数据，返回实际删掉的数量。"""
         ...
 
     def versions(self, message_id: str) -> list[MessageVersion]: ...

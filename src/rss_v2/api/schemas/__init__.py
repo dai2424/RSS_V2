@@ -61,6 +61,8 @@ from .llm import (
 from .messages import (
     EnrichmentResponse,
     KeywordResponse,
+    MessageBulkDeleteRequest,
+    MessageDeletionResponse,
     MessageDetailResponse,
     MessageListResponse,
     MessageResponse,
@@ -98,6 +100,8 @@ __all__ = [
     "KeywordRebuildResponse",
     "KeywordUndoResponse",
     "KeywordResponse",
+    "MessageBulkDeleteRequest",
+    "MessageDeletionResponse",
     "MessageDetailResponse",
     "MessageListResponse",
     "MessageResponse",

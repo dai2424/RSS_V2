@@ -7,10 +7,13 @@ from fastapi import APIRouter, Query, Request, status
 from rss_v2.api.keyword_presenters import related_message_response
 from rss_v2.api.presenters import (
     container,
+    message_deletion_response,
     task_response,
     version_response,
 )
 from rss_v2.api.schemas import (
+    MessageBulkDeleteRequest,
+    MessageDeletionResponse,
     MessageDetailResponse,
     MessageListResponse,
     MessageResponse,
@@ -18,7 +21,7 @@ from rss_v2.api.schemas import (
     RelatedMessageResponse,
     TaskResponse,
 )
-from rss_v2.domain import TaskType
+from rss_v2.domain import DomainError, TaskType
 from rss_v2.services.messages import MessageRow
 
 messages_router = APIRouter(prefix="/api/messages", tags=["messages"])
@@ -95,6 +98,36 @@ def related_messages(
         related_message_response(item)
         for item in container(request).keyword_service.related(message_id, limit)
     ]
+
+
+@messages_router.get("/{message_id}/impact", response_model=MessageDeletionResponse)
+def message_impact(message_id: str, request: Request) -> MessageDeletionResponse:
+    """删除影响面预览：确认弹层据此说明会删掉什么。"""
+
+    service = container(request).message_service
+    impact = service.impact([message_id])
+    if impact.messages == 0:
+        raise DomainError("message_not_found", "消息不存在")
+    return message_deletion_response(impact)
+
+
+@messages_router.delete("/{message_id}", response_model=MessageDeletionResponse)
+def delete_message(message_id: str, request: Request) -> MessageDeletionResponse:
+    """删除一条消息及其版本、译文、加工结果与相关任务。"""
+
+    return message_deletion_response(container(request).message_service.delete(message_id))
+
+
+@messages_router.post("/bulk-delete", response_model=MessageDeletionResponse)
+def bulk_delete_messages(
+    request: Request, payload: MessageBulkDeleteRequest
+) -> MessageDeletionResponse:
+    """批量删除消息；dry_run 只返回影响面。"""
+
+    service = container(request).message_service
+    if payload.dry_run:
+        return message_deletion_response(service.impact(payload.message_ids))
+    return message_deletion_response(service.delete_many(payload.message_ids))
 
 
 @messages_router.post(

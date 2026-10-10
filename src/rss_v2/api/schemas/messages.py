@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from .pagination import Page
 
@@ -139,3 +139,20 @@ class MessageListResponse(Page[MessageResponse]):
 
 class TaskListResponse(Page[TaskResponse]):
     """任务列表响应。"""
+
+
+class MessageDeletionResponse(BaseModel):
+    """删除影响面或删除结果；两种场景共用同一形状。"""
+
+    messages: int
+    versions: int
+    translations: int
+    enrichments: int
+    tasks: int
+
+
+class MessageBulkDeleteRequest(BaseModel):
+    """批量删除请求；dry_run 只返回影响面。"""
+
+    message_ids: list[str] = Field(min_length=1, max_length=200)
+    dry_run: bool = False

@@ -6,6 +6,7 @@ import sqlite3
 from typing import Any
 
 from rss_v2.adapters.sqlite import keyword_aliases as keyword_repository
+from rss_v2.adapters.sqlite import message_deletion
 from rss_v2.adapters.sqlite.connection import SQLiteDatabase
 from rss_v2.adapters.sqlite.keyword_sql import (
     CURRENT_ENRICHMENT,
@@ -17,6 +18,7 @@ from rss_v2.adapters.sqlite.keyword_sql import (
 )
 from rss_v2.domain import (
     Message,
+    MessageDeletion,
     MessageVersion,
     SourceLanguage,
     normalize_keyword,
@@ -284,6 +286,16 @@ class SQLiteMessageRepository:
             clauses.append("COALESCE(v.published_at, v.collected_at) <= ?")
             args.append(until)
         return (f"WHERE {' AND '.join(clauses)}" if clauses else "", args)
+
+    def message_impact(self, message_ids: list[str]) -> MessageDeletion:
+        """删除影响面预览。"""
+
+        return message_deletion.impact(self.database, message_ids)
+
+    def delete_messages(self, message_ids: list[str]) -> MessageDeletion:
+        """删除消息及其从属数据。"""
+
+        return message_deletion.delete_messages(self.database, message_ids)
 
     def versions(self, message_id: str) -> list[MessageVersion]:
         connection = self.database.connect()

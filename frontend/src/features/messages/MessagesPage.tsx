@@ -16,6 +16,7 @@ import {
 import { Pagination } from "../../components/Pagination";
 import { sizeParams, usePaginationParams } from "../../lib/usePaginationParams";
 import { formatTime, preferredText, statusLabels } from "../../lib/display";
+import { MessageDeleteDialog, type DeleteTarget } from "./MessageDeleteDialog";
 
 type TaskStatus = "queued" | "running" | "succeeded" | "failed";
 
@@ -104,7 +105,21 @@ export function MessagesPage() {
     next.set(key, value);
     next.delete("offset");
     setParams(next, { replace: true });
+    // 换筛选条件后旧的选择可能已经不在列表里，清掉以免误删看不见的行。
+    setSelected(new Map());
   };
+  // 选择与待删除目标都留在页面状态里；弹层只负责确认与执行。
+  const [selected, setSelected] = useState<Map<string, DeleteTarget>>(
+    new Map(),
+  );
+  const [pending, setPending] = useState<DeleteTarget[] | null>(null);
+  const toggle = (target: DeleteTarget) =>
+    setSelected((current) => {
+      const next = new Map(current);
+      if (next.has(target.id)) next.delete(target.id);
+      else next.set(target.id, target);
+      return next;
+    });
   const rows = messages.data?.items ?? [];
   const total = messages.data?.total ?? 0;
   return (
@@ -156,6 +171,23 @@ export function MessagesPage() {
             清空筛选
           </Button>
         </div>
+        {selected.size > 0 && (
+          <div className="toolbar card-pad">
+            <span className="muted">已选择 {selected.size} 条消息</span>
+            <Button
+              className="danger"
+              onClick={() => setPending([...selected.values()])}
+            >
+              删除选中
+            </Button>
+            <Button
+              className="secondary"
+              onClick={() => setSelected(new Map())}
+            >
+              清空选择
+            </Button>
+          </div>
+        )}
         {messages.isLoading && <div className="loading">正在加载消息…</div>}
         {messages.isError && (
           <ErrorState
@@ -206,12 +238,14 @@ export function MessagesPage() {
             <table>
               <thead>
                 <tr>
+                  <th>选择</th>
                   <th>标题</th>
                   <th>来源</th>
                   <th>语言</th>
                   <th>版本</th>
                   <th>处理</th>
                   <th>发布时间</th>
+                  <th>操作</th>
                 </tr>
               </thead>
               <tbody>
@@ -238,6 +272,19 @@ export function MessagesPage() {
                   );
                   return (
                     <tr key={message.id}>
+                      <td>
+                        <input
+                          type="checkbox"
+                          aria-label={`选择 ${title.text || "无标题"}`}
+                          checked={selected.has(message.id)}
+                          onChange={() =>
+                            toggle({
+                              id: message.id,
+                              title: title.text || "无标题",
+                            })
+                          }
+                        />
+                      </td>
                       <td>
                         <Link
                           className="cell-title"
@@ -272,6 +319,23 @@ export function MessagesPage() {
                         />
                       </td>
                       <td>{formatTime(v?.published_at)}</td>
+                      <td>
+                        <div className="row-actions">
+                          <Button
+                            className="danger-outline"
+                            onClick={() =>
+                              setPending([
+                                {
+                                  id: message.id,
+                                  title: title.text || "无标题",
+                                },
+                              ])
+                            }
+                          >
+                            删除
+                          </Button>
+                        </div>
+                      </td>
                     </tr>
                   );
                 })}
@@ -290,6 +354,13 @@ export function MessagesPage() {
           />
         )}
       </Card>
+      <MessageDeleteDialog
+        targets={pending}
+        onClose={() => {
+          setPending(null);
+          setSelected(new Map());
+        }}
+      />
     </div>
   );
 }

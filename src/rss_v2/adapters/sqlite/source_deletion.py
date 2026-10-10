@@ -10,34 +10,12 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from rss_v2.adapters.sqlite.cleanup import delete_import_map, delete_values, ids
 from rss_v2.adapters.sqlite.connection import SQLiteDatabase
 from rss_v2.domain import SourceDeletion
 
 # 未完成运行：状态仍是排队或运行中，需要收敛
 _UNFINISHED = ("queued", "running")
-
-
-def _ids(connection: Any, sql: str, args: tuple[Any, ...]) -> list[str]:
-    return [str(row[0]) for row in connection.execute(sql, args).fetchall()]
-
-
-def _delete_values(connection: Any, table: str, column: str, values: list[str]) -> None:
-    if not values:
-        return
-    placeholders = ",".join("?" for _ in values)
-    connection.execute(f"DELETE FROM {table} WHERE {column} IN ({placeholders})", values)
-
-
-def _delete_import_map(connection: Any, entity_kind: str, target_ids: list[str]) -> None:
-    """清理 v1 导入台账中指向已删除实体的映射。"""
-
-    if not target_ids:
-        return
-    placeholders = ",".join("?" for _ in target_ids)
-    connection.execute(
-        f"DELETE FROM v1_import_map WHERE entity_kind = ? AND target_id IN ({placeholders})",
-        (entity_kind, *target_ids),
-    )
 
 
 def delete_source(database: SQLiteDatabase, source_id: str) -> SourceDeletion:
@@ -51,19 +29,19 @@ def delete_source(database: SQLiteDatabase, source_id: str) -> SourceDeletion:
         if row is None:
             raise KeyError(source_id)
 
-        message_ids = _ids(connection, "SELECT id FROM messages WHERE source_id = ?", (source_id,))
-        version_ids = _ids(
+        message_ids = ids(connection, "SELECT id FROM messages WHERE source_id = ?", (source_id,))
+        version_ids = ids(
             connection,
             "SELECT id FROM message_versions WHERE message_id IN "
             "(SELECT id FROM messages WHERE source_id = ?)",
             (source_id,),
         )
-        health_ids = _ids(
+        health_ids = ids(
             connection,
             "SELECT id FROM source_health_checks WHERE source_id = ?",
             (source_id,),
         )
-        task_ids = _ids(
+        task_ids = ids(
             connection,
             "SELECT id FROM tasks WHERE task_type = 'collect_source' "
             "AND json_extract(payload_json, '$.source_id') = ?",
@@ -71,7 +49,7 @@ def delete_source(database: SQLiteDatabase, source_id: str) -> SourceDeletion:
         )
         if version_ids:
             placeholders = ",".join("?" for _ in version_ids)
-            task_ids += _ids(
+            task_ids += ids(
                 connection,
                 "SELECT id FROM tasks WHERE task_type IN ('translate_message', 'enrich_message') "
                 f"AND input_version_id IN ({placeholders})",
@@ -81,17 +59,17 @@ def delete_source(database: SQLiteDatabase, source_id: str) -> SourceDeletion:
         unfinished_runs = _remove_source_from_unfinished_runs(connection, source_id)
 
         # 任务审计与任务本体；llm_calls.task_id 无外键，需显式清理
-        _delete_values(connection, "llm_calls", "task_id", task_ids)
-        _delete_values(connection, "tasks", "id", task_ids)
+        delete_values(connection, "llm_calls", "task_id", task_ids)
+        delete_values(connection, "tasks", "id", task_ids)
 
         # 导入台账：清理后同一 v1 记录可以重新导入
         connection.execute(
             "DELETE FROM v1_import_map WHERE entity_kind = 'source' AND target_id = ?",
             (source_id,),
         )
-        _delete_import_map(connection, "message", message_ids)
-        _delete_import_map(connection, "version", version_ids)
-        _delete_import_map(connection, "health", health_ids)
+        delete_import_map(connection, "message", message_ids)
+        delete_import_map(connection, "version", version_ids)
+        delete_import_map(connection, "health", health_ids)
 
         connection.execute("DELETE FROM collection_results WHERE source_id = ?", (source_id,))
         # 任务分配按作用域存储，没有外键，需要显式清理
