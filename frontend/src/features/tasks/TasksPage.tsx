@@ -21,7 +21,13 @@ import { usePaginationParams } from "../../lib/usePaginationParams";
 import { formatDuration, formatTime, statusLabels } from "../../lib/display";
 import { useDebouncedCallback } from "../../lib/useDebouncedCallback";
 import { Input } from "../../components/ui";
-import { RANGE_OPTIONS, rangeOf, sinceOf } from "../../lib/searchRange";
+import {
+  CUSTOM_VALUE,
+  RANGE_OPTIONS,
+  defaultCustomRange,
+  resolveRange,
+} from "../../lib/searchRange";
+import { DateRangeInputs } from "../../components/DateRangeInputs";
 import { ClearTasksDialog, TaskDeleteDialog } from "./TaskDeleteDialog";
 
 type Task = components["schemas"]["TaskResponse"];
@@ -56,7 +62,16 @@ export function TasksPage() {
   const taskType = params.get("type") || "";
   const source = params.get("source") || "";
   const search = params.get("q") || "";
-  const range = rangeOf(params.get("range"), false);
+  const timeRange = resolveRange(
+    {
+      range: params.get("range"),
+      from: params.get("from"),
+      to: params.get("to"),
+    },
+    false,
+    Math.floor(Date.now() / 1000),
+  );
+  const range = timeRange.value;
   const queryClient = useQueryClient();
   // 搜索框走防抖：每敲一个字就查一次任务表没有意义。
   const [draft, setDraft] = useState(search);
@@ -75,7 +90,19 @@ export function TasksPage() {
     setParams(next, { replace: true });
   };
   const tasks = useQuery({
-    queryKey: ["tasks", status, taskType, source, search, range, size, offset],
+    // 时间边界进查询键：自定义日期改变时 range 一直是 custom。
+    queryKey: [
+      "tasks",
+      status,
+      taskType,
+      source,
+      search,
+      range,
+      timeRange.since,
+      timeRange.until,
+      size,
+      offset,
+    ],
     refetchInterval: 3000,
     // 翻页时保留上一页内容，避免表格整页闪烁；配合分页条禁用挡住连点。
     placeholderData: keepPreviousData,
@@ -87,7 +114,8 @@ export function TasksPage() {
             task_type: taskType || undefined,
             source_id: source || undefined,
             q: search || undefined,
-            since: sinceOf(range, Math.floor(Date.now() / 1000)),
+            since: timeRange.since,
+            until: timeRange.until,
             limit: size,
             offset,
           },
@@ -166,9 +194,20 @@ export function TasksPage() {
           <select
             id="task-range"
             value={range}
-            onChange={(e) =>
-              change("range", e.target.value === "all" ? "" : e.target.value)
-            }
+            onChange={(e) => {
+              if (e.target.value !== CUSTOM_VALUE) {
+                change("range", e.target.value === "all" ? "" : e.target.value);
+                return;
+              }
+              // 切到指定日期：给一段默认区间，并清掉预设范围参数。
+              const picked = defaultCustomRange();
+              const next = new URLSearchParams(params);
+              next.set("from", picked.from);
+              next.set("to", picked.to);
+              next.delete("range");
+              next.delete("offset");
+              setParams(next, { replace: true });
+            }}
             title="按任务创建时间筛选"
           >
             {RANGE_OPTIONS.map((option) => (
@@ -176,7 +215,21 @@ export function TasksPage() {
                 {option.label}
               </option>
             ))}
+            <option value={CUSTOM_VALUE}>指定日期</option>
           </select>
+          {timeRange.custom && (
+            <DateRangeInputs
+              value={timeRange.custom}
+              onChange={(picked) => {
+                const next = new URLSearchParams(params);
+                next.set("from", picked.from);
+                next.set("to", picked.to);
+                next.delete("range");
+                next.delete("offset");
+                setParams(next, { replace: true });
+              }}
+            />
+          )}
           <label htmlFor="task-status">状态</label>
           <select
             id="task-status"

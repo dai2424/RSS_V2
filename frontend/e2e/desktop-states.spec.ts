@@ -227,6 +227,20 @@ test("筛选控件：消息处理状态与任务筛选都写进查询参数", as
     .poll(() => messageUrls.some((url) => url.includes("state=unenriched")))
     .toBe(true);
 
+  // 指定日期：两个日期输入按上海时区换算成请求的 since/until。
+  await page.getByLabel("时间范围").selectOption("custom");
+  await page.getByLabel("从").fill("2026-10-01");
+  await page.getByLabel("到").fill("2026-10-07");
+  await expect(page.getByLabel("从")).toHaveValue("2026-10-01");
+  await expect
+    .poll(() =>
+      messageUrls.some(
+        (url) =>
+          url.includes("since=1790784000") && url.includes("until=1791388799"),
+      ),
+    )
+    .toBe(true);
+
   const taskUrls: string[] = [];
   await page.route("**/api/tasks?**", async (route) => {
     taskUrls.push(route.request().url());

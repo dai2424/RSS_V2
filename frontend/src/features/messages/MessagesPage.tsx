@@ -3,11 +3,13 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useDebouncedCallback } from "../../lib/useDebouncedCallback";
 import {
+  CUSTOM_VALUE,
   RANGE_OPTIONS,
+  defaultCustomRange,
   rangeLabel,
-  rangeOf,
-  sinceOf,
+  resolveRange,
 } from "../../lib/searchRange";
+import { DateRangeInputs } from "../../components/DateRangeInputs";
 import { api, requireResponse } from "../../api/client";
 import {
   Badge,
@@ -73,10 +75,31 @@ export function MessagesPage() {
     next.delete("offset");
     setParams(next, { replace: true });
   }, 300);
-  const range = rangeOf(params.get("range"), Boolean(q));
+  // 时间范围：自定义日期优先于预设；自定义时下拉框显示"指定日期"。
+  const timeRange = resolveRange(
+    {
+      range: params.get("range"),
+      from: params.get("from"),
+      to: params.get("to"),
+    },
+    Boolean(q),
+    Math.floor(Date.now() / 1000),
+  );
+  const range = timeRange.value;
   const state = params.get("state") || "";
   const messages = useQuery({
-    queryKey: ["messages", q, source, range, state, size, offset],
+    // 时间边界也要进查询键：自定义日期改变时 range 一直是 custom，只有边界能区分。
+    queryKey: [
+      "messages",
+      q,
+      source,
+      range,
+      timeRange.since,
+      timeRange.until,
+      state,
+      size,
+      offset,
+    ],
     // 带搜索词时把轮询放到 30 秒：反复全表扫文本只为刷新一份基本不变的搜索结果不值得。
     refetchInterval: q ? 30000 : 5000,
     // 翻页时保留上一页内容，避免表格整页闪烁；配合分页条禁用挡住连点。
@@ -87,7 +110,8 @@ export function MessagesPage() {
           query: {
             q: q || undefined,
             source_id: source || undefined,
-            since: sinceOf(range, Math.floor(Date.now() / 1000)),
+            since: timeRange.since,
+            until: timeRange.until,
             state: state || undefined,
             limit: size,
             offset,
@@ -146,7 +170,22 @@ export function MessagesPage() {
           <select
             aria-label="时间范围"
             value={range}
-            onChange={(e) => filter("range", e.target.value)}
+            onChange={(e) => {
+              const next = new URLSearchParams(params);
+              next.delete("offset");
+              if (e.target.value === CUSTOM_VALUE) {
+                // 切到指定日期时先给一段默认区间，避免出现空区间。
+                const picked = defaultCustomRange();
+                next.set("from", picked.from);
+                next.set("to", picked.to);
+              } else {
+                next.delete("from");
+                next.delete("to");
+                next.set("range", e.target.value);
+              }
+              setParams(next, { replace: true });
+              setSelected(new Map());
+            }}
             title="搜索默认只看最近一周；浏览默认显示全部时间"
           >
             {RANGE_OPTIONS.map((option) => (
@@ -154,7 +193,22 @@ export function MessagesPage() {
                 {option.label}
               </option>
             ))}
+            <option value={CUSTOM_VALUE}>指定日期</option>
           </select>
+          {timeRange.custom && (
+            <DateRangeInputs
+              value={timeRange.custom}
+              onChange={(picked) => {
+                const next = new URLSearchParams(params);
+                next.set("from", picked.from);
+                next.set("to", picked.to);
+                next.delete("range");
+                next.delete("offset");
+                setParams(next, { replace: true });
+                setSelected(new Map());
+              }}
+            />
+          )}
           <select
             aria-label="处理状态"
             value={state}
@@ -226,12 +280,28 @@ export function MessagesPage() {
           <EmptyState
             title={q || source ? "没有匹配结果" : "还没有消息"}
             description={
-              q && range !== "all"
-                ? `当前只搜${rangeLabel(range)}的消息，更早的内容不在范围内。`
-                : "在来源详情触发采集，worker 执行后消息会出现在这里。"
+              timeRange.custom
+                ? `当前只搜 ${timeRange.custom.from} 至 ${timeRange.custom.to} 的消息。`
+                : q && range !== "all"
+                  ? `当前只搜${rangeLabel(range)}的消息，更早的内容不在范围内。`
+                  : "在来源详情触发采集，worker 执行后消息会出现在这里。"
             }
             action={
-              q && range !== "all" ? (
+              timeRange.custom ? (
+                <Button
+                  className="secondary"
+                  onClick={() => {
+                    // 退出指定日期，回到预设范围。
+                    const next = new URLSearchParams(params);
+                    next.delete("from");
+                    next.delete("to");
+                    next.delete("offset");
+                    setParams(next, { replace: true });
+                  }}
+                >
+                  清除日期范围
+                </Button>
+              ) : q && range !== "all" ? (
                 <Button
                   className="secondary"
                   onClick={() => filter("range", "all")}
