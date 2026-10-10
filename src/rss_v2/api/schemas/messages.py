@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pydantic import BaseModel
 
+from .pagination import Page
+
 
 class TranslationResponse(BaseModel):
     """翻译结果响应。"""
@@ -85,7 +87,7 @@ class MessageVersionResponse(BaseModel):
 
 
 class MessageResponse(BaseModel):
-    """消息列表响应。"""
+    """消息列表里的一行：消息本体与它的最新版本。"""
 
     id: str
     source_id: str
@@ -129,3 +131,11 @@ class TaskResponse(BaseModel):
     target_kind: str = ""
     target_id: str | None = None
     target_label: str = ""
+
+
+class MessageListResponse(Page[MessageResponse]):
+    """消息列表响应。"""
+
+
+class TaskListResponse(Page[TaskResponse]):
+    """任务列表响应。"""

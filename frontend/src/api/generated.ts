@@ -1191,8 +1191,18 @@ export interface components {
       versions: components["schemas"]["MessageVersionResponse"][];
     };
     /**
-     * MessageResponse
+     * MessageListResponse
      * @description 消息列表响应。
+     */
+    MessageListResponse: {
+      /** Items */
+      items: components["schemas"]["MessageResponse"][];
+      /** Total */
+      total: number;
+    };
+    /**
+     * MessageResponse
+     * @description 消息列表里的一行：消息本体与它的最新版本。
      */
     MessageResponse: {
       /** Id */
@@ -1683,7 +1693,7 @@ export interface components {
     };
     /**
      * SourceListResponse
-     * @description 来源列表响应；total 是当前过滤条件下的总数，与 items 的分页窗口无关。
+     * @description 来源列表响应。
      */
     SourceListResponse: {
       /** Items */
@@ -1765,6 +1775,16 @@ export interface components {
     SourceTestResponse: {
       source: components["schemas"]["SourceResponse"];
       health: components["schemas"]["HealthResponse"];
+    };
+    /**
+     * TaskListResponse
+     * @description 任务列表响应。
+     */
+    TaskListResponse: {
+      /** Items */
+      items: components["schemas"]["TaskResponse"][];
+      /** Total */
+      total: number;
     };
     /**
      * TaskResponse
@@ -2285,7 +2305,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["MessageResponse"][];
+          "application/json": components["schemas"]["MessageListResponse"];
         };
       };
       /** @description Validation Error */
@@ -2696,7 +2716,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["TaskResponse"][];
+          "application/json": components["schemas"]["TaskListResponse"];
         };
       };
       /** @description Validation Error */

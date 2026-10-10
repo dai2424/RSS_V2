@@ -655,11 +655,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/MessageResponse"
-                  },
-                  "title": "Response List Messages Api Messages Get"
+                  "$ref": "#/components/schemas/MessageListResponse"
                 }
               }
             }
@@ -1358,11 +1354,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/TaskResponse"
-                  },
-                  "title": "Response List Tasks Api Tasks Get"
+                  "$ref": "#/components/schemas/TaskListResponse"
                 }
               }
             }
@@ -3534,6 +3526,28 @@
         "title": "MessageDetailResponse",
         "description": "消息详情响应。"
       },
+      "MessageListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/MessageResponse"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total"
+        ],
+        "title": "MessageListResponse",
+        "description": "消息列表响应。"
+      },
       "MessageResponse": {
         "properties": {
           "id": {
@@ -3572,7 +3586,7 @@
           "latest_version"
         ],
         "title": "MessageResponse",
-        "description": "消息列表响应。"
+        "description": "消息列表里的一行：消息本体与它的最新版本。"
       },
       "MessageVersionResponse": {
         "properties": {
@@ -4741,7 +4755,7 @@
           "total"
         ],
         "title": "SourceListResponse",
-        "description": "来源列表响应；total 是当前过滤条件下的总数，与 items 的分页窗口无关。"
+        "description": "来源列表响应。"
       },
       "SourcePatchRequest": {
         "properties": {
@@ -5015,6 +5029,28 @@
         ],
         "title": "SourceTestResponse",
         "description": "来源测试响应。"
+      },
+      "TaskListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TaskResponse"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total"
+        ],
+        "title": "TaskListResponse",
+        "description": "任务列表响应。"
       },
       "TaskResponse": {
         "properties": {

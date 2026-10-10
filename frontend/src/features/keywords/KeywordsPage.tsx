@@ -105,13 +105,18 @@ export function KeywordsPage() {
         kind={vocabulary.kind}
         minCount={vocabulary.minCount}
         offset={vocabulary.offset}
+        size={vocabulary.size}
         loading={vocabulary.list.isLoading}
+        paging={vocabulary.list.isPlaceholderData}
         error={
           vocabulary.list.isError ? vocabulary.list.error.message : undefined
         }
         onRetry={() => void vocabulary.list.refetch()}
         onFilter={vocabulary.setFilter}
-        onPage={vocabulary.page}
+        onPage={vocabulary.setPageOffset}
+        onSize={(next) =>
+          vocabulary.setSize(next, vocabulary.list.data?.total ?? 0)
+        }
         onClear={vocabulary.clear}
         selection={new Set(selection.keys())}
         onToggle={(item) =>

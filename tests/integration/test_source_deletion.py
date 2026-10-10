@@ -101,7 +101,7 @@ def test_delete_source_cascades_and_keeps_other_sources(client: TestClient) -> N
     assert client.delete(f"/api/sources/{target_id}").status_code == 404
 
     assert client.get(f"/api/sources/{keep_id}").status_code == 200
-    messages = client.get("/api/messages").json()
+    messages = client.get("/api/messages").json()["items"]
     assert [item["source_id"] for item in messages] == [keep_id]
 
     assert _value(client, "SELECT COUNT(*) FROM messages WHERE source_id = ?", (target_id,)) == 0

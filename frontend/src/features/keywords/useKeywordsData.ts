@@ -1,8 +1,6 @@
-import { useQuery } from "@tanstack/react-query";
-import { useSearchParams } from "react-router-dom";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { api, requireResponse } from "../../api/client";
-
-export const PAGE_SIZE = 25;
+import { sizeParams, usePaginationParams } from "../../lib/usePaginationParams";
 
 /** 关键词页的数据读取：概览、词表、合并记录；筛选状态全部写在 URL 上。 */
 export function useKeywordOverview() {
@@ -18,14 +16,16 @@ export function useKeywordOverview() {
 }
 
 export function useKeywordVocabulary() {
-  const [params, setParams] = useSearchParams();
+  const { params, setParams, size, offset, setPageOffset, setSize } =
+    usePaginationParams();
   const q = params.get("q") || "";
   const kind = params.get("kind") || "";
   const minCount = Number(params.get("min") || 2);
-  const offset = Number(params.get("offset") || 0);
 
   const list = useQuery({
-    queryKey: ["keyword-vocabulary", q, kind, minCount, offset],
+    queryKey: ["keyword-vocabulary", q, kind, minCount, size, offset],
+    // 翻页时保留上一页内容，避免表格整页闪烁；配合分页条禁用挡住连点。
+    placeholderData: keepPreviousData,
     queryFn: async () => {
       const r = await api.GET("/api/keywords", {
         params: {
@@ -33,7 +33,7 @@ export function useKeywordVocabulary() {
             q: q || undefined,
             kind: kind || undefined,
             min_count: minCount,
-            limit: PAGE_SIZE,
+            limit: size,
             offset,
           },
         },
@@ -49,12 +49,19 @@ export function useKeywordVocabulary() {
     next.delete("offset");
     setParams(next, { replace: true });
   };
-  const page = (next: number) => {
-    const target = new URLSearchParams(params);
-    target.set("offset", String(Math.max(0, next)));
-    setParams(target);
-  };
-  const clear = () => setParams({}, { replace: true });
+  const clear = () => setParams(sizeParams(size), { replace: true });
 
-  return { params, q, kind, minCount, offset, list, setFilter, page, clear };
+  return {
+    params,
+    q,
+    kind,
+    minCount,
+    size,
+    offset,
+    list,
+    setFilter,
+    setPageOffset,
+    setSize,
+    clear,
+  };
 }

@@ -1,8 +1,8 @@
 import { Link } from "react-router-dom";
 import type { components } from "../../api/generated";
 import { Badge, Card, EmptyState, ErrorState } from "../../components/ui";
+import { Pagination } from "../../components/Pagination";
 import { formatTime, keywordKindLabels } from "../../lib/display";
-import { PAGE_SIZE } from "./useKeywordsData";
 
 type Entry = components["schemas"]["KeywordEntryResponse"];
 
@@ -15,11 +15,14 @@ export function KeywordVocabulary({
   kind,
   minCount,
   offset,
+  size,
   loading,
+  paging,
   error,
   onRetry,
   onFilter,
   onPage,
+  onSize,
   onClear,
   selection,
   onToggle,
@@ -31,11 +34,14 @@ export function KeywordVocabulary({
   kind: string;
   minCount: number;
   offset: number;
+  size: number;
   loading: boolean;
+  paging: boolean;
   error?: string;
   onRetry: () => void;
   onFilter: (key: string, value: string) => void;
   onPage: (offset: number) => void;
+  onSize: (size: number) => void;
   onClear: () => void;
   selection: Set<string>;
   onToggle: (item: Entry) => void;
@@ -89,8 +95,25 @@ export function KeywordVocabulary({
       {error && <ErrorState message={error} onRetry={onRetry} />}
       {!loading && !error && items.length === 0 && (
         <EmptyState
-          title={emptyTitle(filtered, totalTerms)}
-          description={emptyHint(filtered, totalTerms)}
+          title={
+            total > 0 ? "这一页没有内容" : emptyTitle(filtered, totalTerms)
+          }
+          description={
+            total > 0
+              ? `当前共 ${total} 个词，这个偏移已经越过末尾。`
+              : emptyHint(filtered, totalTerms)
+          }
+          action={
+            total > 0 ? (
+              <button
+                type="button"
+                className="button secondary"
+                onClick={() => onPage(0)}
+              >
+                回到第一页
+              </button>
+            ) : undefined
+          }
         />
       )}
       {!loading && !error && items.length > 0 && (
@@ -150,27 +173,15 @@ export function KeywordVocabulary({
               </tbody>
             </table>
           </div>
-          <div className="pagination">
-            <button
-              type="button"
-              className="button secondary"
-              disabled={offset === 0}
-              onClick={() => onPage(offset - PAGE_SIZE)}
-            >
-              上一页
-            </button>
-            <span className="muted">
-              共 {total} 个词 · 第 {Math.floor(offset / PAGE_SIZE) + 1} 页
-            </span>
-            <button
-              type="button"
-              className="button secondary"
-              disabled={offset + items.length >= total}
-              onClick={() => onPage(offset + PAGE_SIZE)}
-            >
-              下一页
-            </button>
-          </div>
+          <Pagination
+            total={total}
+            offset={offset}
+            size={size}
+            unit="个词"
+            disabled={paging}
+            onPage={onPage}
+            onSize={onSize}
+          />
         </>
       )}
     </Card>

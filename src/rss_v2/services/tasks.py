@@ -40,6 +40,11 @@ class TaskService:
 
         return [self.view(task) for task in self.tasks.list(status, limit, offset)]
 
+    def count(self, status: str | None = None) -> int:
+        """与任务列表相同筛选条件下的总数，供列表分页使用。"""
+
+        return self.tasks.count(status)
+
     def view(self, task: Task) -> TaskView:
         """单个任务的目标说明。"""
 

@@ -9,14 +9,14 @@ import {
   Input,
   PageHeader,
 } from "../../components/ui";
+import { Pagination } from "../../components/Pagination";
 import { showToast } from "../../components/Toast";
+import { sizeParams } from "../../lib/usePaginationParams";
 import { useSourceActions } from "./useSourceActions";
 import { useSourcesList } from "./useSourcesList";
 import { sourceColumns } from "./sourceColumns";
 import { CategoryDialog } from "./CategoryDialog";
 import { SourceDeleteDialog, type DeleteTarget } from "./SourceDeleteDialog";
-
-const PAGE_SIZE = 25;
 
 /** 来源列表页面：行内启停/测试/采集/删除，反馈走顶部浮层提示。 */
 export function SourcesPage() {
@@ -26,7 +26,10 @@ export function SourcesPage() {
     q,
     category,
     status,
+    size,
     offset,
+    setPageOffset,
+    setSize,
     sources,
     categories,
     collect,
@@ -114,7 +117,10 @@ export function SourcesPage() {
             <option value="true">已启用</option>
             <option value="false">已停用</option>
           </select>
-          <Button className="secondary" onClick={() => setParams({})}>
+          <Button
+            className="secondary"
+            onClick={() => setParams(sizeParams(size))}
+          >
             清空筛选
           </Button>
           <Button className="secondary" onClick={() => void sources.refetch()}>
@@ -134,40 +140,35 @@ export function SourcesPage() {
             onRetry={() => void categories.refetch()}
           />
         )}
-        {sources.data?.items.length === 0 && (
+        {total === 0 && (
           <EmptyState
             title={q || category || status ? "没有匹配结果" : "还没有 RSS 来源"}
             description="添加来源或调整筛选条件。"
           />
         )}
+        {total > 0 && items.length === 0 && (
+          // 有来源但这一页为空：通常是删除后停在旧偏移上。
+          <EmptyState
+            title="这一页没有内容"
+            description={`当前共 ${total} 个来源，这个偏移已经越过末尾。`}
+            action={
+              <Button className="secondary" onClick={() => setPageOffset(0)}>
+                回到第一页
+              </Button>
+            }
+          />
+        )}
         {!!items.length && <DataTable data={items} columns={columns} />}
-        <div className="toolbar card-pad">
-          <Button
-            className="secondary"
-            disabled={offset === 0}
-            onClick={() => {
-              const next = new URLSearchParams(params);
-              next.set("offset", String(Math.max(0, offset - PAGE_SIZE)));
-              setParams(next);
-            }}
-          >
-            上一页
-          </Button>
-          <span className="muted">
-            共 {total} 条 · 第 {offset / PAGE_SIZE + 1} 页
-          </span>
-          <Button
-            className="secondary"
-            disabled={offset + items.length >= total}
-            onClick={() => {
-              const next = new URLSearchParams(params);
-              next.set("offset", String(offset + PAGE_SIZE));
-              setParams(next);
-            }}
-          >
-            下一页
-          </Button>
-        </div>
+        {total > 0 && (
+          <Pagination
+            total={total}
+            offset={offset}
+            size={size}
+            disabled={sources.isPlaceholderData}
+            onPage={setPageOffset}
+            onSize={(next) => setSize(next, total)}
+          />
+        )}
       </Card>
       <SourceDeleteDialog source={deleting} onClose={() => setDeleting(null)} />
     </div>

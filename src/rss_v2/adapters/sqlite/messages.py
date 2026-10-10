@@ -45,6 +45,20 @@ def _version(row: sqlite3.Row) -> MessageVersion:
     )
 
 
+#: 列表与计数共用的数据来源。三个 LEFT JOIN 都按主键取「每消息一行」，不会放大行数：
+#: 因此 COUNT(*) 就是消息条数，与列表翻页看到的条数同源。
+LIST_SOURCE = f"""
+FROM messages m
+LEFT JOIN message_versions v ON v.id = {LATEST_VERSION}
+LEFT JOIN translations t ON t.id = (
+    SELECT t2.id FROM translations t2
+    WHERE t2.message_version_id = v.id AND t2.status = 'succeeded'
+    ORDER BY t2.updated_at DESC LIMIT 1
+)
+LEFT JOIN message_enrichments e ON e.id = {CURRENT_ENRICHMENT}
+"""
+
+
 class SQLiteMessageRepository:
     """消息和版本仓储。"""
 
@@ -168,6 +182,65 @@ class SQLiteMessageRepository:
         limit: int = 50,
         offset: int = 0,
     ) -> list[tuple[Message, MessageVersion | None]]:
+        where, args = self._filters(query, source_id, keyword, kind, since, until)
+        connection = self.database.connect()
+        try:
+            rows = connection.execute(
+                f"""
+                SELECT m.id AS message_id, m.source_id, m.external_id, m.created_at AS message_created_at,
+                       m.updated_at AS message_updated_at, v.*
+                {LIST_SOURCE}
+                {where}
+                ORDER BY COALESCE(v.published_at, v.collected_at) DESC, m.id
+                LIMIT ? OFFSET ?
+                """,
+                (*args, max(1, min(limit, 100)), max(0, offset)),
+            ).fetchall()
+            result: list[tuple[Message, MessageVersion | None]] = []
+            for row in rows:
+                message = Message(
+                    row["message_id"],
+                    row["source_id"],
+                    row["external_id"],
+                    row["message_created_at"],
+                    row["message_updated_at"],
+                )
+                version = _version(row) if row["id"] is not None else None
+                result.append((message, version))
+            return result
+        finally:
+            connection.close()
+
+    def count_messages(
+        self,
+        query: str | None = None,
+        source_id: str | None = None,
+        keyword: str | None = None,
+        kind: str | None = None,
+        since: int | None = None,
+        until: int | None = None,
+    ) -> int:
+        """与 list_messages 同一套过滤条件、同一套连接的总数，供列表分页使用。"""
+
+        where, args = self._filters(query, source_id, keyword, kind, since, until)
+        connection = self.database.connect()
+        try:
+            row = connection.execute(f"SELECT COUNT(*) {LIST_SOURCE} {where}", args).fetchone()
+            return int(row[0])
+        finally:
+            connection.close()
+
+    def _filters(
+        self,
+        query: str | None,
+        source_id: str | None,
+        keyword: str | None,
+        kind: str | None,
+        since: int | None,
+        until: int | None,
+    ) -> tuple[str, list[Any]]:
+        """列表与计数共用的 WHERE；两处必须同源，否则总数与页面内容对不上。"""
+
         clauses: list[str] = []
         args: list[Any] = []
         if source_id:
@@ -210,41 +283,7 @@ class SQLiteMessageRepository:
         if until is not None:
             clauses.append("COALESCE(v.published_at, v.collected_at) <= ?")
             args.append(until)
-        where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
-        connection = self.database.connect()
-        try:
-            rows = connection.execute(
-                f"""
-                SELECT m.id AS message_id, m.source_id, m.external_id, m.created_at AS message_created_at,
-                       m.updated_at AS message_updated_at, v.*
-                FROM messages m
-                LEFT JOIN message_versions v ON v.id = {LATEST_VERSION}
-                LEFT JOIN translations t ON t.id = (
-                    SELECT t2.id FROM translations t2
-                    WHERE t2.message_version_id = v.id AND t2.status = 'succeeded'
-                    ORDER BY t2.updated_at DESC LIMIT 1
-                )
-                LEFT JOIN message_enrichments e ON e.id = {CURRENT_ENRICHMENT}
-                {where}
-                ORDER BY COALESCE(v.published_at, v.collected_at) DESC, m.id
-                LIMIT ? OFFSET ?
-                """,
-                (*args, max(1, min(limit, 100)), max(0, offset)),
-            ).fetchall()
-            result: list[tuple[Message, MessageVersion | None]] = []
-            for row in rows:
-                message = Message(
-                    row["message_id"],
-                    row["source_id"],
-                    row["external_id"],
-                    row["message_created_at"],
-                    row["message_updated_at"],
-                )
-                version = _version(row) if row["id"] is not None else None
-                result.append((message, version))
-            return result
-        finally:
-            connection.close()
+        return (f"WHERE {' AND '.join(clauses)}" if clauses else "", args)
 
     def versions(self, message_id: str) -> list[MessageVersion]:
         connection = self.database.connect()

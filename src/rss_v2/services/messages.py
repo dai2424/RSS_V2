@@ -51,6 +51,19 @@ class MessageService:
             )
         ]
 
+    def count(
+        self,
+        query: str | None = None,
+        source_id: str | None = None,
+        keyword: str | None = None,
+        kind: str | None = None,
+        since: int | None = None,
+        until: int | None = None,
+    ) -> int:
+        """与 list 相同筛选条件下的总数，供列表分页使用。"""
+
+        return self.messages.count_messages(query, source_id, keyword, kind, since, until)
+
     def version_sample(self, version_id: str) -> PromptSample:
         """把某个消息版本转成提示词试跑样例。"""
 

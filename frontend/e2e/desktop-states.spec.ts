@@ -78,7 +78,7 @@ test("任务列表展示目标、执行参数与失败原因", async ({ page }, 
     route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify([failed]),
+      body: JSON.stringify({ items: [failed], total: 1 }),
     }),
   );
   await page.goto("/tasks");
@@ -98,6 +98,14 @@ test("任务列表展示目标、执行参数与失败原因", async ({ page }, 
   await expect(
     row.getByRole("button", { name: "重试任务", exact: true }),
   ).toBeVisible();
+  // 分页条：总数、每页条数、页码直选和跳页都在一条里，当前页有 aria-current。
+  const pager = page.getByRole("navigation", { name: "分页" });
+  await expect(pager).toContainText("共 1 个任务");
+  await expect(pager.getByLabel("每页条数")).toHaveValue("25");
+  await expect(pager.getByText("1", { exact: true })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
   await page.screenshot({
     path: testInfo.outputPath("tasks-failed-1440.png"),
     fullPage: true,

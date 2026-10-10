@@ -176,7 +176,7 @@ for (const width of [1280, 1440, 1920]) {
     });
     await page.goto("/sources");
     const row = page.getByRole("row").filter({ hasText: "测试来源" + suffix });
-    await expect(page.getByText(/共 \d+ 条 · 第 1 页/)).toBeVisible();
+    await expect(page.getByText(/共 \d+ 条/)).toBeVisible();
     await row.getByRole("switch").click();
     await expect(row).toContainText("已停用");
     await page.goto(messageUrl);

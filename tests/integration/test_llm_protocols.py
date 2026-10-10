@@ -133,7 +133,7 @@ def test_anthropic_messages_translation_uses_messages_shape(client: TestClient) 
     api_provider(client)
     source_id = source(client)
     collect(client, source_id, worker)
-    message_id = str(client.get("/api/messages").json()[0]["id"])
+    message_id = str(client.get("/api/messages").json()["items"][0]["id"])
     task = client.post(f"/api/messages/{message_id}/translate")
     assert task.status_code in {200, 202}, task.text
     assert worker.run_once() is True

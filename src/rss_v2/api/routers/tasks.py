@@ -9,6 +9,7 @@ from rss_v2.api.presenters import (
     task_view_response,
 )
 from rss_v2.api.schemas import (
+    TaskListResponse,
     TaskResponse,
 )
 
@@ -21,18 +22,19 @@ def get_task(task_id: str, request: Request) -> TaskResponse:
     return task_view_response(service.view(service.get(task_id)))
 
 
-@tasks_router.get("", response_model=list[TaskResponse])
+@tasks_router.get("", response_model=TaskListResponse)
 def list_tasks(
     request: Request,
     status: str | None = Query(default=None, pattern="^(queued|running|succeeded|failed)$"),
     limit: int = Query(default=50, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
-) -> list[TaskResponse]:
+) -> TaskListResponse:
     """查询任务列表。"""
-    return [
-        task_view_response(view)
-        for view in container(request).task_service.list_views(status, limit, offset)
-    ]
+    service = container(request).task_service
+    return TaskListResponse(
+        items=[task_view_response(view) for view in service.list_views(status, limit, offset)],
+        total=service.count(status),
+    )
 
 
 @tasks_router.post("/{task_id}/retry", response_model=TaskResponse, status_code=202)

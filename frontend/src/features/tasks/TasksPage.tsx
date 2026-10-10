@@ -1,6 +1,11 @@
 import { Fragment } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, useSearchParams } from "react-router-dom";
+import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
+import { Link } from "react-router-dom";
 import { api, requireResponse } from "../../api/client";
 import type { components } from "../../api/generated";
 import {
@@ -11,6 +16,8 @@ import {
   ErrorState,
   PageHeader,
 } from "../../components/ui";
+import { Pagination } from "../../components/Pagination";
+import { sizeParams, usePaginationParams } from "../../lib/usePaginationParams";
 import { formatDuration, formatTime, statusLabels } from "../../lib/display";
 
 type Task = components["schemas"]["TaskResponse"];
@@ -39,20 +46,24 @@ function durationCell(task: Task) {
 }
 
 export function TasksPage() {
-  const [params, setParams] = useSearchParams();
+  const { params, setParams, size, offset, setPageOffset, setSize } =
+    usePaginationParams();
   const status = params.get("status") || "";
-  const offset = Number(params.get("offset") || 0);
   const queryClient = useQueryClient();
   const tasks = useQuery({
-    queryKey: ["tasks", status, offset],
+    queryKey: ["tasks", status, size, offset],
     refetchInterval: 3000,
+    // 翻页时保留上一页内容，避免表格整页闪烁；配合分页条禁用挡住连点。
+    placeholderData: keepPreviousData,
     queryFn: async () => {
       const r = await api.GET("/api/tasks", {
-        params: { query: { status: status || undefined, limit: 25, offset } },
+        params: { query: { status: status || undefined, limit: size, offset } },
       });
       return requireResponse(r.response, r.data, r.error);
     },
   });
+  const rows = tasks.data?.items ?? [];
+  const total = tasks.data?.total ?? 0;
   const retry = useMutation({
     mutationFn: async (id: string) => {
       const r = await api.POST("/api/tasks/{task_id}/retry", {
@@ -75,7 +86,9 @@ export function TasksPage() {
           <select
             id="task-status"
             value={status}
-            onChange={(e) => setParams({ status: e.target.value })}
+            onChange={(e) =>
+              setParams({ ...sizeParams(size), status: e.target.value })
+            }
           >
             <option value="">全部</option>
             {["queued", "running", "succeeded", "failed"].map((value) => (
@@ -96,13 +109,25 @@ export function TasksPage() {
           />
         )}
         {retry.isError && <ErrorState message={retry.error.message} />}
-        {tasks.data?.length === 0 && (
+        {total === 0 && (
           <EmptyState
-            title="没有匹配的任务"
+            title={status ? "没有匹配的任务" : "还没有任务"}
             description="从来源详情触发采集，或从消息详情创建翻译任务。"
           />
         )}
-        {!!tasks.data?.length && (
+        {total > 0 && rows.length === 0 && (
+          // 有任务但这一页为空：通常是历史任务被清理后停在旧偏移上。
+          <EmptyState
+            title="这一页没有内容"
+            description={`当前共 ${total} 个任务，这个偏移已经越过末尾。`}
+            action={
+              <Button className="secondary" onClick={() => setPageOffset(0)}>
+                回到第一页
+              </Button>
+            }
+          />
+        )}
+        {!!rows.length && (
           <div className="table-wrap">
             <table className="tasks-table">
               <colgroup>
@@ -128,7 +153,7 @@ export function TasksPage() {
                 </tr>
               </thead>
               <tbody>
-                {tasks.data.map((task) => {
+                {rows.map((task) => {
                   const path = targetPath(task);
                   return (
                     <Fragment key={task.id}>
@@ -208,25 +233,17 @@ export function TasksPage() {
             </table>
           </div>
         )}
-        <div className="toolbar card-pad">
-          <Button
-            className="secondary"
-            disabled={offset === 0}
-            onClick={() =>
-              setParams({ status, offset: String(Math.max(0, offset - 25)) })
-            }
-          >
-            上一页
-          </Button>
-          <span className="muted">第 {offset / 25 + 1} 页</span>
-          <Button
-            className="secondary"
-            disabled={(tasks.data?.length ?? 0) < 25}
-            onClick={() => setParams({ status, offset: String(offset + 25) })}
-          >
-            下一页
-          </Button>
-        </div>
+        {total > 0 && (
+          <Pagination
+            total={total}
+            offset={offset}
+            size={size}
+            unit="个任务"
+            disabled={tasks.isPlaceholderData}
+            onPage={setPageOffset}
+            onSize={(next) => setSize(next, total)}
+          />
+        )}
       </Card>
     </div>
   );

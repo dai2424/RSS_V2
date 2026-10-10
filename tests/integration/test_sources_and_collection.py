@@ -47,7 +47,7 @@ def test_source_create_test_and_collection_are_idempotent(client: TestClient) ->
     settings = client.app.state.container.settings
     worker = Worker(build_container(settings))
     assert worker.run_once() is True
-    messages = client.get("/api/messages").json()
+    messages = client.get("/api/messages").json()["items"]
     assert len(messages) == 1
     assert messages[0]["latest_version"]["title"] == "New computing platform"
     # 来源只有 description 时正文留空，界面不会把同一段文字展示两次。
@@ -57,7 +57,7 @@ def test_source_create_test_and_collection_are_idempotent(client: TestClient) ->
     second_run = client.post("/api/collection/runs", json={"source_ids": [source_id]})
     assert second_run.status_code == 202
     assert worker.run_once() is True
-    messages_after = client.get("/api/messages").json()
+    messages_after = client.get("/api/messages").json()["items"]
     assert len(messages_after) == 1
 
 
@@ -100,7 +100,7 @@ def test_translation_uses_provider_key_and_keeps_original(client: TestClient) ->
     settings = client.app.state.container.settings
     worker = Worker(build_container(settings))
     assert worker.run_once() is True
-    message_id = client.get("/api/messages").json()[0]["id"]
+    message_id = client.get("/api/messages").json()["items"][0]["id"]
 
     provider = client.post(
         "/api/llm/providers",

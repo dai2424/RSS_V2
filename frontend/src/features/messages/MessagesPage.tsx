@@ -1,6 +1,6 @@
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { useDebouncedCallback } from "../../lib/useDebouncedCallback";
 import { RANGE_OPTIONS, rangeLabel, rangeOf, sinceOf } from "./searchRange";
 import { api, requireResponse } from "../../api/client";
@@ -13,6 +13,8 @@ import {
   Input,
   PageHeader,
 } from "../../components/ui";
+import { Pagination } from "../../components/Pagination";
+import { sizeParams, usePaginationParams } from "../../lib/usePaginationParams";
 import { formatTime, preferredText, statusLabels } from "../../lib/display";
 
 type TaskStatus = "queued" | "running" | "succeeded" | "failed";
@@ -52,10 +54,10 @@ function ProcessingBadges({
 }
 
 export function MessagesPage() {
-  const [params, setParams] = useSearchParams();
+  const { params, setParams, size, offset, setPageOffset, setSize } =
+    usePaginationParams();
   const q = params.get("q") || "";
   const source = params.get("source") || "";
-  const offset = Number(params.get("offset") || 0);
   // 输入先落在本地状态，停顿 300ms 再写进 URL 触发请求：全文检索是全表扫文本。
   const [draft, setDraft] = useState(q);
   const pushQuery = useDebouncedCallback((value: string) => {
@@ -67,9 +69,11 @@ export function MessagesPage() {
   }, 300);
   const range = rangeOf(params.get("range"), Boolean(q));
   const messages = useQuery({
-    queryKey: ["messages", q, source, range, offset],
+    queryKey: ["messages", q, source, range, size, offset],
     // 带搜索词时把轮询放到 30 秒：反复全表扫文本只为刷新一份基本不变的搜索结果不值得。
     refetchInterval: q ? 30000 : 5000,
+    // 翻页时保留上一页内容，避免表格整页闪烁；配合分页条禁用挡住连点。
+    placeholderData: keepPreviousData,
     queryFn: async () => {
       const r = await api.GET("/api/messages", {
         params: {
@@ -77,7 +81,7 @@ export function MessagesPage() {
             q: q || undefined,
             source_id: source || undefined,
             since: sinceOf(range, Math.floor(Date.now() / 1000)),
-            limit: 25,
+            limit: size,
             offset,
           },
         },
@@ -101,11 +105,8 @@ export function MessagesPage() {
     next.delete("offset");
     setParams(next, { replace: true });
   };
-  const page = (value: number) => {
-    const next = new URLSearchParams(params);
-    next.set("offset", String(value));
-    setParams(next);
-  };
+  const rows = messages.data?.items ?? [];
+  const total = messages.data?.total ?? 0;
   return (
     <div className="page page-wide">
       <PageHeader title="消息" description="原文、版本和机器翻译。" />
@@ -148,7 +149,8 @@ export function MessagesPage() {
             className="secondary"
             onClick={() => {
               setDraft("");
-              setParams({});
+              // 清空筛选不重置每页条数：那是显示偏好，不是筛选条件。
+              setParams(sizeParams(size));
             }}
           >
             清空筛选
@@ -167,7 +169,7 @@ export function MessagesPage() {
             onRetry={() => void sources.refetch()}
           />
         )}
-        {messages.data?.length === 0 && (
+        {total === 0 && (
           <EmptyState
             title={q || source ? "没有匹配结果" : "还没有消息"}
             description={
@@ -187,7 +189,19 @@ export function MessagesPage() {
             }
           />
         )}
-        {!!messages.data?.length && (
+        {total > 0 && rows.length === 0 && (
+          // 有内容但这一页为空：通常是删除后停在旧偏移上，或链接里的 offset 越界。
+          <EmptyState
+            title="这一页没有内容"
+            description={`当前共 ${total} 条，这个偏移已经越过末尾。`}
+            action={
+              <Button className="secondary" onClick={() => setPageOffset(0)}>
+                回到第一页
+              </Button>
+            }
+          />
+        )}
+        {!!rows.length && (
           <div className="table-wrap">
             <table>
               <thead>
@@ -201,7 +215,7 @@ export function MessagesPage() {
                 </tr>
               </thead>
               <tbody>
-                {messages.data.map((message) => {
+                {rows.map((message) => {
                   const v = message.latest_version;
                   const enrichment = v?.enrichments.find(
                     (item) => item.status === "succeeded",
@@ -265,23 +279,16 @@ export function MessagesPage() {
             </table>
           </div>
         )}
-        <div className="toolbar card-pad">
-          <Button
-            className="secondary"
-            disabled={offset === 0}
-            onClick={() => page(Math.max(0, offset - 25))}
-          >
-            上一页
-          </Button>
-          <span className="muted">第 {offset / 25 + 1} 页</span>
-          <Button
-            className="secondary"
-            disabled={(messages.data?.length ?? 0) < 25}
-            onClick={() => page(offset + 25)}
-          >
-            下一页
-          </Button>
-        </div>
+        {total > 0 && (
+          <Pagination
+            total={total}
+            offset={offset}
+            size={size}
+            disabled={messages.isPlaceholderData}
+            onPage={setPageOffset}
+            onSize={(next) => setSize(next, total)}
+          />
+        )}
       </Card>
     </div>
   );

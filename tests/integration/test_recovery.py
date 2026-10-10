@@ -113,7 +113,7 @@ def test_expired_worker_cannot_persist_translation(
     collect(client, source_id, Worker(container))
     provider(client)
     container.translation_service.provider = FakeProvider()
-    message_id = client.get("/api/messages").json()[0]["id"]
+    message_id = client.get("/api/messages").json()["items"][0]["id"]
     client.post(f"/api/messages/{message_id}/translate")
     expired = container.tasks.claim_next(["translate_message"], 100, 20)
     container.tasks.reclaim_expired(121)
@@ -137,7 +137,7 @@ def test_versions_a_b_a_and_translation_uses_queued_version(
     container.translation_service.provider = fake
     worker = Worker(container)
     collect(client, source_id, worker)
-    message = client.get("/api/messages").json()[0]
+    message = client.get("/api/messages").json()["items"][0]
     provider(client)
     queued = client.post(f"/api/messages/{message['id']}/translate").json()
     route.mock(
@@ -175,7 +175,7 @@ def test_url_and_content_fallback_do_not_duplicate(client: TestClient) -> None:
         )
     )
     collect(client, source_id, worker)
-    messages = client.get("/api/messages").json()
+    messages = client.get("/api/messages").json()["items"]
     assert len(messages) == 1
     assert messages[0]["latest_version"]["version_number"] == 1
     route.mock(
@@ -187,8 +187,8 @@ def test_url_and_content_fallback_do_not_duplicate(client: TestClient) -> None:
         )
     )
     collect(client, source_id, worker)
-    assert len(client.get("/api/messages").json()) == 1
-    assert client.get("/api/messages").json()[0]["latest_version"]["version_number"] == 1
+    assert len(client.get("/api/messages").json()["items"]) == 1
+    assert client.get("/api/messages").json()["items"][0]["latest_version"]["version_number"] == 1
 
 
 @respx.mock
@@ -204,7 +204,7 @@ def test_one_failed_source_does_not_hide_success(client: TestClient) -> None:
     assert result["created_count"] == 1
     assert result["failed_count"] == 1
     assert result["status"] == "running" and result["completed_at"] is None
-    assert len(client.get("/api/messages").json()) == 1
+    assert len(client.get("/api/messages").json()["items"]) == 1
     health = client.get(f"/api/sources/{second}/health").json()[0]
     assert health["http_status"] == 404
     assert health["error_code"] == "feed_http_error"
@@ -262,7 +262,7 @@ def test_key_fallback_audit_and_masked_key_labels(
     provider_id = provider(client, secrets=secrets)
     fake = FakeProvider({secrets[0]: code})
     container.translation_service.provider = fake
-    message_id = client.get("/api/messages").json()[0]["id"]
+    message_id = client.get("/api/messages").json()["items"][0]["id"]
     task = client.post(f"/api/messages/{message_id}/translate").json()
     assert client.post(f"/api/messages/{message_id}/translate").json()["id"] == task["id"]
     queued = client.get(f"/api/messages/{message_id}").json()["versions"][0]["translation_task"]
@@ -345,7 +345,7 @@ def test_provider_fallback_and_finite_retry(
     provider(client, "primary", "model-a", ("secret-primary",))
     fallback_id = provider(client, "fallback", "model-b", ("secret-fallback",))
     container.translation_service.provider = FakeProvider({"secret-primary": "rate_limited"})
-    message_id = client.get("/api/messages").json()[0]["id"]
+    message_id = client.get("/api/messages").json()["items"][0]["id"]
     task = client.post(f"/api/messages/{message_id}/translate").json()
     assert worker.run_once()
     result = client.get(f"/api/messages/{message_id}").json()["versions"][0]["translations"][0]
@@ -472,7 +472,7 @@ def test_model_fallback_within_provider_keeps_key_accountable(
     container.translation_service.provider = FakeProvider(
         model_failures={"model-a": "llm_invalid_output"}
     )
-    message_id = client.get("/api/messages").json()[0]["id"]
+    message_id = client.get("/api/messages").json()["items"][0]["id"]
     task = client.post(f"/api/messages/{message_id}/translate").json()
     assert worker.run_once()
     result = client.get(f"/api/messages/{message_id}").json()["versions"][0]["translations"][0]
@@ -502,7 +502,7 @@ def test_invalid_model_output_stops_after_three_attempts(
     collect(client, source_id, worker)
     provider(client)
     container.translation_service.provider = FakeProvider({"secret-main": "llm_invalid_output"})
-    message_id = client.get("/api/messages").json()[0]["id"]
+    message_id = client.get("/api/messages").json()["items"][0]["id"]
     task = client.post(f"/api/messages/{message_id}/translate").json()
     for _ in range(3):
         assert worker.run_once()
@@ -526,7 +526,7 @@ def test_model_retry_waits_for_configured_cooldown(
     collect(client, source_id, Worker(container))
     provider(client)
     container.translation_service.provider = FakeProvider({"secret-main": "rate_limited"})
-    message_id = client.get("/api/messages").json()[0]["id"]
+    message_id = client.get("/api/messages").json()["items"][0]["id"]
     task = client.post(f"/api/messages/{message_id}/translate").json()
     assert Worker(container).run_once()
     queued = container.tasks.get(task["id"])
@@ -550,7 +550,7 @@ def test_compatible_adapter_rejects_malformed_translation(
     respx.post("https://llm.test/v1/chat/completions").mock(
         return_value=httpx.Response(200, json={"choices": [{"message": {"content": content}}]})
     )
-    message_id = client.get("/api/messages").json()[0]["id"]
+    message_id = client.get("/api/messages").json()["items"][0]["id"]
     task = client.post(f"/api/messages/{message_id}/translate").json()
     assert Worker(container).run_once()
     status = client.get(f"/api/tasks/{task['id']}").json()
@@ -599,7 +599,7 @@ def test_compatible_adapter_accepts_recoverable_enrichment_shapes(
             json={"choices": [{"finish_reason": "stop", "message": {"content": content}}]},
         )
     )
-    message_id = client.get("/api/messages").json()[0]["id"]
+    message_id = client.get("/api/messages").json()["items"][0]["id"]
     task = client.post(f"/api/messages/{message_id}/enrich").json()
     assert Worker(container).run_once()
     assert client.get(f"/api/tasks/{task['id']}").json()["status"] == "succeeded"
@@ -643,7 +643,7 @@ def test_invalid_output_reports_field_and_snippet(
             json={"choices": [{"finish_reason": finish_reason, "message": {"content": content}}]},
         )
     )
-    message_id = client.get("/api/messages").json()[0]["id"]
+    message_id = client.get("/api/messages").json()["items"][0]["id"]
     task = client.post(f"/api/messages/{message_id}/enrich").json()
     assert Worker(container).run_once()
     status = client.get(f"/api/tasks/{task['id']}").json()
@@ -675,7 +675,7 @@ def test_invalid_output_never_leaks_api_key(client: TestClient) -> None:
             },
         )
     )
-    message_id = client.get("/api/messages").json()[0]["id"]
+    message_id = client.get("/api/messages").json()["items"][0]["id"]
     task = client.post(f"/api/messages/{message_id}/enrich").json()
     assert Worker(container).run_once()
     message = client.get(f"/api/tasks/{task['id']}").json()["error_message"]
@@ -712,7 +712,7 @@ def test_gateway_rejecting_optional_params_falls_back_to_minimal_payload(
             ),
         ]
     )
-    message_id = client.get("/api/messages").json()[0]["id"]
+    message_id = client.get("/api/messages").json()["items"][0]["id"]
     task = client.post(f"/api/messages/{message_id}/translate").json()
     assert Worker(container).run_once()
     assert route.call_count == 2
@@ -734,7 +734,7 @@ def test_gateway_error_detail_is_surfaced_without_key(client: TestClient) -> Non
     respx.post("https://llm.test/v1/chat/completions").mock(
         return_value=httpx.Response(401, json={"error": {"message": f"Invalid API key: {secret}"}})
     )
-    message_id = client.get("/api/messages").json()[0]["id"]
+    message_id = client.get("/api/messages").json()["items"][0]["id"]
     task = client.post(f"/api/messages/{message_id}/translate").json()
     assert Worker(container).run_once()
     described = client.get(f"/api/tasks/{task['id']}").json()

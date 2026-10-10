@@ -144,7 +144,7 @@ def queued_tasks(client: TestClient) -> list[dict[str, object]]:
 
     response = client.get("/api/tasks", params={"status": "queued"})
     assert response.status_code == 200, response.text
-    return list(response.json())
+    return list(response.json()["items"])
 
 
 def stub_fake(client: TestClient, fake: FakeProvider) -> None:
@@ -175,7 +175,7 @@ def test_collection_enqueues_translation_and_enrichment(client: TestClient) -> N
     assert worker.run_once() is True
     assert queued_tasks(client) == []
 
-    message = client.get("/api/messages").json()[0]
+    message = client.get("/api/messages").json()["items"][0]
     version = message["latest_version"]
     assert version["translations"][0]["title"] == "中文标题"
     assert version["enrichments"][0]["title"] == "精简标题"
@@ -213,7 +213,7 @@ def test_collection_survives_missing_model_configuration(client: TestClient) -> 
     collect(client, source_id)
 
     assert queued_tasks(client) == []
-    messages = client.get("/api/messages").json()
+    messages = client.get("/api/messages").json()["items"]
     assert len(messages) == 1
     assert messages[0]["latest_version"]["title"] == LONG_ENGLISH_TITLE
 
@@ -227,7 +227,7 @@ def test_enrichment_reuses_task_and_keeps_failure_reason(client: TestClient) -> 
     configure_model(client)
     source_id = create_source(client, "https://retry.test/feed")
     worker = collect(client, source_id)
-    message_id = client.get("/api/messages").json()[0]["id"]
+    message_id = client.get("/api/messages").json()["items"][0]["id"]
 
     queued = queued_tasks(client)
     assert [str(task["task_type"]) for task in queued] == ["enrich_message"]
@@ -262,24 +262,31 @@ def test_search_matches_generated_content(client: TestClient) -> None:
     assert worker.run_once() is True
 
     # 关键词检索按匹配键精确/前缀命中，并可按类型收窄；全文兜底仍然可用。
-    hit = client.get("/api/messages", params={"keyword": "关键词乙"}).json()
+    hit = client.get("/api/messages", params={"keyword": "关键词乙"}).json()["items"]
     assert len(hit) == 1
     assert (
-        len(client.get("/api/messages", params={"keyword": "关键词乙", "kind": "topic"}).json())
+        len(
+            client.get("/api/messages", params={"keyword": "关键词乙", "kind": "topic"}).json()[
+                "items"
+            ]
+        )
         == 1
     )
     assert (
-        client.get("/api/messages", params={"keyword": "关键词乙", "kind": "entity"}).json() == []
+        client.get("/api/messages", params={"keyword": "关键词乙", "kind": "entity"}).json()[
+            "items"
+        ]
+        == []
     )
     # 前缀命中同一主体的不同粒度，但不会像 LIKE 打 JSON 那样把 ai 命中到 openai。
-    assert client.get("/api/messages", params={"keyword": "关键词"}).json() != []
+    assert client.get("/api/messages", params={"keyword": "关键词"}).json()["items"] != []
 
-    hit = client.get("/api/messages", params={"q": "关键词乙"}).json()
+    hit = client.get("/api/messages", params={"q": "关键词乙"}).json()["items"]
     assert len(hit) == 1
     assert hit[0]["latest_version"]["enrichments"][0]["summary"] == "中文摘要说明发生了什么。"
-    translated = client.get("/api/messages", params={"q": "中文正文"}).json()
+    translated = client.get("/api/messages", params={"q": "中文正文"}).json()["items"]
     assert len(translated) == 1
-    assert client.get("/api/messages", params={"q": "不存在的词"}).json() == []
+    assert client.get("/api/messages", params={"q": "不存在的词"}).json()["items"] == []
 
 
 @respx.mock
@@ -292,7 +299,7 @@ def test_task_list_shows_target_model_and_prompt(client: TestClient) -> None:
     configure_model(client)
     source_id = create_source(client, "https://target.test/feed")
     collect(client, source_id)
-    rows = client.get("/api/tasks", params={"limit": 25}).json()
+    rows = client.get("/api/tasks", params={"limit": 25}).json()["items"]
 
     collecting = next(item for item in rows if item["task_type"] == "collect_source")
     assert collecting["target_kind"] == "source"
@@ -301,7 +308,7 @@ def test_task_list_shows_target_model_and_prompt(client: TestClient) -> None:
     # 采集任务不调模型，也不属于任何提示词版本。
     assert collecting["model"] is None and collecting["prompt_version"] is None
 
-    message = client.get("/api/messages").json()[0]
+    message = client.get("/api/messages").json()["items"][0]
     enriching = next(item for item in rows if item["task_type"] == "enrich_message")
     assert enriching["target_kind"] == "message"
     assert enriching["target_id"] == message["id"]

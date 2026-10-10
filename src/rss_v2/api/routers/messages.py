@@ -12,6 +12,7 @@ from rss_v2.api.presenters import (
 )
 from rss_v2.api.schemas import (
     MessageDetailResponse,
+    MessageListResponse,
     MessageResponse,
     MessageVersionResponse,
     RelatedMessageResponse,
@@ -38,7 +39,7 @@ def _version_response(request: Request, row: MessageRow) -> MessageVersionRespon
     )
 
 
-@messages_router.get("", response_model=list[MessageResponse])
+@messages_router.get("", response_model=MessageListResponse)
 def list_messages(
     request: Request,
     q: str | None = None,
@@ -49,11 +50,10 @@ def list_messages(
     until: int | None = Query(default=None, description="发布时间上界，UTC 秒"),
     limit: int = Query(default=50, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
-) -> list[MessageResponse]:
+) -> MessageListResponse:
+    service = container(request).message_service
     values: list[MessageResponse] = []
-    for row in container(request).message_service.list(
-        q, source_id, keyword, kind, since, until, limit, offset
-    ):
+    for row in service.list(q, source_id, keyword, kind, since, until, limit, offset):
         values.append(
             MessageResponse(
                 id=row.message.id,
@@ -63,7 +63,10 @@ def list_messages(
                 latest_version=_version_response(request, row),
             )
         )
-    return values
+    return MessageListResponse(
+        items=values,
+        total=service.count(q, source_id, keyword, kind, since, until),
+    )
 
 
 @messages_router.get("/{message_id}", response_model=MessageDetailResponse)

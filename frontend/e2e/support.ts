@@ -22,8 +22,8 @@ export function runWorkerOnce() {
 export async function drainWorker(request: APIRequestContext) {
   for (let i = 0; i < 20; i += 1) {
     runWorkerOnce();
-    const queued = await (await request.get("/api/tasks?status=queued")).json();
-    if (!queued.length) return;
+    const page = await (await request.get("/api/tasks?status=queued")).json();
+    if (!page.items.length) return;
   }
   throw new Error("任务队列未能排空，可能存在反复失败的任务。");
 }

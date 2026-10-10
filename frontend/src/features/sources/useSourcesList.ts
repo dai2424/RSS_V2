@@ -1,16 +1,18 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { useSearchParams } from "react-router-dom";
+import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
 import { api, requireResponse } from "../../api/client";
+import { usePaginationParams } from "../../lib/usePaginationParams";
 
 /** URL 是筛选与分页状态来源，刷新和详情返回后仍可恢复。 */
 export function useSourcesList() {
-  const [params, setParams] = useSearchParams();
+  const { params, setParams, size, offset, setPageOffset, setSize } =
+    usePaginationParams();
   const q = params.get("q") || "",
     category = params.get("category") || "",
     status = params.get("status") || "";
-  const offset = Number(params.get("offset") || 0);
   const sources = useQuery({
-    queryKey: ["sources", q, category, status, offset],
+    queryKey: ["sources", q, category, status, size, offset],
+    // 翻页时保留上一页内容，避免表格整页闪烁；配合分页条禁用挡住连点。
+    placeholderData: keepPreviousData,
     queryFn: async () => {
       const r = await api.GET("/api/sources", {
         params: {
@@ -18,7 +20,7 @@ export function useSourcesList() {
             q: q || undefined,
             category_id: category || undefined,
             enabled: status ? status === "true" : undefined,
-            limit: 25,
+            limit: size,
             offset,
           },
         },
@@ -53,7 +55,10 @@ export function useSourcesList() {
     q,
     category,
     status,
+    size,
     offset,
+    setPageOffset,
+    setSize,
     sources,
     categories,
     collect,

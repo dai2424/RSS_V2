@@ -313,12 +313,12 @@ def test_source_task_setting_disables_and_binds_prompt(client: TestClient) -> No
     assert run.status_code == 202
     worker = Worker(container)
     assert worker.run_once() is True
-    queued = client.get("/api/tasks", params={"status": "queued"}).json()
+    queued = client.get("/api/tasks", params={"status": "queued"}).json()["items"]
     assert [task["task_type"] for task in queued] == ["enrich_message"]
 
     container.enrichment_service.provider = FakeProvider()
     assert worker.run_once() is True
-    message_id = client.get("/api/messages").json()[0]["id"]
+    message_id = client.get("/api/messages").json()["items"][0]["id"]
     version = client.get(f"/api/messages/{message_id}").json()["versions"][0]
     assert version["enrichments"][0]["prompt_version"] == "enrich-short-v1"
 
@@ -375,7 +375,7 @@ def test_category_default_is_overridden_by_source(client: TestClient) -> None:
     assert client.post("/api/collection/runs", json={"source_ids": [source_id]}).status_code == 202
     worker = Worker(container)
     assert worker.run_once() is True
-    queued = client.get("/api/tasks", params={"status": "queued"}).json()
+    queued = client.get("/api/tasks", params={"status": "queued"}).json()["items"]
     assert sorted(task["task_type"] for task in queued) == ["enrich_message", "translate_message"]
 
 
@@ -408,7 +408,7 @@ def test_prompt_test_writes_audit_but_no_result(client: TestClient) -> None:
     assert calls[0]["prompt_version"] == "translation-v1+prompt-test"
     assert calls[0]["task_id"] is None
     # 试跑不产生结果记录，消息也不存在。
-    assert client.get("/api/messages").json() == []
+    assert client.get("/api/messages").json()["items"] == []
 
     failing = FakeProvider({"secret-main": "rate_limited"})
     container.prompt_service.provider = failing
@@ -657,7 +657,7 @@ def test_task_snapshot_without_prompt_id_runs_by_version_string(client: TestClie
     assert run.status_code == 202, run.text
     assert worker.run_once() is True
 
-    queued = client.get("/api/tasks", params={"status": "queued"}).json()
+    queued = client.get("/api/tasks", params={"status": "queued"}).json()["items"]
     assert [item["task_type"] for item in queued] == ["enrich_message"]
     task = queued[0]
     payload = strip_prompt_snapshot(container, str(task["id"]), "prompt_id")
@@ -666,7 +666,7 @@ def test_task_snapshot_without_prompt_id_runs_by_version_string(client: TestClie
     container.enrichment_service.provider = FakeProvider()
     assert worker.run_once() is True
 
-    message_id = str(client.get("/api/messages").json()[0]["id"])
+    message_id = str(client.get("/api/messages").json()["items"][0]["id"])
     version = client.get(f"/api/messages/{message_id}").json()["versions"][0]
     assert version["enrichments"][0]["prompt_version"] == "enrich-v2"
     assert client.get(f"/api/tasks/{task['id']}").json()["status"] == "succeeded"
@@ -691,7 +691,7 @@ def test_task_snapshot_without_any_prompt_reference_fails(client: TestClient) ->
     assert run.status_code == 202, run.text
     assert worker.run_once() is True
 
-    task = client.get("/api/tasks", params={"status": "queued"}).json()[0]
+    task = client.get("/api/tasks", params={"status": "queued"}).json()["items"][0]
     payload = strip_prompt_snapshot(container, str(task["id"]), "prompt_id", "prompt_version")
     assert payload == {
         "message_id": payload["message_id"],
@@ -738,7 +738,7 @@ def test_legacy_task_reference_blocks_prompt_edit_and_delete(client: TestClient)
     assert run.status_code == 202, run.text
     assert worker.run_once() is True
 
-    task = client.get("/api/tasks", params={"status": "queued"}).json()[0]
+    task = client.get("/api/tasks", params={"status": "queued"}).json()["items"][0]
     payload = strip_prompt_snapshot(container, str(task["id"]), "prompt_id")
     assert payload["prompt_version"] == "legacy-bind-v1"
 

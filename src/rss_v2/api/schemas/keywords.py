@@ -5,6 +5,7 @@ from __future__ import annotations
 from pydantic import BaseModel, Field
 
 from .messages import KeywordResponse
+from .pagination import Page
 
 
 class KeywordBackfillRequest(BaseModel):
@@ -86,11 +87,8 @@ class KeywordEntryResponse(BaseModel):
     aliases: list[str]
 
 
-class KeywordListResponse(BaseModel):
+class KeywordListResponse(Page[KeywordEntryResponse]):
     """词表分页结果。"""
-
-    items: list[KeywordEntryResponse]
-    total: int
 
 
 class KeywordKindStatResponse(BaseModel):

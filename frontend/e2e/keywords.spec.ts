@@ -33,8 +33,8 @@ async function seed(request: APIRequestContext, suffix: string) {
   });
   await drainWorker(request);
   // fixture 消息没到自动加工的长度阈值，这里显式触发一次内容加工。
-  const messages = await (await request.get("/api/messages?limit=50")).json();
-  for (const message of messages) {
+  const page = await (await request.get("/api/messages?limit=50")).json();
+  for (const message of page.items) {
     await request.post(`/api/messages/${message.id}/enrich`);
   }
   await drainWorker(request);

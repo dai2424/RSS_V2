@@ -236,7 +236,7 @@ def test_backfill_previews_then_enqueues_idempotently(client: TestClient) -> Non
     source_id = create_source(client, url)
     disable_enrich(client, source_id)
     collect(client, source_id)
-    assert client.get("/api/tasks", params={"status": "queued"}).json() == []
+    assert client.get("/api/tasks", params={"status": "queued"}).json()["items"] == []
 
     preview = client.post("/api/keywords/backfill", json={"dry_run": True})
     assert preview.status_code == 200, preview.text
@@ -244,12 +244,12 @@ def test_backfill_previews_then_enqueues_idempotently(client: TestClient) -> Non
 
     executed = client.post("/api/keywords/backfill", json={})
     assert executed.json()["enqueued"] == 2
-    queued = client.get("/api/tasks", params={"status": "queued"}).json()
+    queued = client.get("/api/tasks", params={"status": "queued"}).json()["items"]
     assert len(queued) == 2
 
     again = client.post("/api/keywords/backfill", json={})
     assert again.json()["enqueued"] == 2
-    assert len(client.get("/api/tasks", params={"status": "queued"}).json()) == 2
+    assert len(client.get("/api/tasks", params={"status": "queued"}).json()["items"]) == 2
 
 
 @respx.mock

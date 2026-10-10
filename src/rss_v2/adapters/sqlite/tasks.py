@@ -189,6 +189,18 @@ class SQLiteTaskRepository:
         finally:
             connection.close()
 
+    def count(self, status: str | None = None) -> int:
+        """与 list 同一套过滤条件下的总数，供列表分页使用。"""
+
+        connection = self.database.connect()
+        try:
+            row = connection.execute(
+                "SELECT COUNT(*) FROM tasks WHERE (? IS NULL OR status=?)", (status, status)
+            ).fetchone()
+            return int(row[0])
+        finally:
+            connection.close()
+
     def retry(self, task_id: str) -> Task:
         """只重排失败任务，清零尝试次数。"""
         with self.database.transaction() as connection:

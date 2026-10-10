@@ -127,6 +127,18 @@ class MessageRepository(Protocol):
 
     def versions(self, message_id: str) -> list[MessageVersion]: ...
 
+    def count_messages(
+        self,
+        query: str | None = None,
+        source_id: str | None = None,
+        keyword: str | None = None,
+        kind: str | None = None,
+        since: int | None = None,
+        until: int | None = None,
+    ) -> int:
+        """与 list_messages 同一套过滤条件下的总数，供列表分页使用。"""
+        ...
+
     def count_for_source(self, source_id: str) -> int:
         """返回来源下的消息条数，用于删除前的影响说明。"""
         ...
@@ -174,6 +186,10 @@ class TaskRepository(Protocol):
     def claim_next(self, task_types: list[str], now: int, lease_seconds: int) -> Task | None: ...
 
     def list(self, status: str | None = None, limit: int = 50, offset: int = 0) -> list[Task]: ...
+
+    def count(self, status: str | None = None) -> int:
+        """与 list 同一套过滤条件下的总数，供列表分页使用。"""
+        ...
 
     def retry(self, task_id: str) -> Task: ...
 

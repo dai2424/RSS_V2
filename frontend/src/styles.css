@@ -173,12 +173,64 @@ a {
   gap: 8px;
   font-size: 13px;
 }
+/* 分页条：左侧总数，右侧控件组；窄窗口下换行而不是横向溢出。 */
 .pagination {
-  display: flex;
-  gap: 10px;
-  justify-content: flex-end;
-  padding: 16px;
   align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: space-between;
+  padding: 16px;
+}
+.pagination-controls {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-left: auto;
+}
+.pagination-pages {
+  align-items: center;
+  display: flex;
+  gap: 4px;
+}
+.pagination-pages .button {
+  min-width: 38px;
+  padding: 0 8px;
+}
+/* 当前页：用带 aria-current 的记号表示，不做成点了没反应的按钮。 */
+.pagination-current {
+  align-items: center;
+  background: hsl(var(--primary));
+  border: 1px solid hsl(var(--primary));
+  border-radius: 8px;
+  color: hsl(var(--card));
+  display: inline-flex;
+  font-size: 13px;
+  font-weight: 600;
+  justify-content: center;
+  min-height: 38px;
+  min-width: 38px;
+  padding: 0 8px;
+}
+.pagination-ellipsis {
+  color: hsl(var(--muted-foreground));
+  padding: 0 2px;
+}
+.pagination-size,
+.pagination-jump {
+  align-items: center;
+  color: hsl(var(--muted-foreground));
+  display: inline-flex;
+  font-size: 13px;
+  gap: 6px;
+}
+.pagination-size select {
+  width: auto;
+}
+.pagination-jump .input {
+  text-align: center;
+  width: 64px;
 }
 .provider-form {
   display: grid;

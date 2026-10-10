@@ -171,7 +171,7 @@ def enrich_all(client: TestClient, fake: KeywordProvider) -> None:
 
     stub_providers(client, fake)
     worker = Worker(client.app.state.container)
-    for message in client.get("/api/messages").json():
+    for message in client.get("/api/messages").json()["items"]:
         created = client.post(f"/api/messages/{message['id']}/enrich")
         assert created.status_code == 202, created.text
     while worker.run_once():
@@ -183,4 +183,4 @@ def search(client: TestClient, **params: str) -> list[dict[str, Any]]:
 
     response = client.get("/api/messages", params=params)
     assert response.status_code == 200, response.text
-    return list(response.json())
+    return list(response.json()["items"])

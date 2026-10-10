@@ -6,6 +6,8 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from .pagination import Page
+
 
 class PatchRequest(BaseModel):
     """PATCH 允许省略字段，但仅会话头允许显式置空。"""
@@ -89,11 +91,8 @@ class SourceResponse(BaseModel):
     last_success_at: int | None = None
 
 
-class SourceListResponse(BaseModel):
-    """来源列表响应；total 是当前过滤条件下的总数，与 items 的分页窗口无关。"""
-
-    items: list[SourceResponse]
-    total: int
+class SourceListResponse(Page[SourceResponse]):
+    """来源列表响应。"""
 
 
 class HealthResponse(BaseModel):

@@ -19,7 +19,7 @@ export function PromptTestPanel({ prompt }: { prompt: Prompt }) {
       return requireResponse(r.response, r.data, r.error);
     },
   });
-  const options = (messages.data ?? []).flatMap((message) =>
+  const options = (messages.data?.items ?? []).flatMap((message) =>
     message.latest_version
       ? [{ id: message.latest_version.id, label: message.latest_version.title }]
       : [],
