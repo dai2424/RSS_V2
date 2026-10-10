@@ -581,6 +581,14 @@ def test_compatible_adapter_rejects_malformed_translation(
             '{"text":"发布 GPT-6","kind":"event"},{"text":"另一件事","kind":"event"}]}',
             ["OpenAI", "定价", "发布 GPT-6", "另一件事"],
         ),
+        # 形状打滑：字段名换成 keyword、text 包成单元素数组、kind 写成数字或 null。
+        # 这些都不影响语义，不该为一次形状失误作废整轮输出。
+        (
+            '{"title":"精简标题","summary":"摘要","keywords":['
+            '{"keyword":"ChatGPT","kind":"entity"},{"value":"订阅"},'
+            '{"text":["Devin"],"kind":1},{"name":"额度","kind":null}]}',
+            ["ChatGPT", "订阅", "Devin", "额度"],
+        ),
     ],
 )
 @respx.mock
@@ -624,6 +632,13 @@ def test_compatible_adapter_accepts_recoverable_enrichment_shapes(
             '{"title":"精简标题","summary":"摘要","keywords":["甲"',
             "length",
             ("json_invalid", "结束原因 length", "精简标题"),
+        ),
+        # 关键词是联合类型（字符串或对象）：要指出对象里到底哪个字段不对，
+        # 而不是停在"不是字符串"这种没有信息量的结论上。
+        (
+            '{"title":"精简标题","summary":"摘要","keywords":[{"kind":"entity"}]}',
+            "stop",
+            ("keywords.0.text（missing）", "返回片段"),
         ),
     ],
 )

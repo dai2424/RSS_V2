@@ -9,10 +9,18 @@ from __future__ import annotations
 
 import re
 import uuid
+from collections.abc import Sequence
 from typing import Any, TypeVar, cast
 
 import httpx
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
+from pydantic import (
+    AliasChoices,
+    BaseModel,
+    ConfigDict,
+    Field,
+    ValidationError,
+    field_validator,
+)
 
 from rss_v2.domain import (
     ExternalServiceError,
@@ -33,16 +41,52 @@ class TranslationResponse(BaseModel):
     content: str
 
 
+def _single_item(value: object) -> object | None:
+    """单元素数组取其唯一元素；其它形状返回 None。
+
+    独立成函数是为了让类型收敛：直接在验证器里 isinstance 判断会留下
+    部分未知的列表类型，Pyright strict 下无法通过。
+    """
+
+    if not isinstance(value, (list, tuple)):
+        return None
+    items = list(cast(Sequence[object], value))
+    return items[0] if len(items) == 1 else None
+
+
 class KeywordItem(BaseModel):
     """模型返回的单条关键词。
 
-    多余字段忽略而不是报错：模型多给一个权重或说明，不该让整次调用作废。
+    这里刻意容忍几种"形状打滑"：多余字段忽略、字段名换成 keyword/value/name、
+    text 误写成单元素数组、kind 写成数字或 null。它们都不影响这条关键词的语义，
+    为一次形状失误作废整轮输出（还要重试三次）不划算。
     """
 
-    model_config = ConfigDict(extra="ignore")
+    model_config = ConfigDict(extra="ignore", populate_by_name=True)
 
-    text: str = Field(min_length=1)
+    text: str = Field(
+        min_length=1, validation_alias=AliasChoices("text", "keyword", "value", "name")
+    )
     kind: str = "topic"
+
+    @field_validator("text", mode="before")
+    @classmethod
+    def _unwrap_text(cls, value: object) -> object:
+        """模型偶尔把关键词包在单元素数组里。"""
+
+        unwrapped = _single_item(value)
+        return value if unwrapped is None else unwrapped
+
+    @field_validator("kind", mode="before")
+    @classmethod
+    def _stringify_kind(cls, value: object) -> object:
+        """kind 写成数字或 null 时按主题词处理，不让整条结果失败。"""
+
+        if value is None:
+            return "topic"
+        if isinstance(value, (int, float)):
+            return str(value)
+        return value
 
 
 class EnrichmentResponse(BaseModel):
@@ -155,8 +199,16 @@ def json_output(raw: str) -> str:
     return raw[start : end + 1]
 
 
+#: 联合类型的分支标记；定位信息里去掉它们，否则会显示成 keywords.0.str.kind。
+_UNION_TAGS = frozenset({"str", "int", "float", "bool", "None", "KeywordItem"})
+
+
 def validation_detail(error: ValidationError, raw: str, secret: str, finish_reason: str) -> str:
     """结构化输出失败的可见说明：失败字段、结束原因和返回片段。
+
+    定位取**最具体**的那条错误：联合类型（例如 str | KeywordItem）失败时，Pydantic 会
+    同时给出"不是字符串"和"对象里哪个字段不对"两条，只看第一条会一直显示
+    keywords.0（string_type）这种没有信息量的结论。
 
     finish_reason 传协议里"正常结束"以外的取值：OpenAI 用 stop、Anthropic 用
     end_turn，调用方负责归一化，这里只关心"是不是被截断"。
@@ -164,9 +216,10 @@ def validation_detail(error: ValidationError, raw: str, secret: str, finish_reas
 
     errors = error.errors()
     if errors:
-        first = errors[0]
-        location = ".".join(str(part) for part in first["loc"]) or "根"
-        reason = f"{location}（{first['type']}）"
+        picked = max(errors, key=lambda item: len(item["loc"]))
+        parts = [str(part) for part in picked["loc"] if str(part) not in _UNION_TAGS]
+        location = ".".join(parts) or "根"
+        reason = f"{location}（{picked['type']}）"
     else:
         reason = "未提供字段信息"
     if finish_reason and finish_reason != "stop":

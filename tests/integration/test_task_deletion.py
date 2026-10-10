@@ -108,9 +108,7 @@ def test_clear_finished_previews_then_deletes(client: TestClient) -> None:
     insert_task(client, "failed-b", "failed", "translate_message")
 
     # 只清理失败：成功的任务与结果不动。
-    preview = client.post(
-        "/api/tasks/clear", json={"statuses": ["failed"], "dry_run": True}
-    )
+    preview = client.post("/api/tasks/clear", json={"statuses": ["failed"], "dry_run": True})
     assert preview.status_code == 200, preview.text
     assert preview.json() == {"candidates": 2, "deleted": 0}
     assert client.post("/api/tasks/clear", json={"statuses": ["failed"]}).json() == {
@@ -141,9 +139,7 @@ def test_clear_rejects_unfinished_status(client: TestClient) -> None:
     insert_task(client, "running-task", "running")
 
     # 接口层只接受终态取值。
-    assert (
-        client.post("/api/tasks/clear", json={"statuses": ["queued"]}).status_code == 422
-    )
+    assert client.post("/api/tasks/clear", json={"statuses": ["queued"]}).status_code == 422
     # 清理终态时不会碰未结束的任务。
     before = scalar(client, "SELECT COUNT(*) FROM tasks WHERE status='succeeded'")
     cleared = client.post("/api/tasks/clear", json={"statuses": ["succeeded"]}).json()
