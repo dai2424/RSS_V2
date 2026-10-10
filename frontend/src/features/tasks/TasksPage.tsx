@@ -22,7 +22,7 @@ import { formatDuration, formatTime, statusLabels } from "../../lib/display";
 import { useDebouncedCallback } from "../../lib/useDebouncedCallback";
 import { Input } from "../../components/ui";
 import { RANGE_OPTIONS, rangeOf, sinceOf } from "../../lib/searchRange";
-import { ClearFailedDialog, TaskDeleteDialog } from "./TaskDeleteDialog";
+import { ClearTasksDialog, TaskDeleteDialog } from "./TaskDeleteDialog";
 
 type Task = components["schemas"]["TaskResponse"];
 
@@ -194,7 +194,7 @@ export function TasksPage() {
             刷新
           </Button>
           <Button className="danger-outline" onClick={() => setClearing(true)}>
-            清理失败任务
+            清理任务
           </Button>
         </div>
         {tasks.isLoading && <div className="loading">正在加载任务…</div>}
@@ -357,7 +357,7 @@ export function TasksPage() {
         task={pendingDelete}
         onClose={() => setPendingDelete(null)}
       />
-      <ClearFailedDialog open={clearing} onClose={() => setClearing(false)} />
+      <ClearTasksDialog open={clearing} onClose={() => setClearing(false)} />
     </div>
   );
 }

@@ -156,9 +156,12 @@ test("任务删除入口：未结束禁用，清理失败任务先预览", async
       }),
     }),
   );
-  const clearBodies: unknown[] = [];
-  await page.route("**/api/tasks/clear-failed", async (route) => {
-    const body = route.request().postDataJSON();
+  const clearBodies: { statuses: string[]; dry_run: boolean }[] = [];
+  await page.route("**/api/tasks/clear", async (route) => {
+    const body = route.request().postDataJSON() as {
+      statuses: string[];
+      dry_run: boolean;
+    };
     clearBodies.push(body);
     await route.fulfill({
       status: 200,
@@ -190,13 +193,21 @@ test("任务删除入口：未结束禁用，清理失败任务先预览", async
   await page.keyboard.press("Escape");
   await expect(dialog).toBeHidden();
 
-  // 清理失败任务：先预览条数，再按条数确认。
-  await page.getByRole("button", { name: "清理失败任务" }).click();
-  const clearDialog = page.getByRole("alertdialog", { name: "清理失败任务" });
-  await expect(clearDialog).toContainText("将删除 1 个失败任务");
+  // 清理任务：默认只勾失败，先按状态看条数，再按条数确认。
+  await page.getByRole("button", { name: "清理任务" }).click();
+  const clearDialog = page.getByRole("alertdialog", { name: "清理任务" });
+  await expect(clearDialog).toContainText("排队与运行中的任务不会被删除");
+  await expect(
+    clearDialog.getByRole("checkbox", { name: /失败的任务/ }),
+  ).toBeChecked();
+  await expect(
+    clearDialog.getByRole("checkbox", { name: /已完成的任务/ }),
+  ).not.toBeChecked();
   await clearDialog.getByRole("button", { name: "清理 1 个任务" }).click();
-  await expect(page.getByText("已清理 1 个失败任务。")).toBeVisible();
-  expect(clearBodies).toEqual([{ dry_run: true }, { dry_run: false }]);
+  await expect(page.getByText("已清理 1 个任务。")).toBeVisible();
+  // 预览按状态各问一次，最后按选中的状态执行。
+  expect(clearBodies.at(-1)).toEqual({ statuses: ["failed"], dry_run: false });
+  expect(clearBodies.filter((body) => body.dry_run)).toHaveLength(2);
 });
 
 test("筛选控件：消息处理状态与任务筛选都写进查询参数", async ({ page }) => {

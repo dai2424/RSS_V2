@@ -107,13 +107,22 @@ class TaskService:
             raise DomainError("task_not_finished", "排队中或运行中的任务不能删除")
         return TaskDeletion(candidates=1, deleted=self.tasks.delete_finished([task_id]))
 
-    def clear_failed(self, dry_run: bool) -> TaskDeletion:
-        """清理全部失败任务；先预览条数再执行。"""
+    def clear_finished(self, statuses: Sequence[str], dry_run: bool) -> TaskDeletion:
+        """清理指定终态（成功 / 失败）的任务；先预览条数再执行。
 
-        candidates = self.tasks.count(TaskStatus.FAILED)
+        与单条删除同一规则：只碰已结束的任务，排队与运行中的永远不会被清理，
+        并且只接受终态取值——传错状态宁可报错，也不要误删未结束的任务。
+        """
+
+        # 只认终态的字面值：传错状态宁可报错，也不要按"非终态"去删。
+        terminal = (TaskStatus.SUCCEEDED.value, TaskStatus.FAILED.value)
+        wanted = [status for status in dict.fromkeys(statuses) if status in terminal]
+        if not wanted:
+            raise DomainError("task_clear_empty", "至少选择一种要清理的任务状态")
+        candidates = sum(self.tasks.count(status) for status in wanted)
         if dry_run:
             return TaskDeletion(candidates=candidates, deleted=0)
-        return TaskDeletion(candidates=candidates, deleted=self.tasks.delete_failed())
+        return TaskDeletion(candidates=candidates, deleted=self.tasks.delete_by_statuses(wanted))
 
     def retry(self, task_id: str) -> Task:
         """明确重试失败任务。"""

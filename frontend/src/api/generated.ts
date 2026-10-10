@@ -466,7 +466,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/tasks/clear-failed": {
+  "/api/tasks/clear": {
     parameters: {
       query?: never;
       header?: never;
@@ -476,10 +476,10 @@ export interface paths {
     get?: never;
     put?: never;
     /**
-     * Clear Failed Tasks
-     * @description 清理全部失败任务；dry_run 先看条数。
+     * Clear Tasks
+     * @description 清理指定终态的任务；dry_run 先看条数。
      */
-    post: operations["clear_failed_tasks_api_tasks_clear_failed_post"];
+    post: operations["clear_tasks_api_tasks_clear_post"];
     delete?: never;
     options?: never;
     head?: never;
@@ -1874,10 +1874,14 @@ export interface components {
       health: components["schemas"]["HealthResponse"];
     };
     /**
-     * TaskClearFailedRequest
-     * @description 清理失败任务请求；dry_run 只返回条数。
+     * TaskClearRequest
+     * @description 清理已结束任务的请求；dry_run 只返回条数。
+     *
+     *     statuses 只允许终态：排队与运行中的任务不能通过这个入口清理。
      */
-    TaskClearFailedRequest: {
+    TaskClearRequest: {
+      /** Statuses */
+      statuses: ("succeeded" | "failed")[];
       /**
        * Dry Run
        * @default false
@@ -3017,7 +3021,7 @@ export interface operations {
       };
     };
   };
-  clear_failed_tasks_api_tasks_clear_failed_post: {
+  clear_tasks_api_tasks_clear_post: {
     parameters: {
       query?: never;
       header?: never;
@@ -3026,7 +3030,7 @@ export interface operations {
     };
     requestBody: {
       content: {
-        "application/json": components["schemas"]["TaskClearFailedRequest"];
+        "application/json": components["schemas"]["TaskClearRequest"];
       };
     };
     responses: {

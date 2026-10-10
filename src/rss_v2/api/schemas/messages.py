@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 from .pagination import Page
@@ -165,7 +167,11 @@ class TaskDeletionResponse(BaseModel):
     deleted: int
 
 
-class TaskClearFailedRequest(BaseModel):
-    """清理失败任务请求；dry_run 只返回条数。"""
+class TaskClearRequest(BaseModel):
+    """清理已结束任务的请求；dry_run 只返回条数。
 
+    statuses 只允许终态：排队与运行中的任务不能通过这个入口清理。
+    """
+
+    statuses: list[Literal["succeeded", "failed"]] = Field(min_length=1, max_length=2)
     dry_run: bool = False

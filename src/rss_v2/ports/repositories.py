@@ -252,8 +252,11 @@ class TaskRepository(Protocol):
         """
         ...
 
-    def delete_failed(self) -> int:
-        """删除全部失败任务，返回删除条数。"""
+    def delete_by_statuses(self, statuses: list[str]) -> int:
+        """按终态（成功/失败）批量删除任务，返回删除条数。
+
+        排队与运行中的状态一律忽略，不会因为调用方传错就删掉未结束的任务。
+        """
         ...
 
     def reclaim_expired(self, now: int) -> int: ...

@@ -573,6 +573,15 @@ tbody tr:hover {
 .keyword-table select {
   min-height: 36px;
 }
+.check-row {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  padding: 4px 0;
+}
+.check-row .muted {
+  margin-left: auto;
+}
 .related-messages {
   margin-top: 24px;
 }

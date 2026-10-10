@@ -1692,19 +1692,19 @@
         }
       }
     },
-    "/api/tasks/clear-failed": {
+    "/api/tasks/clear": {
       "post": {
         "tags": [
           "tasks"
         ],
-        "summary": "Clear Failed Tasks",
-        "description": "清理全部失败任务；dry_run 先看条数。",
-        "operationId": "clear_failed_tasks_api_tasks_clear_failed_post",
+        "summary": "Clear Tasks",
+        "description": "清理指定终态的任务；dry_run 先看条数。",
+        "operationId": "clear_tasks_api_tasks_clear_post",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/TaskClearFailedRequest"
+                "$ref": "#/components/schemas/TaskClearRequest"
               }
             }
           },
@@ -5407,8 +5407,21 @@
         "title": "SourceTestResponse",
         "description": "来源测试响应。"
       },
-      "TaskClearFailedRequest": {
+      "TaskClearRequest": {
         "properties": {
+          "statuses": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "succeeded",
+                "failed"
+              ]
+            },
+            "type": "array",
+            "maxItems": 2,
+            "minItems": 1,
+            "title": "Statuses"
+          },
           "dry_run": {
             "type": "boolean",
             "title": "Dry Run",
@@ -5416,8 +5429,11 @@
           }
         },
         "type": "object",
-        "title": "TaskClearFailedRequest",
-        "description": "清理失败任务请求；dry_run 只返回条数。"
+        "required": [
+          "statuses"
+        ],
+        "title": "TaskClearRequest",
+        "description": "清理已结束任务的请求；dry_run 只返回条数。\n\nstatuses 只允许终态：排队与运行中的任务不能通过这个入口清理。"
       },
       "TaskDeletionResponse": {
         "properties": {

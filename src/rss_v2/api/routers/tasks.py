@@ -10,7 +10,7 @@ from rss_v2.api.presenters import (
     task_view_response,
 )
 from rss_v2.api.schemas import (
-    TaskClearFailedRequest,
+    TaskClearRequest,
     TaskDeletionResponse,
     TaskListResponse,
     TaskResponse,
@@ -63,11 +63,13 @@ def retry_task(task_id: str, request: Request) -> TaskResponse:
     return task_view_response(service.view(service.retry(task_id)))
 
 
-@tasks_router.post("/clear-failed", response_model=TaskDeletionResponse)
-def clear_failed_tasks(request: Request, payload: TaskClearFailedRequest) -> TaskDeletionResponse:
-    """清理全部失败任务；dry_run 先看条数。"""
+@tasks_router.post("/clear", response_model=TaskDeletionResponse)
+def clear_tasks(request: Request, payload: TaskClearRequest) -> TaskDeletionResponse:
+    """清理指定终态的任务；dry_run 先看条数。"""
 
-    return task_deletion_response(container(request).task_service.clear_failed(payload.dry_run))
+    return task_deletion_response(
+        container(request).task_service.clear_finished(payload.statuses, payload.dry_run)
+    )
 
 
 @tasks_router.delete("/{task_id}", response_model=TaskDeletionResponse)

@@ -100,30 +100,55 @@ def test_unfinished_task_cannot_be_deleted(client: TestClient) -> None:
 
 
 @respx.mock
-def test_clear_failed_previews_then_deletes(client: TestClient) -> None:
-    """清理失败任务：先预览条数，再删除；成功任务与结果不动。"""
+def test_clear_finished_previews_then_deletes(client: TestClient) -> None:
+    """按状态清理：先预览条数，再删除；只影响选中的状态。"""
 
     seeded(client)
     insert_task(client, "failed-a", "failed")
     insert_task(client, "failed-b", "failed", "translate_message")
 
-    preview = client.post("/api/tasks/clear-failed", json={"dry_run": True})
+    # 只清理失败：成功的任务与结果不动。
+    preview = client.post(
+        "/api/tasks/clear", json={"statuses": ["failed"], "dry_run": True}
+    )
     assert preview.status_code == 200, preview.text
     assert preview.json() == {"candidates": 2, "deleted": 0}
-    assert scalar(client, "SELECT COUNT(*) FROM tasks WHERE status='failed'") == 2
-
-    executed = client.post("/api/tasks/clear-failed", json={})
-    assert executed.json() == {"candidates": 2, "deleted": 2}
+    assert client.post("/api/tasks/clear", json={"statuses": ["failed"]}).json() == {
+        "candidates": 2,
+        "deleted": 2,
+    }
     assert scalar(client, "SELECT COUNT(*) FROM tasks WHERE status='failed'") == 0
-    # 已成功的任务与结果不受影响。
-    assert (
-        scalar(
-            client,
-            "SELECT COUNT(*) FROM tasks WHERE status='succeeded' AND task_type='enrich_message'",
-        )
-        == 1
-    )
+    assert scalar(client, "SELECT COUNT(*) FROM tasks WHERE status='succeeded'") == 2
     assert scalar(client, "SELECT COUNT(*) FROM message_enrichments") == 1
+
+    # 再清理已完成：采集任务与加工任务一起删掉，结果表仍然保留。
+    done = client.post("/api/tasks/clear", json={"statuses": ["succeeded"], "dry_run": True})
+    assert done.json() == {"candidates": 2, "deleted": 0}
+    assert client.post("/api/tasks/clear", json={"statuses": ["succeeded"]}).json() == {
+        "candidates": 2,
+        "deleted": 2,
+    }
+    assert scalar(client, "SELECT COUNT(*) FROM tasks") == 0
+    assert scalar(client, "SELECT COUNT(*) FROM message_enrichments") == 1
+
+
+@respx.mock
+def test_clear_rejects_unfinished_status(client: TestClient) -> None:
+    """未结束的状态（排队/运行中）不能通过清理入口删除，非终态取值直接拒绝。"""
+
+    seeded(client)
+    insert_task(client, "queued-task", "queued")
+    insert_task(client, "running-task", "running")
+
+    # 接口层只接受终态取值。
+    assert (
+        client.post("/api/tasks/clear", json={"statuses": ["queued"]}).status_code == 422
+    )
+    # 清理终态时不会碰未结束的任务。
+    before = scalar(client, "SELECT COUNT(*) FROM tasks WHERE status='succeeded'")
+    cleared = client.post("/api/tasks/clear", json={"statuses": ["succeeded"]}).json()
+    assert cleared["deleted"] == before
+    assert scalar(client, "SELECT COUNT(*) FROM tasks WHERE status IN ('queued','running')") == 2
 
 
 @respx.mock

@@ -303,11 +303,21 @@ class SQLiteTaskRepository:
             )
             return int(cursor.rowcount)
 
-    def delete_failed(self) -> int:
-        """清理全部失败任务。"""
+    def delete_by_statuses(self, statuses: list[str]) -> int:
+        """按终态批量删除任务。
 
+        只接受 succeeded / failed：排队与运行中的任务在这里被状态条件挡掉，
+        与服务层的校验一起构成两层守卫。
+        """
+
+        allowed = [status for status in statuses if status in ("succeeded", "failed")]
+        if not allowed:
+            return 0
+        placeholders = ",".join("?" for _ in allowed)
         with self.database.transaction() as connection:
-            cursor = connection.execute("DELETE FROM tasks WHERE status = 'failed'")
+            cursor = connection.execute(
+                f"DELETE FROM tasks WHERE status IN ({placeholders})", tuple(allowed)
+            )
             return int(cursor.rowcount)
 
     def renew(self, task_id: str, lease_token: str, now: int, lease_seconds: int) -> bool:
