@@ -1,5 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
+import { useDebouncedCallback } from "../../lib/useDebouncedCallback";
 import { api, requireResponse } from "../../api/client";
 import {
   Badge,
@@ -53,9 +55,19 @@ export function MessagesPage() {
   const q = params.get("q") || "";
   const source = params.get("source") || "";
   const offset = Number(params.get("offset") || 0);
+  // 输入先落在本地状态，停顿 300ms 再写进 URL 触发请求：全文检索是全表扫文本。
+  const [draft, setDraft] = useState(q);
+  const pushQuery = useDebouncedCallback((value: string) => {
+    const next = new URLSearchParams(params);
+    if (value) next.set("q", value);
+    else next.delete("q");
+    next.delete("offset");
+    setParams(next, { replace: true });
+  }, 300);
   const messages = useQuery({
     queryKey: ["messages", q, source, offset],
-    refetchInterval: 5000,
+    // 带搜索词时把轮询放到 30 秒：反复全表扫文本只为刷新一份基本不变的搜索结果不值得。
+    refetchInterval: q ? 30000 : 5000,
     queryFn: async () => {
       const r = await api.GET("/api/messages", {
         params: {
@@ -98,8 +110,11 @@ export function MessagesPage() {
         <div className="toolbar card-pad">
           <Input
             aria-label="搜索消息"
-            value={q}
-            onChange={(e) => filter("q", e.target.value)}
+            value={draft}
+            onChange={(e) => {
+              setDraft(e.target.value);
+              pushQuery(e.target.value);
+            }}
             placeholder="搜索标题、摘要、正文、译文和关键词"
           />
           <select
@@ -114,7 +129,13 @@ export function MessagesPage() {
               </option>
             ))}
           </select>
-          <Button className="secondary" onClick={() => setParams({})}>
+          <Button
+            className="secondary"
+            onClick={() => {
+              setDraft("");
+              setParams({});
+            }}
+          >
             清空筛选
           </Button>
         </div>
