@@ -116,13 +116,15 @@ class MessageRepository(Protocol):
         kind: str | None = None,
         since: int | None = None,
         until: int | None = None,
+        state: str | None = None,
         limit: int = 50,
         offset: int = 0,
     ) -> list[tuple[Message, MessageVersion | None]]:
         """按全文、来源、关键词与时间范围筛选，默认按发布时间从新到旧。
 
         keyword 走 enrichment_keywords 的匹配键，kind 只在该条件存在时生效；
-        since/until 是 UTC 秒，比较 COALESCE(published_at, collected_at)。
+        since/until 是 UTC 秒，比较 COALESCE(published_at, collected_at)；state 是处理状态，
+        取值 untranslated/translated/unenriched/enriched/enrich_failed/pending。
         """
         ...
 
@@ -144,6 +146,7 @@ class MessageRepository(Protocol):
         kind: str | None = None,
         since: int | None = None,
         until: int | None = None,
+        state: str | None = None,
     ) -> int:
         """与 list_messages 同一套过滤条件下的总数，供列表分页使用。"""
         ...
@@ -194,9 +197,33 @@ class TaskRepository(Protocol):
 
     def claim_next(self, task_types: list[str], now: int, lease_seconds: int) -> Task | None: ...
 
-    def list(self, status: str | None = None, limit: int = 50, offset: int = 0) -> list[Task]: ...
+    def list(
+        self,
+        status: str | None = None,
+        task_type: str | None = None,
+        source_id: str | None = None,
+        query: str | None = None,
+        since: int | None = None,
+        until: int | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list[Task]:
+        """按筛选条件分页查询任务。
 
-    def count(self, status: str | None = None) -> int:
+        source_id 对采集任务看任务快照里的来源、对翻译与加工任务看消息所属来源；
+        query 匹配消息标题或来源名；since/until 比较任务创建时间（UTC 秒）。
+        """
+        ...
+
+    def count(
+        self,
+        status: str | None = None,
+        task_type: str | None = None,
+        source_id: str | None = None,
+        query: str | None = None,
+        since: int | None = None,
+        until: int | None = None,
+    ) -> int:
         """与 list 同一套过滤条件下的总数，供列表分页使用。"""
         ...
 

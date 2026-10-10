@@ -198,3 +198,45 @@ test("任务删除入口：未结束禁用，清理失败任务先预览", async
   await expect(page.getByText("已清理 1 个失败任务。")).toBeVisible();
   expect(clearBodies).toEqual([{ dry_run: true }, { dry_run: false }]);
 });
+
+test("筛选控件：消息处理状态与任务筛选都写进查询参数", async ({ page }) => {
+  const messageUrls: string[] = [];
+  await page.route("**/api/messages?**", async (route) => {
+    messageUrls.push(route.request().url());
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ items: [], total: 0 }),
+    });
+  });
+  await page.goto("/messages");
+  await page.getByLabel("处理状态").selectOption("unenriched");
+  await expect(page.getByLabel("处理状态")).toHaveValue("unenriched");
+  await expect
+    .poll(() => messageUrls.some((url) => url.includes("state=unenriched")))
+    .toBe(true);
+
+  const taskUrls: string[] = [];
+  await page.route("**/api/tasks?**", async (route) => {
+    taskUrls.push(route.request().url());
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ items: [], total: 0 }),
+    });
+  });
+  await page.goto("/tasks");
+  await page.getByLabel("类型").selectOption("enrich_message");
+  await page.getByLabel("时间范围").selectOption("7d");
+  await page.getByLabel("搜索任务").fill("华为");
+  await expect
+    .poll(() =>
+      taskUrls.some((url) => url.includes("task_type=enrich_message")),
+    )
+    .toBe(true);
+  await expect
+    .poll(() =>
+      taskUrls.some((url) => url.includes("since=") && url.includes("q=")),
+    )
+    .toBe(true);
+});

@@ -47,16 +47,38 @@ def _version(row: sqlite3.Row) -> MessageVersion:
     )
 
 
+#: 某个版本"当前生效"的译文：最近一次成功的那个。与 CURRENT_ENRICHMENT 同形，
+#: 列表展示与处理状态筛选共用同一条定义。
+CURRENT_TRANSLATION = (
+    "(SELECT t.id FROM translations t"
+    " WHERE t.message_version_id = v.id AND t.status = 'succeeded'"
+    " ORDER BY t.updated_at DESC LIMIT 1)"
+)
+
+#: 处理状态筛选：取值由接口层的正则限定，这里只维护"状态→条件"的映射。
+_STATE_CLAUSES: dict[str, str] = {
+    "untranslated": f"{CURRENT_TRANSLATION} IS NULL",
+    "translated": f"{CURRENT_TRANSLATION} IS NOT NULL",
+    "unenriched": f"{CURRENT_ENRICHMENT} IS NULL",
+    "enriched": f"{CURRENT_ENRICHMENT} IS NOT NULL",
+    # 加工失败：没有生效的加工结果，但尝试过并且失败了——与"从未加工"区分开。
+    "enrich_failed": (
+        f"{CURRENT_ENRICHMENT} IS NULL AND EXISTS (SELECT 1 FROM message_enrichments e2"
+        " WHERE e2.message_version_id = v.id AND e2.status = 'failed')"
+    ),
+    # 有任务在排队：这个版本还有排队或运行中的任务。
+    "pending": (
+        "EXISTS (SELECT 1 FROM tasks t2 WHERE t2.input_version_id = v.id"
+        " AND t2.status IN ('queued', 'running'))"
+    ),
+}
+
 #: 列表与计数共用的数据来源。三个 LEFT JOIN 都按主键取「每消息一行」，不会放大行数：
 #: 因此 COUNT(*) 就是消息条数，与列表翻页看到的条数同源。
 LIST_SOURCE = f"""
 FROM messages m
 LEFT JOIN message_versions v ON v.id = {LATEST_VERSION}
-LEFT JOIN translations t ON t.id = (
-    SELECT t2.id FROM translations t2
-    WHERE t2.message_version_id = v.id AND t2.status = 'succeeded'
-    ORDER BY t2.updated_at DESC LIMIT 1
-)
+LEFT JOIN translations t ON t.id = {CURRENT_TRANSLATION}
 LEFT JOIN message_enrichments e ON e.id = {CURRENT_ENRICHMENT}
 """
 
@@ -181,10 +203,11 @@ class SQLiteMessageRepository:
         kind: str | None = None,
         since: int | None = None,
         until: int | None = None,
+        state: str | None = None,
         limit: int = 50,
         offset: int = 0,
     ) -> list[tuple[Message, MessageVersion | None]]:
-        where, args = self._filters(query, source_id, keyword, kind, since, until)
+        where, args = self._filters(query, source_id, keyword, kind, since, until, state)
         connection = self.database.connect()
         try:
             rows = connection.execute(
@@ -221,10 +244,11 @@ class SQLiteMessageRepository:
         kind: str | None = None,
         since: int | None = None,
         until: int | None = None,
+        state: str | None = None,
     ) -> int:
         """与 list_messages 同一套过滤条件、同一套连接的总数，供列表分页使用。"""
 
-        where, args = self._filters(query, source_id, keyword, kind, since, until)
+        where, args = self._filters(query, source_id, keyword, kind, since, until, state)
         connection = self.database.connect()
         try:
             row = connection.execute(f"SELECT COUNT(*) {LIST_SOURCE} {where}", args).fetchone()
@@ -240,11 +264,14 @@ class SQLiteMessageRepository:
         kind: str | None,
         since: int | None,
         until: int | None,
+        state: str | None,
     ) -> tuple[str, list[Any]]:
         """列表与计数共用的 WHERE；两处必须同源，否则总数与页面内容对不上。"""
 
         clauses: list[str] = []
         args: list[Any] = []
+        if state and state in _STATE_CLAUSES:
+            clauses.append(_STATE_CLAUSES[state])
         if source_id:
             clauses.append("m.source_id = ?")
             args.append(source_id)

@@ -2408,6 +2408,8 @@ export interface operations {
         since?: number | null;
         /** @description 发布时间上界，UTC 秒 */
         until?: number | null;
+        /** @description 处理状态：未/已翻译、未/已加工、加工失败、有任务在排队 */
+        state?: string | null;
         limit?: number;
         offset?: number;
       };
@@ -2945,6 +2947,16 @@ export interface operations {
     parameters: {
       query?: {
         status?: string | null;
+        /** @description 任务类型：采集、翻译或内容加工 */
+        task_type?: string | null;
+        /** @description 来源：采集任务看任务快照，消息任务看所属来源 */
+        source_id?: string | null;
+        /** @description 按消息标题或来源名搜索 */
+        q?: string | null;
+        /** @description 创建时间下界，UTC 秒 */
+        since?: number | null;
+        /** @description 创建时间上界，UTC 秒 */
+        until?: number | null;
         limit?: number;
         offset?: number;
       };

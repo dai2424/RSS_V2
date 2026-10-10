@@ -51,12 +51,17 @@ def list_messages(
     kind: str | None = None,
     since: int | None = Query(default=None, description="发布时间下界，UTC 秒"),
     until: int | None = Query(default=None, description="发布时间上界，UTC 秒"),
+    state: str | None = Query(
+        default=None,
+        pattern="^(untranslated|translated|unenriched|enriched|enrich_failed|pending)$",
+        description="处理状态：未/已翻译、未/已加工、加工失败、有任务在排队",
+    ),
     limit: int = Query(default=50, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
 ) -> MessageListResponse:
     service = container(request).message_service
     values: list[MessageResponse] = []
-    for row in service.list(q, source_id, keyword, kind, since, until, limit, offset):
+    for row in service.list(q, source_id, keyword, kind, since, until, state, limit, offset):
         values.append(
             MessageResponse(
                 id=row.message.id,
@@ -68,7 +73,7 @@ def list_messages(
         )
     return MessageListResponse(
         items=values,
-        total=service.count(q, source_id, keyword, kind, since, until),
+        total=service.count(q, source_id, keyword, kind, since, until, state),
     )
 
 

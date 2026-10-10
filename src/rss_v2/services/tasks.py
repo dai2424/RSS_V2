@@ -29,21 +29,53 @@ class TaskService:
             raise DomainError("task_not_found", "任务不存在")
         return task
 
-    def list(self, status: str | None = None, limit: int = 50, offset: int = 0) -> list[Task]:
-        """查询任务列表。"""
-        return self.tasks.list(status, limit, offset)
+    def list(
+        self,
+        status: str | None = None,
+        task_type: str | None = None,
+        source_id: str | None = None,
+        query: str | None = None,
+        since: int | None = None,
+        until: int | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list[Task]:
+        """按筛选条件查询任务列表。"""
+
+        return self.tasks.list(status, task_type, source_id, query, since, until, limit, offset)
 
     def list_views(
-        self, status: str | None = None, limit: int = 50, offset: int = 0
+        self,
+        status: str | None = None,
+        task_type: str | None = None,
+        source_id: str | None = None,
+        query: str | None = None,
+        since: int | None = None,
+        until: int | None = None,
+        limit: int = 50,
+        offset: int = 0,
     ) -> Sequence[TaskView]:
         """任务列表加目标说明，供界面直接用。"""
 
-        return [self.view(task) for task in self.tasks.list(status, limit, offset)]
+        return [
+            self.view(task)
+            for task in self.tasks.list(
+                status, task_type, source_id, query, since, until, limit, offset
+            )
+        ]
 
-    def count(self, status: str | None = None) -> int:
+    def count(
+        self,
+        status: str | None = None,
+        task_type: str | None = None,
+        source_id: str | None = None,
+        query: str | None = None,
+        since: int | None = None,
+        until: int | None = None,
+    ) -> int:
         """与任务列表相同筛选条件下的总数，供列表分页使用。"""
 
-        return self.tasks.count(status)
+        return self.tasks.count(status, task_type, source_id, query, since, until)
 
     def view(self, task: Task) -> TaskView:
         """单个任务的目标说明。"""

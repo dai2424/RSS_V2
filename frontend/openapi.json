@@ -626,6 +626,25 @@
             "description": "发布时间上界，UTC 秒"
           },
           {
+            "name": "state",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^(untranslated|translated|unenriched|enriched|enrich_failed|pending)$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "处理状态：未/已翻译、未/已加工、加工失败、有任务在排队",
+              "title": "State"
+            },
+            "description": "处理状态：未/已翻译、未/已加工、加工失败、有任务在排队"
+          },
+          {
             "name": "limit",
             "in": "query",
             "required": false,
@@ -1490,6 +1509,97 @@
               ],
               "title": "Status"
             }
+          },
+          {
+            "name": "task_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^(collect_source|translate_message|enrich_message)$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "任务类型：采集、翻译或内容加工",
+              "title": "Task Type"
+            },
+            "description": "任务类型：采集、翻译或内容加工"
+          },
+          {
+            "name": "source_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "来源：采集任务看任务快照，消息任务看所属来源",
+              "title": "Source Id"
+            },
+            "description": "来源：采集任务看任务快照，消息任务看所属来源"
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "按消息标题或来源名搜索",
+              "title": "Q"
+            },
+            "description": "按消息标题或来源名搜索"
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "创建时间下界，UTC 秒",
+              "title": "Since"
+            },
+            "description": "创建时间下界，UTC 秒"
+          },
+          {
+            "name": "until",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "创建时间上界，UTC 秒",
+              "title": "Until"
+            },
+            "description": "创建时间上界，UTC 秒"
           },
           {
             "name": "limit",

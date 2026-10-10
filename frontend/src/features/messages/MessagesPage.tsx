@@ -2,7 +2,12 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useDebouncedCallback } from "../../lib/useDebouncedCallback";
-import { RANGE_OPTIONS, rangeLabel, rangeOf, sinceOf } from "./searchRange";
+import {
+  RANGE_OPTIONS,
+  rangeLabel,
+  rangeOf,
+  sinceOf,
+} from "../../lib/searchRange";
 import { api, requireResponse } from "../../api/client";
 import {
   Badge,
@@ -69,8 +74,9 @@ export function MessagesPage() {
     setParams(next, { replace: true });
   }, 300);
   const range = rangeOf(params.get("range"), Boolean(q));
+  const state = params.get("state") || "";
   const messages = useQuery({
-    queryKey: ["messages", q, source, range, size, offset],
+    queryKey: ["messages", q, source, range, state, size, offset],
     // 带搜索词时把轮询放到 30 秒：反复全表扫文本只为刷新一份基本不变的搜索结果不值得。
     refetchInterval: q ? 30000 : 5000,
     // 翻页时保留上一页内容，避免表格整页闪烁；配合分页条禁用挡住连点。
@@ -82,6 +88,7 @@ export function MessagesPage() {
             q: q || undefined,
             source_id: source || undefined,
             since: sinceOf(range, Math.floor(Date.now() / 1000)),
+            state: state || undefined,
             limit: size,
             offset,
           },
@@ -147,6 +154,20 @@ export function MessagesPage() {
                 {option.label}
               </option>
             ))}
+          </select>
+          <select
+            aria-label="处理状态"
+            value={state}
+            onChange={(e) => filter("state", e.target.value)}
+            title="按翻译与加工的结果筛选：未加工、加工失败、有任务在排队等"
+          >
+            <option value="">全部状态</option>
+            <option value="untranslated">未翻译</option>
+            <option value="translated">已翻译</option>
+            <option value="unenriched">未加工</option>
+            <option value="enriched">已加工</option>
+            <option value="enrich_failed">加工失败</option>
+            <option value="pending">有任务在排队</option>
           </select>
           <select
             aria-label="来源筛选"

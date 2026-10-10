@@ -42,13 +42,14 @@ class MessageService:
         kind: str | None = None,
         since: int | None = None,
         until: int | None = None,
+        state: str | None = None,
         limit: int = 50,
         offset: int = 0,
     ) -> list[MessageRow]:
         return [
             self._row(message, version)
             for message, version in self.messages.list_messages(
-                query, source_id, keyword, kind, since, until, limit, offset
+                query, source_id, keyword, kind, since, until, state, limit, offset
             )
         ]
 
@@ -60,10 +61,11 @@ class MessageService:
         kind: str | None = None,
         since: int | None = None,
         until: int | None = None,
+        state: str | None = None,
     ) -> int:
         """与 list 相同筛选条件下的总数，供列表分页使用。"""
 
-        return self.messages.count_messages(query, source_id, keyword, kind, since, until)
+        return self.messages.count_messages(query, source_id, keyword, kind, since, until, state)
 
     def version_sample(self, version_id: str) -> PromptSample:
         """把某个消息版本转成提示词试跑样例。"""

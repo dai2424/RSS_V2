@@ -29,14 +29,30 @@ def get_task(task_id: str, request: Request) -> TaskResponse:
 def list_tasks(
     request: Request,
     status: str | None = Query(default=None, pattern="^(queued|running|succeeded|failed)$"),
+    task_type: str | None = Query(
+        default=None,
+        pattern="^(collect_source|translate_message|enrich_message)$",
+        description="任务类型：采集、翻译或内容加工",
+    ),
+    source_id: str | None = Query(
+        default=None, description="来源：采集任务看任务快照，消息任务看所属来源"
+    ),
+    q: str | None = Query(default=None, description="按消息标题或来源名搜索"),
+    since: int | None = Query(default=None, description="创建时间下界，UTC 秒"),
+    until: int | None = Query(default=None, description="创建时间上界，UTC 秒"),
     limit: int = Query(default=50, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
 ) -> TaskListResponse:
     """查询任务列表。"""
     service = container(request).task_service
     return TaskListResponse(
-        items=[task_view_response(view) for view in service.list_views(status, limit, offset)],
-        total=service.count(status),
+        items=[
+            task_view_response(view)
+            for view in service.list_views(
+                status, task_type, source_id, q, since, until, limit, offset
+            )
+        ],
+        total=service.count(status, task_type, source_id, q, since, until),
     )
 
 

@@ -17,8 +17,11 @@ import {
   PageHeader,
 } from "../../components/ui";
 import { Pagination } from "../../components/Pagination";
-import { sizeParams, usePaginationParams } from "../../lib/usePaginationParams";
+import { usePaginationParams } from "../../lib/usePaginationParams";
 import { formatDuration, formatTime, statusLabels } from "../../lib/display";
+import { useDebouncedCallback } from "../../lib/useDebouncedCallback";
+import { Input } from "../../components/ui";
+import { RANGE_OPTIONS, rangeOf, sinceOf } from "../../lib/searchRange";
 import { ClearFailedDialog, TaskDeleteDialog } from "./TaskDeleteDialog";
 
 type Task = components["schemas"]["TaskResponse"];
@@ -50,15 +53,54 @@ export function TasksPage() {
   const { params, setParams, size, offset, setPageOffset, setSize } =
     usePaginationParams();
   const status = params.get("status") || "";
+  const taskType = params.get("type") || "";
+  const source = params.get("source") || "";
+  const search = params.get("q") || "";
+  const range = rangeOf(params.get("range"), false);
   const queryClient = useQueryClient();
+  // 搜索框走防抖：每敲一个字就查一次任务表没有意义。
+  const [draft, setDraft] = useState(search);
+  const pushQuery = useDebouncedCallback((value: string) => {
+    const next = new URLSearchParams(params);
+    if (value) next.set("q", value);
+    else next.delete("q");
+    next.delete("offset");
+    setParams(next, { replace: true });
+  }, 300);
+  const change = (key: string, value: string) => {
+    const next = new URLSearchParams(params);
+    if (value) next.set(key, value);
+    else next.delete(key);
+    next.delete("offset");
+    setParams(next, { replace: true });
+  };
   const tasks = useQuery({
-    queryKey: ["tasks", status, size, offset],
+    queryKey: ["tasks", status, taskType, source, search, range, size, offset],
     refetchInterval: 3000,
     // 翻页时保留上一页内容，避免表格整页闪烁；配合分页条禁用挡住连点。
     placeholderData: keepPreviousData,
     queryFn: async () => {
       const r = await api.GET("/api/tasks", {
-        params: { query: { status: status || undefined, limit: size, offset } },
+        params: {
+          query: {
+            status: status || undefined,
+            task_type: taskType || undefined,
+            source_id: source || undefined,
+            q: search || undefined,
+            since: sinceOf(range, Math.floor(Date.now() / 1000)),
+            limit: size,
+            offset,
+          },
+        },
+      });
+      return requireResponse(r.response, r.data, r.error);
+    },
+  });
+  const sources = useQuery({
+    queryKey: ["source-options"],
+    queryFn: async () => {
+      const r = await api.GET("/api/sources", {
+        params: { query: { limit: 100 } },
       });
       return requireResponse(r.response, r.data, r.error);
     },
@@ -85,13 +127,61 @@ export function TasksPage() {
       />
       <Card>
         <div className="toolbar card-pad">
+          <Input
+            aria-label="搜索任务"
+            value={draft}
+            onChange={(e) => {
+              setDraft(e.target.value);
+              pushQuery(e.target.value);
+            }}
+            placeholder="搜索消息标题或来源名"
+          />
+          <label htmlFor="task-type">类型</label>
+          <select
+            id="task-type"
+            value={taskType}
+            onChange={(e) => change("type", e.target.value)}
+          >
+            <option value="">全部类型</option>
+            {Object.entries(TASK_LABELS).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+          <label htmlFor="task-source">来源</label>
+          <select
+            id="task-source"
+            value={source}
+            onChange={(e) => change("source", e.target.value)}
+          >
+            <option value="">全部来源</option>
+            {sources.data?.items.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.name}
+              </option>
+            ))}
+          </select>
+          <label htmlFor="task-range">时间范围</label>
+          <select
+            id="task-range"
+            value={range}
+            onChange={(e) =>
+              change("range", e.target.value === "all" ? "" : e.target.value)
+            }
+            title="按任务创建时间筛选"
+          >
+            {RANGE_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
           <label htmlFor="task-status">状态</label>
           <select
             id="task-status"
             value={status}
-            onChange={(e) =>
-              setParams({ ...sizeParams(size), status: e.target.value })
-            }
+            onChange={(e) => change("status", e.target.value)}
           >
             <option value="">全部</option>
             {["queued", "running", "succeeded", "failed"].map((value) => (

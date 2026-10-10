@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import sqlite3
+from typing import Any
 
 from rss_v2.adapters.sqlite.common import dumps, loads, new_id, now
 from rss_v2.adapters.sqlite.connection import SQLiteDatabase
+from rss_v2.adapters.sqlite.keyword_sql import ESCAPE, like_pattern
 from rss_v2.domain import Task, TaskStatus, TaskType
 
 
@@ -49,6 +51,61 @@ def insert_task(connection: sqlite3.Connection, task: Task) -> None:
             task.updated_at,
         ),
     )
+
+
+#: 列表与计数共用的来源：目标搜索要看消息标题与来源名，来源筛选对采集任务取
+#: payload 里的来源、对消息任务取所属消息的来源。
+TASK_SOURCE = """
+FROM tasks t
+LEFT JOIN message_versions v ON v.id = t.input_version_id
+LEFT JOIN messages m ON m.id = v.message_id
+LEFT JOIN rss_sources ms ON ms.id = m.source_id
+LEFT JOIN rss_sources cs ON cs.id = json_extract(t.payload_json, '$.source_id')
+"""
+
+#: 任务归属的来源：采集任务看 payload，翻译与加工任务看消息所属来源。
+_TASK_SOURCE_ID = (
+    "CASE WHEN t.task_type = 'collect_source'"
+    " THEN json_extract(t.payload_json, '$.source_id') ELSE m.source_id END"
+)
+
+
+def _filters(
+    status: str | None,
+    task_type: str | None,
+    source_id: str | None,
+    query: str | None,
+    since: int | None,
+    until: int | None,
+) -> tuple[str, list[Any]]:
+    """列表与计数共用的 WHERE；两处必须同源，否则总数与页面内容对不上。"""
+
+    clauses: list[str] = []
+    args: list[Any] = []
+    if status:
+        clauses.append("t.status = ?")
+        args.append(status)
+    if task_type:
+        clauses.append("t.task_type = ?")
+        args.append(task_type)
+    if source_id:
+        clauses.append(f"{_TASK_SOURCE_ID} = ?")
+        args.append(source_id)
+    if since is not None:
+        clauses.append("t.created_at >= ?")
+        args.append(since)
+    if until is not None:
+        clauses.append("t.created_at <= ?")
+        args.append(until)
+    if query:
+        pattern = like_pattern(query)
+        clauses.append(
+            f"(v.title LIKE ? ESCAPE '{ESCAPE}' OR ms.name LIKE ? ESCAPE '{ESCAPE}'"
+            f" OR cs.name LIKE ? ESCAPE '{ESCAPE}')"
+        )
+        args.extend([pattern] * 3)
+    where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+    return where, args
 
 
 class SQLiteTaskRepository:
@@ -177,26 +234,45 @@ class SQLiteTaskRepository:
             )
             return cursor.rowcount
 
-    def list(self, status: str | None = None, limit: int = 50, offset: int = 0) -> list[Task]:
-        """按状态分页查询任务。"""
+    def list(
+        self,
+        status: str | None = None,
+        task_type: str | None = None,
+        source_id: str | None = None,
+        query: str | None = None,
+        since: int | None = None,
+        until: int | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list[Task]:
+        """按筛选条件分页查询任务。"""
+        where, args = _filters(status, task_type, source_id, query, since, until)
         connection = self.database.connect()
         try:
             rows = connection.execute(
-                "SELECT * FROM tasks WHERE (? IS NULL OR status=?) ORDER BY created_at DESC, id LIMIT ? OFFSET ?",
-                (status, status, limit, offset),
+                f"SELECT t.* {TASK_SOURCE} {where}"
+                " ORDER BY t.created_at DESC, t.id LIMIT ? OFFSET ?",
+                (*args, limit, offset),
             ).fetchall()
             return [_task(row) for row in rows]
         finally:
             connection.close()
 
-    def count(self, status: str | None = None) -> int:
-        """与 list 同一套过滤条件下的总数，供列表分页使用。"""
+    def count(
+        self,
+        status: str | None = None,
+        task_type: str | None = None,
+        source_id: str | None = None,
+        query: str | None = None,
+        since: int | None = None,
+        until: int | None = None,
+    ) -> int:
+        """与 list 同一套过滤条件与连接的总数，供列表分页使用。"""
 
+        where, args = _filters(status, task_type, source_id, query, since, until)
         connection = self.database.connect()
         try:
-            row = connection.execute(
-                "SELECT COUNT(*) FROM tasks WHERE (? IS NULL OR status=?)", (status, status)
-            ).fetchone()
+            row = connection.execute(f"SELECT COUNT(*) {TASK_SOURCE} {where}", args).fetchone()
             return int(row[0])
         finally:
             connection.close()
