@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useDebouncedCallback } from "../../lib/useDebouncedCallback";
+import { RANGE_OPTIONS, rangeLabel, rangeOf, sinceOf } from "./searchRange";
 import { api, requireResponse } from "../../api/client";
 import {
   Badge,
@@ -64,8 +65,9 @@ export function MessagesPage() {
     next.delete("offset");
     setParams(next, { replace: true });
   }, 300);
+  const range = rangeOf(params.get("range"), Boolean(q));
   const messages = useQuery({
-    queryKey: ["messages", q, source, offset],
+    queryKey: ["messages", q, source, range, offset],
     // 带搜索词时把轮询放到 30 秒：反复全表扫文本只为刷新一份基本不变的搜索结果不值得。
     refetchInterval: q ? 30000 : 5000,
     queryFn: async () => {
@@ -74,6 +76,7 @@ export function MessagesPage() {
           query: {
             q: q || undefined,
             source_id: source || undefined,
+            since: sinceOf(range, Math.floor(Date.now() / 1000)),
             limit: 25,
             offset,
           },
@@ -118,6 +121,18 @@ export function MessagesPage() {
             placeholder="搜索标题、摘要、正文、译文和关键词"
           />
           <select
+            aria-label="时间范围"
+            value={range}
+            onChange={(e) => filter("range", e.target.value)}
+            title="搜索默认只看最近一周；浏览默认显示全部时间"
+          >
+            {RANGE_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+          <select
             aria-label="来源筛选"
             value={source}
             onChange={(e) => filter("source", e.target.value)}
@@ -155,7 +170,21 @@ export function MessagesPage() {
         {messages.data?.length === 0 && (
           <EmptyState
             title={q || source ? "没有匹配结果" : "还没有消息"}
-            description="在来源详情触发采集，worker 执行后消息会出现在这里。"
+            description={
+              q && range !== "all"
+                ? `当前只搜${rangeLabel(range)}的消息，更早的内容不在范围内。`
+                : "在来源详情触发采集，worker 执行后消息会出现在这里。"
+            }
+            action={
+              q && range !== "all" ? (
+                <Button
+                  className="secondary"
+                  onClick={() => filter("range", "all")}
+                >
+                  扩大到全部时间
+                </Button>
+              ) : undefined
+            }
           />
         )}
         {!!messages.data?.length && (

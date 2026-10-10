@@ -142,6 +142,14 @@ for (const width of [1280, 1440, 1920]) {
     await expect(
       page.getByRole("row").filter({ hasText: "精简标题" }).first(),
     ).toBeVisible();
+    // 搜索默认只看最近一周；范围在界面上可见，并且可以切到全部时间。
+    await expect(page.getByLabel("时间范围")).toHaveValue("7d");
+    await page.getByLabel("时间范围").selectOption("all");
+    await expect(page.getByLabel("时间范围")).toHaveValue("all");
+    await expect(
+      page.getByRole("row").filter({ hasText: "精简标题" }).first(),
+    ).toBeVisible();
+    await page.getByLabel("时间范围").selectOption("7d");
     const sidebar = page.getByRole("complementary", { name: "主导航" });
     await expect(sidebar).toBeVisible();
     await sidebar.getByRole("link", { name: "任务", exact: true }).focus();

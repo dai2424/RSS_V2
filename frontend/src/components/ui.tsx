@@ -75,14 +75,17 @@ export function PageHeader({
 export function EmptyState({
   title,
   description,
+  action,
 }: {
   title: string;
   description: string;
+  action?: ReactNode;
 }) {
   return (
     <div className="empty-state">
       <strong>{title}</strong>
       <span className="muted">{description}</span>
+      {action}
     </div>
   );
 }
