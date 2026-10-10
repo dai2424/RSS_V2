@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { api, requireResponse } from "../../api/client";
-import { Badge, ErrorState } from "../../components/ui";
+import { Badge, Card, ErrorState } from "../../components/ui";
 import { formatTime, keywordKindLabels } from "../../lib/display";
 
 /** 相关消息：共享关键词的其他消息，用来顺着同一条线索继续读。 */
@@ -38,21 +38,35 @@ export function RelatedMessages({ messageId }: { messageId: string }) {
         <ul className="related-list">
           {rows.map((item) => (
             <li key={item.message_id}>
-              <Link to={`/messages/${item.message_id}`}>{item.title}</Link>
-              <span className="muted">
-                发布：{formatTime(item.published_at)} · 共享：
-              </span>
-              <span className="badge-row">
-                {item.shared.map((keyword) => (
-                  <Badge
-                    key={keyword.text}
-                    tone="neutral"
-                    title={keywordKindLabels[keyword.kind] ?? keyword.kind}
-                  >
-                    {keyword.text}
-                  </Badge>
-                ))}
-              </span>
+              <Card className="related-item">
+                <Link
+                  className="related-item-title"
+                  to={`/messages/${item.message_id}`}
+                >
+                  {item.title}
+                </Link>
+                <div className="related-item-meta">
+                  <span className="muted">
+                    发布：{formatTime(item.published_at)}
+                  </span>
+                  <div className="related-item-shared">
+                    <span className="muted">共享：</span>
+                    <div className="badge-row">
+                      {item.shared.map((keyword) => (
+                        <Badge
+                          key={keyword.text}
+                          tone="neutral"
+                          title={
+                            keywordKindLabels[keyword.kind] ?? keyword.kind
+                          }
+                        >
+                          {keyword.text}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </Card>
             </li>
           ))}
         </ul>

@@ -593,13 +593,30 @@ tbody tr:hover {
   flex-direction: column;
   gap: 8px;
 }
-.related-list li {
+/* 每条相关消息独立成卡片：白色底、边框和阴影把相邻线索分开，
+   标题与元信息各占一行，不再堆成一整片文字。 */
+.related-item {
+  display: grid;
+  gap: 6px;
+  padding: 12px 14px;
+}
+.related-item-title {
+  color: hsl(var(--foreground));
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.related-item-meta {
+  align-items: center;
   display: flex;
   flex-wrap: wrap;
+  gap: 6px 12px;
+}
+/* “共享：”与徽标成组换行，避免标签和徽标被拆到两行各一半。 */
+.related-item-shared {
   align-items: center;
-  gap: 8px;
-  padding: 8px 0;
-  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 .badge-row {
   display: flex;
