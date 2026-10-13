@@ -5,8 +5,9 @@ import {
   ErrorState,
   PageHeader,
 } from "../../components/ui";
-import { KeywordCharts, percent } from "./KeywordCharts";
+import { KeywordCharts } from "./KeywordCharts";
 import { KeywordMaintenance } from "./KeywordMaintenance";
+import { KeywordMetrics } from "./KeywordMetrics";
 import { MergeDialog, MergeHistory } from "./KeywordMerges";
 import { KeywordVocabulary } from "./KeywordVocabulary";
 import { useKeywordOverview, useKeywordVocabulary } from "./useKeywordsData";
@@ -55,29 +56,7 @@ export function KeywordsPage() {
         description="关键词是检索与后续文章聚类的地基：这里看它的规模与分布，并把同指的写法合并成一个词条。"
         action={<KeywordMaintenance pending={data.pending} />}
       />
-      <dl className="keyword-metrics">
-        <Metric label="规范词数" value={data.terms} />
-        <Metric label="词位总数" value={data.mentions} />
-        <Metric
-          label="只出现一次"
-          value={`${data.singletons}（${percent(data.singletons, data.terms)}）`}
-        />
-        <Metric label="平均每条" value={`${data.average_per_message} 个`} />
-        <Metric
-          label="已加工消息"
-          value={`${data.enriched}/${data.messages}`}
-          hint={`待回填 ${data.pending} 条`}
-        />
-        <Metric
-          label="已并入写法"
-          value={`${data.aliases}（合并 ${data.merges} 次）`}
-        />
-        <Metric
-          label="加工任务"
-          value={`排队 ${data.tasks_queued} · 运行 ${data.tasks_running}`}
-          hint={`完成 ${data.tasks_succeeded} · 失败 ${data.tasks_failed}`}
-        />
-      </dl>
+      <KeywordMetrics overview={data} />
       <KeywordCharts overview={data} />
       {selection.size > 0 && (
         <div className="toolbar">
@@ -104,6 +83,7 @@ export function KeywordsPage() {
         q={vocabulary.q}
         kind={vocabulary.kind}
         minCount={vocabulary.minCount}
+        pinned={vocabulary.pinned}
         offset={vocabulary.offset}
         size={vocabulary.size}
         loading={vocabulary.list.isLoading}
@@ -132,25 +112,6 @@ export function KeywordsPage() {
         }}
       />
       <MergeHistory />
-    </div>
-  );
-}
-
-/** 概览指标卡；hint 只在有补充说明时出现。 */
-function Metric({
-  label,
-  value,
-  hint,
-}: {
-  label: string;
-  value: string | number;
-  hint?: string;
-}) {
-  return (
-    <div className="keyword-metric">
-      <dt>{label}</dt>
-      <dd>{value}</dd>
-      {hint && <span className="muted">{hint}</span>}
     </div>
   );
 }

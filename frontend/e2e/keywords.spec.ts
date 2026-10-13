@@ -52,6 +52,18 @@ async function clearMerges(request: APIRequestContext) {
   }
 }
 
+/** 取消历史上遗留的常驻标记；词表跨运行累积，否则"只看常驻"会带着旧行。 */
+async function clearPins(request: APIRequestContext) {
+  const pinned = await (
+    await request.get("/api/keywords?pinned=true&min_count=1&limit=100")
+  ).json();
+  for (const item of pinned.items) {
+    await request.post("/api/keywords/pin", {
+      data: { key: item.key, pinned: false },
+    });
+  }
+}
+
 for (const width of [1280, 1920]) {
   test(`关键词统计、合并与撤销 ${width}px`, async ({
     page,
@@ -138,6 +150,55 @@ for (const width of [1280, 1920]) {
       page.getByText("已撤销这次合并，写法回到各自词条。"),
     ).toBeVisible();
     await expect(history.getByText(/已于 .* 撤销/).first()).toBeVisible();
+
+    await expect(page.locator("body")).toHaveJSProperty("scrollWidth", width);
+    expect(errors).toEqual([]);
+  });
+
+  test(`常驻词标记与筛选 ${width}px`, async ({ page, request }, testInfo) => {
+    await page.setViewportSize({ width, height: 1000 });
+    const errors: string[] = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    await clearPins(request);
+    await seed(request, `pins-${width}-${Date.now()}`);
+
+    await page.goto("/settings/keywords");
+    await expect(
+      page.getByRole("heading", { name: "关键词", exact: true }),
+    ).toBeVisible({ timeout: 15000 });
+    await page.getByLabel("最小出现次数").selectOption("1");
+
+    // 标记常驻：开关反映服务端状态，附带的文字也不只靠颜色表达。
+    const toggle = page.getByRole("switch", { name: "常驻 计算平台" });
+    await expect(toggle).toHaveAttribute("aria-checked", "false");
+    await toggle.click();
+    await expect(
+      page.getByText("已标记常驻，注入提示词时必然出现。"),
+    ).toBeVisible();
+    await expect(toggle).toHaveAttribute("aria-checked", "true");
+    await expect(
+      page.getByRole("row").filter({ hasText: "计算平台" }),
+    ).toContainText("已常驻");
+
+    // 只看常驻：只剩被标记的词，另一个 fixture 写法不再出现。
+    await page.getByLabel("只看常驻").selectOption("1");
+    await expect(
+      page.getByRole("row").filter({ hasText: "计算平台" }),
+    ).toBeVisible();
+    await expect(page.getByRole("row").filter({ hasText: "发布" })).toHaveCount(
+      0,
+    );
+    await page.screenshot({
+      path: testInfo.outputPath(`keywords-pinned-${width}.png`),
+      fullPage: true,
+    });
+
+    // 收尾：取消标记，避免影响其他用例与下次运行。
+    await page.getByRole("switch", { name: "常驻 计算平台" }).click();
+    await expect(page.getByText("已取消常驻。")).toBeVisible();
+    await expect(
+      page.getByRole("row").filter({ hasText: "计算平台" }),
+    ).toHaveCount(0);
 
     await expect(page.locator("body")).toHaveJSProperty("scrollWidth", width);
     expect(errors).toEqual([]);
