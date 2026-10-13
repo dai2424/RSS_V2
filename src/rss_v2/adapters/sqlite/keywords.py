@@ -15,7 +15,12 @@ import sqlite3
 from dataclasses import replace
 from typing import Any, cast
 
-from rss_v2.adapters.sqlite import keyword_overview, keyword_stats, keyword_vocabulary
+from rss_v2.adapters.sqlite import (
+    keyword_overview,
+    keyword_pins,
+    keyword_stats,
+    keyword_vocabulary,
+)
 from rss_v2.adapters.sqlite.connection import SQLiteDatabase
 from rss_v2.adapters.sqlite.keyword_aliases import history, merge, preview, resolve_key, undo
 from rss_v2.adapters.sqlite.keyword_sql import (
@@ -271,13 +276,14 @@ class SQLiteKeywordRepository:
         min_count: int,
         since: int | None,
         until: int | None,
+        pinned_only: bool,
         limit: int,
         offset: int,
     ) -> list[KeywordEntry]:
         """词表一页；统计口径见 keyword_stats。"""
 
         return keyword_stats.vocabulary(
-            self.database, query, kind, min_count, since, until, limit, offset
+            self.database, query, kind, min_count, since, until, pinned_only, limit, offset
         )
 
     def count_vocabulary(
@@ -287,10 +293,13 @@ class SQLiteKeywordRepository:
         min_count: int,
         since: int | None,
         until: int | None,
+        pinned_only: bool,
     ) -> int:
         """与词表同一条件的总数。"""
 
-        return keyword_stats.count_vocabulary(self.database, query, kind, min_count, since, until)
+        return keyword_stats.count_vocabulary(
+            self.database, query, kind, min_count, since, until, pinned_only
+        )
 
     def overview(self, days: int, top_sources: int) -> KeywordOverview:
         """概览、类型构成、长尾、趋势、来源分布与覆盖。"""
@@ -326,6 +335,16 @@ class SQLiteKeywordRepository:
         """注入提示词的词表快照；口径见 keyword_vocabulary。"""
 
         return keyword_vocabulary.prompt_vocabulary(self.database, limit, recent_days, timestamp)
+
+    def set_pin(self, key: str, pinned: bool, timestamp: int) -> None:
+        """标记或取消常驻词。"""
+
+        keyword_pins.set_pin(self.database, key, pinned, timestamp)
+
+    def pins(self) -> tuple[str, ...]:
+        """全部常驻词键。"""
+
+        return keyword_pins.pins(self.database)
 
     def note_vocabulary(self, fingerprint: str, timestamp: int) -> int:
         """记录注入词表的指纹并返回当前词表版本；内容没变不推进。"""

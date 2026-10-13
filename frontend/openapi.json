@@ -1095,6 +1095,18 @@
             "description": "最近出现时间上界，UTC 秒"
           },
           {
+            "name": "pinned",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "只看人工标记的常驻词",
+              "default": false,
+              "title": "Pinned"
+            },
+            "description": "只看人工标记的常驻词"
+          },
+          {
             "name": "limit",
             "in": "query",
             "required": false,
@@ -1341,6 +1353,48 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/KeywordMergeResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/keywords/pin": {
+      "post": {
+        "tags": [
+          "keywords"
+        ],
+        "summary": "Set Keyword Pin",
+        "description": "标记或取消常驻词；常驻词在注入提示词时必然出现。",
+        "operationId": "set_keyword_pin_api_keywords_pin_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KeywordPinRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KeywordPinResponse"
                 }
               }
             }
@@ -3379,6 +3433,10 @@
             },
             "type": "array",
             "title": "Aliases"
+          },
+          "pinned": {
+            "type": "boolean",
+            "title": "Pinned"
           }
         },
         "type": "object",
@@ -3390,7 +3448,8 @@
           "sources",
           "first_seen_at",
           "last_seen_at",
-          "aliases"
+          "aliases",
+          "pinned"
         ],
         "title": "KeywordEntryResponse",
         "description": "词表一行：规范词、展示写法、规模与首末出现时间。"
@@ -3650,6 +3709,10 @@
             "type": "integer",
             "title": "Vocab Revision"
           },
+          "pinned": {
+            "type": "integer",
+            "title": "Pinned"
+          },
           "kinds": {
             "items": {
               "$ref": "#/components/schemas/KeywordKindStatResponse"
@@ -3710,6 +3773,7 @@
           "reuse_judged",
           "reuse_rate",
           "vocab_revision",
+          "pinned",
           "kinds",
           "long_tail",
           "trend",
@@ -3721,6 +3785,46 @@
         ],
         "title": "KeywordOverviewResponse",
         "description": "概览：规模、分布与覆盖；字段含义见 KeywordOverview。"
+      },
+      "KeywordPinRequest": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Key"
+          },
+          "pinned": {
+            "type": "boolean",
+            "title": "Pinned"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "pinned"
+        ],
+        "title": "KeywordPinRequest",
+        "description": "标记或取消常驻词；key 是词表里的规范词键或任意写法，服务端统一归一化。"
+      },
+      "KeywordPinResponse": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "pinned": {
+            "type": "boolean",
+            "title": "Pinned"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "pinned"
+        ],
+        "title": "KeywordPinResponse",
+        "description": "标记结果；key 是归一化后的规范词键，界面据此更新对应行。"
       },
       "KeywordRebuildResponse": {
         "properties": {

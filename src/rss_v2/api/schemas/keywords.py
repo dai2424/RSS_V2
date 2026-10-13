@@ -74,6 +74,20 @@ class KeywordUndoResponse(BaseModel):
     restored: int
 
 
+class KeywordPinRequest(BaseModel):
+    """标记或取消常驻词；key 是词表里的规范词键或任意写法，服务端统一归一化。"""
+
+    key: str = Field(min_length=1, max_length=200)
+    pinned: bool
+
+
+class KeywordPinResponse(BaseModel):
+    """标记结果；key 是归一化后的规范词键，界面据此更新对应行。"""
+
+    key: str
+    pinned: bool
+
+
 class KeywordEntryResponse(BaseModel):
     """词表一行：规范词、展示写法、规模与首末出现时间。"""
 
@@ -85,6 +99,7 @@ class KeywordEntryResponse(BaseModel):
     first_seen_at: int
     last_seen_at: int
     aliases: list[str]
+    pinned: bool
 
 
 class KeywordListResponse(Page[KeywordEntryResponse]):
@@ -140,6 +155,7 @@ class KeywordOverviewResponse(BaseModel):
     reuse_judged: int
     reuse_rate: float | None
     vocab_revision: int
+    pinned: int
     kinds: list[KeywordKindStatResponse]
     long_tail: list[KeywordBucketResponse]
     trend: list[KeywordTrendPointResponse]

@@ -65,6 +65,7 @@ def overview(database: SQLiteDatabase, days: int, top_sources: int) -> KeywordOv
         sources = _sources(connection, top_sources)
         reused, judged = _reuse(connection)
         revision = keyword_vocabulary.vocabulary_revision(connection)
+        pinned = int(connection.execute("SELECT COUNT(*) FROM keyword_pins").fetchone()[0])
     finally:
         connection.close()
 
@@ -83,6 +84,7 @@ def overview(database: SQLiteDatabase, days: int, top_sources: int) -> KeywordOv
         reuse_judged=judged,
         reuse_rate=round(reused / judged, 4) if judged else None,
         vocab_revision=revision,
+        pinned=pinned,
         kinds=_kinds(keys),
         long_tail=_long_tail(keys),
         trend=trend,

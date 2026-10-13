@@ -385,6 +385,26 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/keywords/pin": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Set Keyword Pin
+     * @description 标记或取消常驻词；常驻词在注入提示词时必然出现。
+     */
+    post: operations["set_keyword_pin_api_keywords_pin_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/keywords/merges/{merge_id}/undo": {
     parameters: {
       query?: never;
@@ -1064,6 +1084,8 @@ export interface components {
       last_seen_at: number;
       /** Aliases */
       aliases: string[];
+      /** Pinned */
+      pinned: boolean;
     };
     /**
      * KeywordKindStatResponse
@@ -1177,6 +1199,8 @@ export interface components {
       reuse_rate: number | null;
       /** Vocab Revision */
       vocab_revision: number;
+      /** Pinned */
+      pinned: number;
       /** Kinds */
       kinds: components["schemas"]["KeywordKindStatResponse"][];
       /** Long Tail */
@@ -1193,6 +1217,26 @@ export interface components {
       tasks_succeeded: number;
       /** Tasks Failed */
       tasks_failed: number;
+    };
+    /**
+     * KeywordPinRequest
+     * @description 标记或取消常驻词；key 是词表里的规范词键或任意写法，服务端统一归一化。
+     */
+    KeywordPinRequest: {
+      /** Key */
+      key: string;
+      /** Pinned */
+      pinned: boolean;
+    };
+    /**
+     * KeywordPinResponse
+     * @description 标记结果；key 是归一化后的规范词键，界面据此更新对应行。
+     */
+    KeywordPinResponse: {
+      /** Key */
+      key: string;
+      /** Pinned */
+      pinned: boolean;
     };
     /**
      * KeywordRebuildResponse
@@ -2688,6 +2732,8 @@ export interface operations {
         since?: number | null;
         /** @description 最近出现时间上界，UTC 秒 */
         until?: number | null;
+        /** @description 只看人工标记的常驻词 */
+        pinned?: boolean;
         limit?: number;
         offset?: number;
       };
@@ -2854,6 +2900,39 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["KeywordMergeResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  set_keyword_pin_api_keywords_pin_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["KeywordPinRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["KeywordPinResponse"];
         };
       };
       /** @description Validation Error */

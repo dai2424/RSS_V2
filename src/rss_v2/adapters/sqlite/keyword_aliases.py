@@ -13,6 +13,7 @@ import json
 import sqlite3
 from typing import Any, cast
 
+from rss_v2.adapters.sqlite import keyword_pins
 from rss_v2.adapters.sqlite.connection import SQLiteDatabase
 from rss_v2.adapters.sqlite.keyword_sql import (
     CURRENT_ENRICHMENT,
@@ -174,6 +175,8 @@ def merge(database: SQLiteDatabase, sources: list[str], target: str) -> MergeRec
     previewed = preview(database, sources, target)
     with database.transaction() as connection:
         target_raw, _ = _target_row(connection, target)
+        # 常驻标记跟着写法走：成员上的标记搬到目标词，撤销时据记录还原。
+        pins = keyword_pins.move_to_target(connection, sources, target, timestamp)
         for source in sources:
             # 先把已经是该词别名的行改指目标，并记住原值以便撤销。
             connection.execute(
@@ -196,8 +199,9 @@ def merge(database: SQLiteDatabase, sources: list[str], target: str) -> MergeRec
             )
         connection.execute(
             """
-            INSERT INTO keyword_merges(id,target_norm,target_raw,members_json,affected_messages,created_at)
-            VALUES(?,?,?,?,?,?)
+            INSERT INTO keyword_merges(id,target_norm,target_raw,members_json,affected_messages,
+                created_at,pinned_json,target_was_pinned)
+            VALUES(?,?,?,?,?,?,?,?)
             """,
             (
                 merge_id,
@@ -209,6 +213,8 @@ def merge(database: SQLiteDatabase, sources: list[str], target: str) -> MergeRec
                 ),
                 previewed.messages,
                 timestamp,
+                json.dumps(pins["pinned"], ensure_ascii=False),
+                int(bool(pins["target_was_pinned"])),
             ),
         )
     return MergeRecord(
@@ -231,7 +237,9 @@ def undo(database: SQLiteDatabase, merge_id: str) -> int:
 
     with database.transaction() as connection:
         row = connection.execute(
-            "SELECT undone_at FROM keyword_merges WHERE id=?", (merge_id,)
+            "SELECT undone_at, target_norm, pinned_json, target_was_pinned FROM keyword_merges"
+            " WHERE id=?",
+            (merge_id,),
         ).fetchone()
         if row is None:
             raise DomainError("keyword_merge_not_found", "合并记录不存在")
@@ -254,6 +262,13 @@ def undo(database: SQLiteDatabase, merge_id: str) -> int:
             """,
             (merge_id,),
         ).rowcount
+        keyword_pins.restore(
+            connection,
+            row["pinned_json"],
+            str(row["target_norm"]),
+            bool(row["target_was_pinned"]),
+            now(),
+        )
         connection.execute("UPDATE keyword_merges SET undone_at=? WHERE id=?", (now(), merge_id))
     return int(created) + int(restored)
 

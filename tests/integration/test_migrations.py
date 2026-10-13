@@ -30,7 +30,7 @@ def test_fresh_database_and_checksum(tmp_path: Path) -> None:
     shutil.copytree("migrations", migrations)
     database = SQLiteDatabase(tmp_path / "rss.db")
     runner = MigrationRunner(database, migrations)
-    assert len(runner.run()) == 15
+    assert len(runner.run()) == 16
     assert runner.run() == []
     path = migrations / "0001_initial.sql"
     path.write_text(path.read_text(encoding="utf-8") + "\n-- mutation\n", encoding="utf-8")
@@ -77,6 +77,15 @@ def test_keyword_tables_and_structured_prompt_seed(tmp_path: Path) -> None:
         )
         assert "kind" in active[0]["user_template"]
         assert "{{vocabulary}}" in active[0]["user_template"]
+        # 常驻词表与合并记录里的搬运事实：撤销时据此还原标记。
+        assert {row["name"] for row in connection.execute("PRAGMA table_info(keyword_pins)")} == {
+            "key",
+            "created_at",
+        }
+        assert {
+            "pinned_json",
+            "target_was_pinned",
+        } <= {row["name"] for row in connection.execute("PRAGMA table_info(keyword_merges)")}
         # 别名与合并记录：别名指向最终规范词，合并记录保留撤销时间。
         alias_columns = {
             row["name"] for row in connection.execute("PRAGMA table_info(keyword_aliases)")
@@ -122,7 +131,7 @@ def test_two_processes_do_not_apply_migration_twice(tmp_path: Path) -> None:
         results = list(
             pool.map(lambda _: MigrationRunner(database, Path("migrations")).run(), range(2))
         )
-    assert sum(len(result) for result in results) == 15
+    assert sum(len(result) for result in results) == 16
 
 
 def test_upgrade_preserves_versions_and_translations(tmp_path: Path) -> None:

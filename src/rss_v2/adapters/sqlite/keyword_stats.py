@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import sqlite3
 
+from rss_v2.adapters.sqlite import keyword_pins
 from rss_v2.adapters.sqlite.connection import SQLiteDatabase
 from rss_v2.adapters.sqlite.keyword_aliases import forms
 from rss_v2.adapters.sqlite.keyword_sql import (
@@ -27,12 +28,13 @@ def vocabulary(
     min_count: int,
     since: int | None,
     until: int | None,
+    pinned_only: bool,
     limit: int,
     offset: int,
 ) -> list[KeywordEntry]:
     """词表一页：先聚合出规范词，再补展示写法与被归并进来的写法。"""
 
-    where, args = _filters(query, kind, min_count, since, until)
+    where, args = _filters(query, kind, min_count, since, until, pinned_only)
     connection = database.connect()
     try:
         rows = connection.execute(
@@ -44,6 +46,7 @@ def vocabulary(
             """,
             (*args, max(1, limit), max(0, offset)),
         ).fetchall()
+        pinned = keyword_pins.pinned_keys(connection)
     finally:
         connection.close()
     writings: dict[str, list[tuple[str, str, int]]] = {}
@@ -51,7 +54,7 @@ def vocabulary(
         database, [str(row["keyword_key"]) for row in rows]
     ):
         writings.setdefault(key, []).append((raw, kind_value, versions))
-    return [_entry(row, writings.get(str(row["keyword_key"]), [])) for row in rows]
+    return [_entry(row, writings.get(str(row["keyword_key"]), []), pinned) for row in rows]
 
 
 def count_vocabulary(
@@ -61,10 +64,11 @@ def count_vocabulary(
     min_count: int,
     since: int | None,
     until: int | None,
+    pinned_only: bool,
 ) -> int:
     """与词表同一条件的总数，供分页显示。"""
 
-    where, args = _filters(query, kind, min_count, since, until)
+    where, args = _filters(query, kind, min_count, since, until, pinned_only)
     connection = database.connect()
     try:
         row = connection.execute(
@@ -81,6 +85,7 @@ def _filters(
     min_count: int,
     since: int | None,
     until: int | None,
+    pinned_only: bool,
 ) -> tuple[str, list[object]]:
     """词表的筛选条件；列表与计数必须走同一条，否则分页会对不上。"""
 
@@ -94,18 +99,23 @@ def _filters(
     if kind:
         clauses.append("keyword_kind = ?")
         args.append(kind)
+    if pinned_only:
+        clauses.append("keyword_key IN (SELECT key FROM keyword_pins)")
     clauses.append("mentions >= ?")
     args.append(max(1, min_count))
     return " AND ".join(clauses), args
 
 
-def _entry(row: sqlite3.Row, writings: list[tuple[str, str, int]]) -> KeywordEntry:
+def _entry(
+    row: sqlite3.Row, writings: list[tuple[str, str, int]], pinned: set[str]
+) -> KeywordEntry:
     """把聚合行与写法列表拼成词表一行；展示写法用覆盖消息数最多的那种。"""
 
     ordered = sorted(writings, key=lambda item: (-item[2], item[0]))
     text = ordered[0][0] if ordered else str(row["keyword_key"])
+    key = str(row["keyword_key"])
     return KeywordEntry(
-        key=str(row["keyword_key"]),
+        key=key,
         text=text,
         kind=KeywordKind(str(row["keyword_kind"])),
         mentions=int(row["mentions"]),
@@ -113,4 +123,5 @@ def _entry(row: sqlite3.Row, writings: list[tuple[str, str, int]]) -> KeywordEnt
         first_seen_at=int(row["first_seen"]),
         last_seen_at=int(row["last_seen"]),
         aliases=tuple(item[0] for item in ordered if item[0] != text),
+        pinned=key in pinned,
     )

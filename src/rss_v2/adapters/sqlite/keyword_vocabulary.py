@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import sqlite3
 
+from rss_v2.adapters.sqlite import keyword_pins
 from rss_v2.adapters.sqlite.connection import SQLiteDatabase
 from rss_v2.adapters.sqlite.keyword_aliases import displays
 from rss_v2.adapters.sqlite.keyword_sql import (
@@ -38,6 +39,7 @@ def prompt_vocabulary(
     if limit <= 0:
         return PromptVocabulary(entities=(), topics=(), events=(), recent=())
     size = max(1, limit)
+    pinned = keyword_pins.pins(database)
     connection = database.connect()
     try:
         rows = connection.execute(
@@ -49,16 +51,20 @@ def prompt_vocabulary(
             (MIN_TIME, MAX_TIME, size),
         ).fetchall()
         top_keys = [str(row["keyword_key"]) for row in rows]
-        recent_keys = _recent_keys(connection, recent_days, timestamp, exclude=set(top_keys))
+        # 常驻词必然出现：超出条数上限也补进它所属的类型分组。
+        extra_keys = [key for key in pinned if key not in set(top_keys)]
+        recent_keys = _recent_keys(
+            connection, recent_days, timestamp, exclude={*top_keys, *extra_keys}
+        )
     finally:
         connection.close()
-    written = displays(database, [*top_keys, *recent_keys])
+    written = displays(database, [*top_keys, *extra_keys, *recent_keys])
     groups: dict[str, list[str]] = {
         KeywordKind.ENTITY.value: [],
         KeywordKind.TOPIC.value: [],
         KeywordKind.EVENT.value: [],
     }
-    for key in top_keys:
+    for key in [*top_keys, *extra_keys]:
         text, kind_value = written.get(key, (key, KeywordKind.TOPIC.value))
         groups.setdefault(kind_value, []).append(text)
     return PromptVocabulary(

@@ -20,6 +20,8 @@ from rss_v2.api.schemas import (
     KeywordMergeRequest,
     KeywordMergeResponse,
     KeywordOverviewResponse,
+    KeywordPinRequest,
+    KeywordPinResponse,
     KeywordRebuildResponse,
     KeywordUndoResponse,
 )
@@ -35,13 +37,14 @@ def list_keywords(
     min_count: int = Query(default=2, ge=1, le=100, description="最小出现次数，1 表示包含孤词"),
     since: int | None = Query(default=None, description="最近出现时间下界，UTC 秒"),
     until: int | None = Query(default=None, description="最近出现时间上界，UTC 秒"),
+    pinned: bool = Query(default=False, description="只看人工标记的常驻词"),
     limit: int = Query(default=25, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
 ) -> KeywordListResponse:
     """词表：按出现次数排序的规范词，默认折叠只出现一次的词。"""
 
     items, total = container(request).keyword_service.vocabulary(
-        q, kind, min_count, since, until, limit, offset
+        q, kind, min_count, since, until, pinned, limit, offset
     )
     return KeywordListResponse(items=[keyword_entry_response(item) for item in items], total=total)
 
@@ -97,6 +100,14 @@ def merge_keywords(request: Request, payload: KeywordMergeRequest) -> KeywordMer
     if payload.dry_run:
         return KeywordMergeResponse(record=None, preview=merge_preview_response(preview))
     return merge_response(service.merge(payload.keys, payload.target), preview)
+
+
+@keywords_router.post("/pin", response_model=KeywordPinResponse)
+def set_keyword_pin(request: Request, payload: KeywordPinRequest) -> KeywordPinResponse:
+    """标记或取消常驻词；常驻词在注入提示词时必然出现。"""
+
+    key = container(request).keyword_service.set_pin(payload.key, payload.pinned)
+    return KeywordPinResponse(key=key, pinned=payload.pinned)
 
 
 @keywords_router.post("/merges/{merge_id}/undo", response_model=KeywordUndoResponse)

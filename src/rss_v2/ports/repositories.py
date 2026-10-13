@@ -333,12 +333,14 @@ class KeywordRepository(Protocol):
         min_count: int,
         since: int | None,
         until: int | None,
+        pinned_only: bool,
         limit: int,
         offset: int,
     ) -> list[KeywordEntry]:
         """词表一页：按频次排序的规范词，含覆盖来源数与首末出现时间。
 
-        min_count 用于折叠只出现一次的词；since/until 按最近出现时间过滤。
+        min_count 用于折叠只出现一次的词；since/until 按最近出现时间过滤；
+        pinned_only 只返回人工标记的常驻词。
         """
         ...
 
@@ -349,6 +351,7 @@ class KeywordRepository(Protocol):
         min_count: int,
         since: int | None,
         until: int | None,
+        pinned_only: bool,
     ) -> int:
         """与词表同一筛选条件的总数。"""
         ...
@@ -382,6 +385,14 @@ class KeywordRepository(Protocol):
 
         limit 为 0 表示不注入，返回空词表；timestamp 是当前 UTC 秒，用于算"近期新增"的窗口。
         """
+        ...
+
+    def set_pin(self, key: str, pinned: bool, timestamp: int) -> None:
+        """标记或取消常驻词；键是规范词键，重复操作幂等。"""
+        ...
+
+    def pins(self) -> tuple[str, ...]:
+        """全部常驻词键，按标记时间从早到晚。"""
         ...
 
     def note_vocabulary(self, fingerprint: str, timestamp: int) -> int:

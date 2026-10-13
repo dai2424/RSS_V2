@@ -16,6 +16,7 @@ from rss_v2.domain import (
     Task,
     normalize_keyword,
 )
+from rss_v2.domain.values import now
 from rss_v2.ports import KeywordRepository
 
 logger = logging.getLogger(__name__)
@@ -78,14 +79,30 @@ class KeywordService:
         min_count: int,
         since: int | None,
         until: int | None,
+        pinned_only: bool,
         limit: int,
         offset: int,
     ) -> tuple[list[KeywordEntry], int]:
         """词表一页与总数；两者必须用同一套筛选条件，否则分页会对不上。"""
 
-        items = self.keywords.vocabulary(query, kind, min_count, since, until, limit, offset)
-        total = self.keywords.count_vocabulary(query, kind, min_count, since, until)
+        items = self.keywords.vocabulary(
+            query, kind, min_count, since, until, pinned_only, limit, offset
+        )
+        total = self.keywords.count_vocabulary(query, kind, min_count, since, until, pinned_only)
         return items, total
+
+    def set_pin(self, key: str, pinned: bool) -> str:
+        """标记或取消常驻词，返回规范化后的词键。
+
+        键统一走归一化：界面传回的词表键与手工输入的写法都能用，且与合并、检索
+        使用同一套匹配键。
+        """
+
+        normalized = normalize_keyword(key)
+        if not normalized:
+            raise DomainError("keyword_pin_empty", "常驻词的键不能为空")
+        self.keywords.set_pin(normalized, pinned, now())
+        return normalized
 
     def overview(self, days: int = 14, top_sources: int = 10) -> KeywordOverview:
         """概览与分布；所有数字都从库里算出来。"""

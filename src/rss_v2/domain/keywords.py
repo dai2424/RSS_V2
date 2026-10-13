@@ -196,6 +196,7 @@ class KeywordEntry:
     first_seen_at: int  # 首次出现时间，UTC 秒
     last_seen_at: int  # 最近出现时间，UTC 秒
     aliases: tuple[str, ...]  # 归并到这个词条的其它写法（原始文本，含被合并进来的）
+    pinned: bool = False  # 人工标记的常驻词：注入提示词时必然出现
 
 
 @dataclass(frozen=True, slots=True)
@@ -252,6 +253,7 @@ class KeywordOverview:
     reuse_judged: int  # 有复用判定的词位数（注入上线前的旧数据没有判定）
     reuse_rate: float | None  # 复用率 = reused / reuse_judged；没有判定数据时为空
     vocab_revision: int  # 当前词表版本；注入内容变化时递增，0 表示还没有加工过
+    pinned: int  # 人工标记的常驻词数
     kinds: tuple[KeywordKindStat, ...]  # 类型构成
     long_tail: tuple[KeywordBucket, ...]  # 长尾分布
     trend: tuple[KeywordTrendPoint, ...]  # 按天的产出与新增词

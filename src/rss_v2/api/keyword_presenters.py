@@ -37,6 +37,7 @@ def keyword_entry_response(item: KeywordEntry) -> KeywordEntryResponse:
         first_seen_at=item.first_seen_at,
         last_seen_at=item.last_seen_at,
         aliases=list(item.aliases),
+        pinned=item.pinned,
     )
 
 
@@ -55,6 +56,7 @@ def keyword_overview_response(item: KeywordOverview) -> KeywordOverviewResponse:
         reuse_judged=item.reuse_judged,
         reuse_rate=item.reuse_rate,
         vocab_revision=item.vocab_revision,
+        pinned=item.pinned,
         kinds=[
             KeywordKindStatResponse(kind=stat.kind.value, terms=stat.terms, mentions=stat.mentions)
             for stat in item.kinds
