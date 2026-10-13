@@ -25,7 +25,7 @@ from rss_v2.api.schemas import (
     TaskSettingsUpdateRequest,
 )
 from rss_v2.domain import DomainError, PromptSample, TaskSetting
-from rss_v2.domain.prompts import TASK_SPECS, compile_prompt, prompt_values
+from rss_v2.domain.prompts import TASK_SPECS
 
 prompts_router = APIRouter(prefix="/api/llm/prompts", tags=["prompts"])
 task_settings_router = APIRouter(prefix="/api/task-settings", tags=["task-settings"])
@@ -56,13 +56,23 @@ def list_specs() -> list[dict[str, object]]:
 
 
 @prompts_router.post("/compile", response_model=PromptCompileResponse)
-def compile_prompt_template(payload: PromptCompileRequest) -> PromptCompileResponse:
-    """编译校验与样例预览；不写库。"""
+def compile_prompt_template(
+    request: Request, payload: PromptCompileRequest
+) -> PromptCompileResponse:
+    """编译校验与样例预览；不写库。词表注入与执行期共用同一套规则。"""
 
-    sample = payload.sample
-    values = prompt_values(sample.title, sample.summary, sample.content) if sample else None
-    compiled = compile_prompt(
-        payload.task_kind, payload.system_template, payload.user_template, values
+    request_sample = payload.sample
+    sample = (
+        PromptSample(
+            title=request_sample.title,
+            summary=request_sample.summary,
+            content=request_sample.content,
+        )
+        if request_sample
+        else None
+    )
+    compiled = container(request).prompt_service.compile(
+        payload.task_kind, payload.system_template, payload.user_template, sample
     )
     return compile_response(compiled, payload.task_kind)
 

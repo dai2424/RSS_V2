@@ -664,7 +664,7 @@ export interface paths {
     put?: never;
     /**
      * Compile Prompt Template
-     * @description 编译校验与样例预览；不写库。
+     * @description 编译校验与样例预览；不写库。词表注入与执行期共用同一套规则。
      */
     post: operations["compile_prompt_template_api_llm_prompts_compile_post"];
     delete?: never;
@@ -1169,6 +1169,12 @@ export interface components {
       aliases: number;
       /** Merges */
       merges: number;
+      /** Reused */
+      reused: number;
+      /** Reuse Judged */
+      reuse_judged: number;
+      /** Reuse Rate */
+      reuse_rate: number | null;
       /** Kinds */
       kinds: components["schemas"]["KeywordKindStatResponse"][];
       /** Long Tail */
@@ -1197,12 +1203,17 @@ export interface components {
     /**
      * KeywordResponse
      * @description 一条检索关键词；text 用于展示，kind 用于检索优先级与界面标注。
+     *
+     *     reused 只在加工结果里给出：表示这条写法是否复用了当时注入的词表；其它场景
+     *     （相关消息、合并影响面）没有这个判定，保持为空。
      */
     KeywordResponse: {
       /** Text */
       text: string;
       /** Kind */
       kind: string;
+      /** Reused */
+      reused?: boolean | null;
     };
     /**
      * KeywordSourceStatResponse

@@ -113,6 +113,25 @@ def forms(database: SQLiteDatabase, keys: list[str]) -> list[tuple[str, str, str
         connection.close()
 
 
+def displays(database: SQLiteDatabase, keys: list[str]) -> dict[str, tuple[str, str]]:
+    """这些规范词键各自的展示写法与类型，供注入提示词使用。
+
+    注入要的是写法（`ChatGPT`）而不是匹配键（`chatgpt`），挑选规则与词表页一致，
+    因此复用 pick_display，避免"页面上显示的词"和"注入给模型的词"两套口径。
+    """
+
+    if not keys:
+        return {}
+    connection = database.connect()
+    try:
+        grouped: dict[str, list[tuple[str, str, str, int]]] = {}
+        for row in _forms(connection, keys):
+            grouped.setdefault(row[0], []).append(row)
+        return {key: pick_display(rows) for key, rows in grouped.items()}
+    finally:
+        connection.close()
+
+
 def preview(database: SQLiteDatabase, sources: list[str], target: str) -> MergePreview:
     """合并影响面：预览与执行共用这份计算，避免两处口径不一致。"""
 

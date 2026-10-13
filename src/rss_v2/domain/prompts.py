@@ -40,17 +40,19 @@ TASK_SPECS: dict[TaskType, TaskSpec] = {
     TaskType.ENRICH_MESSAGE: TaskSpec(
         kind=TaskType.ENRICH_MESSAGE,
         label="内容加工",
-        variables=("title", "summary", "content"),
+        variables=("title", "summary", "content", "vocabulary"),
         required_variables=("title", "content"),
         output_fields=("title", "summary", "keywords"),
     ),
 }
 
 #: 编译预览使用的样例取值；没有真实消息时也能看到渲染结果。
+#: vocabulary 只是兜底文案——编译与试跑都会带上当前真实词表（见 PromptResolver）。
 SAMPLE_VALUES: dict[str, str] = {
     "title": "示例标题",
     "summary": "示例摘要。",
     "content": "示例正文。",
+    "vocabulary": "实体：ChatGPT、OpenAI\n主题：AI 编程助手",
 }
 
 
@@ -91,10 +93,15 @@ def render(template: str, values: Mapping[str, str]) -> str:
     return PLACEHOLDER.sub(replace, template)
 
 
-def prompt_values(title: str, summary: str, content: str) -> dict[str, str]:
-    """执行任务时的占位符取值。"""
+def prompt_values(
+    title: str, summary: str, content: str, vocabulary: str | None = None
+) -> dict[str, str]:
+    """执行任务时的占位符取值；只有引用词表的任务才需要传 vocabulary。"""
 
-    return {"title": title, "summary": summary, "content": content}
+    values = {"title": title, "summary": summary, "content": content}
+    if vocabulary is not None:
+        values["vocabulary"] = vocabulary
+    return values
 
 
 @dataclass(frozen=True, slots=True)

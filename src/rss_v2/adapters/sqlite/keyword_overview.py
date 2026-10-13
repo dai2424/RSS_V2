@@ -62,6 +62,7 @@ def overview(database: SQLiteDatabase, days: int, top_sources: int) -> KeywordOv
         }
         trend = _trend(connection, days)
         sources = _sources(connection, top_sources)
+        reused, judged = _reuse(connection)
     finally:
         connection.close()
 
@@ -76,6 +77,9 @@ def overview(database: SQLiteDatabase, days: int, top_sources: int) -> KeywordOv
         average_per_message=round(mentions / enriched, 2) if enriched else 0.0,
         aliases=aliases,
         merges=merges,
+        reused=reused,
+        reuse_judged=judged,
+        reuse_rate=round(reused / judged, 4) if judged else None,
         kinds=_kinds(keys),
         long_tail=_long_tail(keys),
         trend=trend,
@@ -85,6 +89,27 @@ def overview(database: SQLiteDatabase, days: int, top_sources: int) -> KeywordOv
         tasks_succeeded=tasks.get("succeeded", 0),
         tasks_failed=tasks.get("failed", 0),
     )
+
+
+def _reuse(connection: sqlite3.Connection) -> tuple[int, int]:
+    """复用情况：当前生效加工结果里，判定为复用的词位数与有判定的词位数。
+
+    只算有判定的行：注入上线前的存量结果没有这个信息，把它们算成"未复用"会让
+    复用率凭空变低，也就失去了度量的意义。
+    """
+
+    row = connection.execute(
+        f"""
+        SELECT SUM(CASE WHEN k.reused = 1 THEN 1 ELSE 0 END) AS reused,
+               SUM(CASE WHEN k.reused IS NOT NULL THEN 1 ELSE 0 END) AS judged
+        FROM enrichment_keywords k
+        JOIN message_versions v ON v.id = k.message_version_id
+        JOIN messages m ON m.id = v.message_id
+        WHERE k.enrichment_id = {CURRENT_ENRICHMENT}
+          AND v.id = {LATEST_VERSION}
+        """
+    ).fetchone()
+    return int(row["reused"] or 0), int(row["judged"] or 0)
 
 
 def _coverage(connection: sqlite3.Connection) -> tuple[int, int]:

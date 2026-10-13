@@ -30,7 +30,7 @@ def test_fresh_database_and_checksum(tmp_path: Path) -> None:
     shutil.copytree("migrations", migrations)
     database = SQLiteDatabase(tmp_path / "rss.db")
     runner = MigrationRunner(database, migrations)
-    assert len(runner.run()) == 13
+    assert len(runner.run()) == 14
     assert runner.run() == []
     path = migrations / "0001_initial.sql"
     path.write_text(path.read_text(encoding="utf-8") + "\n-- mutation\n", encoding="utf-8")
@@ -57,6 +57,7 @@ def test_keyword_tables_and_structured_prompt_seed(tmp_path: Path) -> None:
             "raw",
             "normalized",
             "kind",
+            "reused",
         } <= columns
         indexes = {
             row["name"] for row in connection.execute("PRAGMA index_list(enrichment_keywords)")
@@ -66,15 +67,16 @@ def test_keyword_tables_and_structured_prompt_seed(tmp_path: Path) -> None:
             "SELECT version, user_template FROM llm_prompts"
             " WHERE task_kind='enrich_message' AND status='active'"
         ).fetchall()
-        assert len(active) == 1 and active[0]["version"] == 2
+        assert len(active) == 1 and active[0]["version"] == 3
         # 旧版本仍可回溯，历史结果的 prompt_version 不会指向不存在的记录。
         assert (
             connection.execute(
                 "SELECT COUNT(*) FROM llm_prompts WHERE prompt_key='enrich' AND status='archived'"
             ).fetchone()[0]
-            == 1
+            == 2
         )
         assert "kind" in active[0]["user_template"]
+        assert "{{vocabulary}}" in active[0]["user_template"]
         # 别名与合并记录：别名指向最终规范词，合并记录保留撤销时间。
         alias_columns = {
             row["name"] for row in connection.execute("PRAGMA table_info(keyword_aliases)")
@@ -120,7 +122,7 @@ def test_two_processes_do_not_apply_migration_twice(tmp_path: Path) -> None:
         results = list(
             pool.map(lambda _: MigrationRunner(database, Path("migrations")).run(), range(2))
         )
-    assert sum(len(result) for result in results) == 13
+    assert sum(len(result) for result in results) == 14
 
 
 def test_upgrade_preserves_versions_and_translations(tmp_path: Path) -> None:

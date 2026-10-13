@@ -136,6 +136,9 @@ class KeywordOverviewResponse(BaseModel):
     average_per_message: float
     aliases: int
     merges: int
+    reused: int
+    reuse_judged: int
+    reuse_rate: float | None
     kinds: list[KeywordKindStatResponse]
     long_tail: list[KeywordBucketResponse]
     trend: list[KeywordTrendPointResponse]

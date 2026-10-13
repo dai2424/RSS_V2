@@ -19,6 +19,7 @@ from rss_v2.domain import (
     MessageVersion,
     Prompt,
     PromptUsage,
+    PromptVocabulary,
     Provider,
     ProviderKey,
     ProviderModel,
@@ -374,6 +375,13 @@ class KeywordRepository(Protocol):
 
     def merges(self, limit: int = 20) -> list[MergeRecord]:
         """最近的合并记录，包含已撤销的那些。"""
+        ...
+
+    def prompt_vocabulary(self, limit: int, recent_days: int, timestamp: int) -> PromptVocabulary:
+        """注入提示词的词表快照：按类型的 Top N 写法与近 N 天新增的写法。
+
+        limit 为 0 表示不注入，返回空词表；timestamp 是当前 UTC 秒，用于算"近期新增"的窗口。
+        """
         ...
 
 

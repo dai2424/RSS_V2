@@ -9,3 +9,7 @@ worker_poll_seconds = 2.0
 llm_retry_cooldown_seconds = 60
 llm_enrich_title_threshold = 40
 llm_enrich_text_threshold = 300
+
+# 加工前注入词表：条数上限（0 关闭注入）与"近期新增"的时间窗（天）。
+llm_vocabulary_limit = 150
+llm_vocabulary_recent_days = 7

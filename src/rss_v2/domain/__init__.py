@@ -3,6 +3,7 @@
 from .deletions import MessageDeletion, TaskDeletion
 from .errors import ConflictError, DomainError, ExternalServiceError, NotFoundError
 from .keywords import (
+    EMPTY_VOCABULARY_TEXT,
     KEYWORD_LIMIT,
     Keyword,
     KeywordBucket,
@@ -14,9 +15,11 @@ from .keywords import (
     KeywordTrendPoint,
     MergePreview,
     MergeRecord,
+    PromptVocabulary,
     RelatedMessage,
     normalize_keyword,
     normalize_keyword_list,
+    render_vocabulary,
 )
 from .models import (
     LLM_TASK_TYPES,
@@ -63,6 +66,7 @@ __all__ = [
     "DomainError",
     "Enrichment",
     "EnrichmentResult",
+    "EMPTY_VOCABULARY_TEXT",
     "ExternalServiceError",
     "FeedItem",
     "FeedSnapshot",
@@ -90,6 +94,7 @@ __all__ = [
     "Provider",
     "ProviderKey",
     "ProviderModel",
+    "PromptVocabulary",
     "RelatedMessage",
     "ResolvedTask",
     "Source",
@@ -106,4 +111,5 @@ __all__ = [
     "TranslationResult",
     "normalize_keyword",
     "normalize_keyword_list",
+    "render_vocabulary",
 ]

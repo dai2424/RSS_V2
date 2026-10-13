@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from fastapi.testclient import TestClient
@@ -118,8 +119,23 @@ def collect(client: TestClient, source_id: str) -> Worker:
     return worker
 
 
+#: 渲染后的标题行；提示词模板都以"标题：{{title}}"结尾。
+_TITLE_LINE = re.compile(r"^标题：(?P<title>.*)$", re.MULTILINE)
+
+
+def prompt_title(user: str) -> str:
+    """取渲染后提示词里的标题行。
+
+    加工提示词会把当前词表注入在正文之前，特征串若在整个提示词里找，会命中别的消息
+    注入进来的词（假 provider 会返回错的关键词）。特征串按标题匹配才是夹具的本意。
+    """
+
+    match = _TITLE_LINE.search(user)
+    return match.group("title") if match else user
+
+
 class KeywordProvider:
-    """按提示词里出现的关键字返回不同关键词的假模型。
+    """按提示词标题里出现的关键字返回不同关键词的假模型。
 
     mapping 的键是标题里的特征串（如 "尊界V800"），值是该消息要产出的关键词元组；
     没有命中的消息用 default。
@@ -133,6 +149,7 @@ class KeywordProvider:
         self.mapping = mapping or {}
         self.default = default or (Keyword("OpenAI", KeywordKind.ENTITY),)
         self.calls = 0
+        self.prompts: list[PromptPayload] = []
 
     def translate(
         self,
@@ -158,9 +175,11 @@ class KeywordProvider:
         prompt_version: str,
     ) -> tuple[EnrichmentResult, dict[str, int], int]:
         self.calls += 1
+        self.prompts.append(prompt)
+        title = prompt_title(prompt.user)
         keywords = self.default
         for marker, matched in self.mapping.items():
-            if marker in prompt.user:
+            if marker in title:
                 keywords = matched
                 break
         return EnrichmentResult("精简标题", "中文摘要。", keywords), {"total_tokens": 5}, 1

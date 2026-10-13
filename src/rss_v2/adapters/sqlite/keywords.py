@@ -12,9 +12,10 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from dataclasses import replace
 from typing import Any, cast
 
-from rss_v2.adapters.sqlite import keyword_overview, keyword_stats
+from rss_v2.adapters.sqlite import keyword_overview, keyword_stats, keyword_vocabulary
 from rss_v2.adapters.sqlite.connection import SQLiteDatabase
 from rss_v2.adapters.sqlite.keyword_aliases import history, merge, preview, resolve_key, undo
 from rss_v2.adapters.sqlite.keyword_sql import (
@@ -31,6 +32,7 @@ from rss_v2.domain import (
     KeywordOverview,
     MergePreview,
     MergeRecord,
+    PromptVocabulary,
     RelatedMessage,
 )
 
@@ -52,6 +54,7 @@ def parse_keywords(value: str) -> tuple[Keyword, ...]:
     items = cast(list[object], parsed)
     result: list[Keyword] = []
     for item in items:
+        entry: dict[str, object] | None = None
         if isinstance(item, dict):
             entry = cast(dict[str, object], item)
             text = str(entry.get("text") or "")
@@ -65,15 +68,25 @@ def parse_keywords(value: str) -> tuple[Keyword, ...]:
             kind = KeywordKind(kind_text.strip().casefold())
         except ValueError:
             kind = KeywordKind.TOPIC
-        result.append(Keyword(text=text, kind=kind))
+        result.append(Keyword(text=text, kind=kind, reused=_reused(entry)))
     return tuple(result)
 
 
+def _reused(entry: dict[str, object] | None) -> bool | None:
+    """快照里的复用判定；不是布尔值（老行没有这个字段）时按"未知"处理。"""
+
+    if entry is None:
+        return None
+    value = entry.get("reused")
+    return value if isinstance(value, bool) else None
+
+
 def encode_keywords(items: tuple[Keyword, ...]) -> str:
-    """关键词列保存模型当时的输出形状，便于审计与事后重建索引。"""
+    """关键词列保存快照：保留模型写法，并带上服务端的复用判定，便于重建索引。"""
 
     return json.dumps(
-        [{"text": item.text, "kind": item.kind.value} for item in items], ensure_ascii=False
+        [{"text": item.text, "kind": item.kind.value, "reused": item.reused} for item in items],
+        ensure_ascii=False,
     )
 
 
@@ -91,24 +104,43 @@ def write_keywords(
     """
 
     connection.execute("DELETE FROM enrichment_keywords WHERE enrichment_id=?", (enrichment_id,))
-    rows: list[tuple[str, str, int, str, str, str]] = []
+    rows: list[tuple[str, str, int, str, str, str, int | None]] = []
     seen: set[str] = set()
     for item in items:
         normalized = item.normalized
         if not normalized or normalized in seen:
             continue
         seen.add(normalized)
-        rows.append((enrichment_id, version_id, len(rows), item.text, normalized, item.kind.value))
+        rows.append(
+            (
+                enrichment_id,
+                version_id,
+                len(rows),
+                item.text,
+                normalized,
+                item.kind.value,
+                None if item.reused is None else int(item.reused),
+            )
+        )
     if not rows:
         return 0
     connection.executemany(
         """
-        INSERT INTO enrichment_keywords(enrichment_id,message_version_id,ordinal,raw,normalized,kind)
-        VALUES(?,?,?,?,?,?)
+        INSERT INTO enrichment_keywords(
+            enrichment_id,message_version_id,ordinal,raw,normalized,kind,reused
+        ) VALUES(?,?,?,?,?,?,?)
         """,
         rows,
     )
     return len(rows)
+
+
+def _flag(value: object) -> bool | None:
+    """把关系表里的 0/1/NULL 折回三态布尔。"""
+
+    if value is None:
+        return None
+    return bool(value)
 
 
 class SQLiteKeywordRepository:
@@ -121,17 +153,27 @@ class SQLiteKeywordRepository:
         """按已存的关键词快照重建关系表，返回写入行数。
 
         结构化改造之前的结果只有 JSON、没有关系表行；本操作不调用模型，只把已有输出
-        重新归一化入表，因此可以重复执行。
+        重新归一化入表，因此可以重复执行。复用判定不在快照的模型输出里，重建前先记下
+        关系表里的值再写回，避免"重建一次就把复用率清空"。
         """
 
         written = 0
         with self.database.transaction() as connection:
+            kept = {
+                (str(row["enrichment_id"]), str(row["normalized"])): row["reused"]
+                for row in connection.execute(
+                    "SELECT enrichment_id, normalized, reused FROM enrichment_keywords"
+                )
+            }
             rows = connection.execute(
                 "SELECT id, message_version_id, keywords_json FROM message_enrichments"
             ).fetchall()
             connection.execute("DELETE FROM enrichment_keywords")
             for row in rows:
-                items = parse_keywords(row["keywords_json"])
+                items = tuple(
+                    replace(item, reused=_flag(kept.get((str(row["id"]), item.normalized))))
+                    for item in parse_keywords(row["keywords_json"])
+                )
                 written += write_keywords(connection, row["id"], row["message_version_id"], items)
         return written
 
@@ -279,6 +321,11 @@ class SQLiteKeywordRepository:
         """最近的合并记录，包含已撤销的那些。"""
 
         return history(self.database, limit)
+
+    def prompt_vocabulary(self, limit: int, recent_days: int, timestamp: int) -> PromptVocabulary:
+        """注入提示词的词表快照；口径见 keyword_vocabulary。"""
+
+        return keyword_vocabulary.prompt_vocabulary(self.database, limit, recent_days, timestamp)
 
     def messages_missing_enrichment(self, source_id: str | None, limit: int) -> list[str]:
         """没有成功加工结果的最新版本，按发布时间从新到旧。

@@ -123,7 +123,14 @@ def build_container(settings: Settings | None = None, migrate: bool = True) -> C
         }
     )
     failover = LLMFailover(llm_config, llm_calls, tasks)
-    resolver = PromptResolver(prompts, task_settings, sources)
+    resolver = PromptResolver(
+        prompts,
+        task_settings,
+        sources,
+        keywords,
+        actual_settings.llm_vocabulary_limit,
+        actual_settings.llm_vocabulary_recent_days,
+    )
     category_service = CategoryService(categories)
     source_service = SourceService(
         sources, categories, health, feed_client, actual_settings.rss_timeout_seconds
@@ -165,7 +172,11 @@ def build_container(settings: Settings | None = None, migrate: bool = True) -> C
         processing_service,
     )
     prompt_service = PromptService(
-        prompts, llm_provider, failover, actual_settings.llm_retry_cooldown_seconds
+        prompts,
+        llm_provider,
+        failover,
+        actual_settings.llm_retry_cooldown_seconds,
+        resolver,
     )
     task_setting_service = TaskSettingService(task_settings, resolver)
     message_service = MessageService(messages, translations, enrichments)

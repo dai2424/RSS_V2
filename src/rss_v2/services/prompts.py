@@ -22,11 +22,17 @@ from rss_v2.domain import (
     TaskType,
     TranslationResult,
 )
-from rss_v2.domain.prompts import CompiledPrompt, compile_prompt, prompt_values, spec_for
+from rss_v2.domain.prompts import (
+    SAMPLE_VALUES,
+    CompiledPrompt,
+    compile_prompt,
+    spec_for,
+)
 from rss_v2.domain.values import mask_secret, new_id, now
 from rss_v2.llm import LLMProvider, PromptPayload
 from rss_v2.ports import PromptRepository
 from rss_v2.services.llm_failover import LLMFailover, input_hash
+from rss_v2.services.prompt_resolver import PromptResolver
 
 #: 提示词业务键：会拼进审计版本串与任务幂等键，因此限制为小写 slug。
 KEY_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]{0,40}$")
@@ -40,6 +46,7 @@ class PromptService:
     provider: LLMProvider  # 唯一模型调用协议
     failover: LLMFailover  # 候选回退、Key 冷却与调用审计
     cooldown_seconds: int  # 临时错误冷却秒数
+    resolver: PromptResolver  # 占位符取值与词表注入的唯一实现
 
     def list(self, task_kind: str | None = None) -> list[Prompt]:
         """列出提示词版本；按任务类型过滤时先校验类型。"""
@@ -61,9 +68,18 @@ class PromptService:
         user_template: str,
         sample: PromptSample | None = None,
     ) -> CompiledPrompt:
-        """编译校验与预览渲染；不写库。"""
+        """编译校验与预览渲染；不写库。
 
-        values = prompt_values(sample.title, sample.summary, sample.content) if sample else None
+        没有样例时用 SAMPLE_VALUES 的占位文案，但词表仍取当前真实注入内容——
+        预览要看到模型实际会看到的东西。
+        """
+
+        title = sample.title if sample else SAMPLE_VALUES["title"]
+        summary = sample.summary if sample else SAMPLE_VALUES["summary"]
+        content = sample.content if sample else SAMPLE_VALUES["content"]
+        values = self.resolver.values_for_templates(
+            (system_template, user_template), title, summary, content
+        )
         return compile_prompt(task_kind, system_template, user_template, values)
 
     def create_version(
@@ -153,7 +169,12 @@ class PromptService:
         """用样例输入真实调用一次模型，返回结构化输出或失败原因。"""
 
         prompt = self.get(prompt_id)
-        values = prompt_values(sample.title, sample.summary, sample.content)
+        values = self.resolver.values_for_templates(
+            (prompt.system_template, prompt.user_template),
+            sample.title,
+            sample.summary,
+            sample.content,
+        )
         compiled = _compile_or_fail(
             prompt.task_kind, prompt.system_template, prompt.user_template, values
         )

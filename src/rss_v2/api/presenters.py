@@ -98,7 +98,8 @@ def enrichment_response(enrichment: Enrichment) -> EnrichmentResponse:
         title=enrichment.title,
         summary=enrichment.summary,
         keywords=[
-            KeywordResponse(text=item.text, kind=item.kind.value) for item in enrichment.keywords
+            KeywordResponse(text=item.text, kind=item.kind.value, reused=item.reused)
+            for item in enrichment.keywords
         ],
         provider_id=enrichment.provider_id,
         key_masked=enrichment.key_masked,

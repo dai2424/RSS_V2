@@ -33,6 +33,10 @@ class Settings(BaseSettings):
     llm_enrich_title_threshold: int = Field(default=40, ge=1, le=500)
     llm_enrich_text_threshold: int = Field(default=300, ge=1, le=20000)
     llm_retry_cooldown_seconds: int = Field(default=60, gt=0, le=3600)
+    # 加工前注入词表的条数上限；0 表示关闭注入（仍按原提示词加工，不做复用判定）。
+    llm_vocabulary_limit: int = Field(default=150, ge=0, le=1000)
+    # "近期新增"一段的时间窗：列出最近这些天首次出现、且没进 Top N 的写法。
+    llm_vocabulary_recent_days: int = Field(default=7, ge=0, le=90)
 
     @classmethod
     def settings_customise_sources(

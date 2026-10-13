@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import re
 import unicodedata
 from collections.abc import Iterable
@@ -51,12 +52,70 @@ class Keyword:
 
     text: str  # 展示用原文，保持模型写法
     kind: KeywordKind  # entity / topic / event
+    reused: bool | None = None  # 是否复用了注入词表的写法；为空表示当时没有词表可判定
 
     @property
     def normalized(self) -> str:
         """匹配键；由 text 实时计算，不单独存储，避免两处不一致。"""
 
         return normalize_keyword(self.text)
+
+
+#: 词表为空时的注入文案：没有可复用的写法，让模型自己建。
+EMPTY_VOCABULARY_TEXT = "（当前词表为空，没有可复用的写法）"
+
+
+@dataclass(frozen=True, slots=True)
+class PromptVocabulary:
+    """注入提示词的词表快照。
+
+    存的是**展示写法**而不是归一化键：模型能直接复用的是写法，判定复用时再归一化一次
+    即可对齐。常驻词由调用方并进它所属的类型分组，避免同一个词在提示词里出现两次。
+    """
+
+    entities: tuple[str, ...]  # 具名实体的写法
+    topics: tuple[str, ...]  # 领域主题的写法
+    events: tuple[str, ...]  # 事件词的写法
+    recent: tuple[str, ...]  # 近 N 天新增、且没进前面分组的写法
+
+    @property
+    def empty(self) -> bool:
+        """没有任何词时为真；空词表不渲染分组标题。"""
+
+        return not (self.entities or self.topics or self.events or self.recent)
+
+    @property
+    def terms(self) -> frozenset[str]:
+        """全部注入词的匹配键，用于判定模型是否复用了词表。"""
+
+        grouped = (*self.entities, *self.topics, *self.events, *self.recent)
+        return frozenset(key for text in grouped if (key := normalize_keyword(text)))
+
+    @property
+    def fingerprint(self) -> str:
+        """注入文本的指纹；词表内容（新增词、合并、注入条数）变化时才会变。"""
+
+        return hashlib.sha256(render_vocabulary(self).encode("utf-8")).hexdigest()[:16]
+
+
+def render_vocabulary(vocabulary: PromptVocabulary) -> str:
+    """把词表渲染成提示词片段。
+
+    组内按写法排序而不是按频次：注入只保证"这个词可见"，不表达重要度，排序固定才能让
+    同一份词表两次渲染得到完全相同的文本，`llm_calls.input_hash` 才解释得清。
+    """
+
+    if vocabulary.empty:
+        return EMPTY_VOCABULARY_TEXT
+    groups = (
+        ("实体", vocabulary.entities),
+        ("主题", vocabulary.topics),
+        ("事件", vocabulary.events),
+        ("近期新增", vocabulary.recent),
+    )
+    return "\n".join(
+        f"{label}：{'、'.join(sorted(set(texts)))}" for label, texts in groups if texts
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -189,6 +248,9 @@ class KeywordOverview:
     average_per_message: float  # 平均每条已加工消息的词位数
     aliases: int  # 已经并入别处的写法数
     merges: int  # 生效中的合并数
+    reused: int  # 判定为复用了注入词表的词位数
+    reuse_judged: int  # 有复用判定的词位数（注入上线前的旧数据没有判定）
+    reuse_rate: float | None  # 复用率 = reused / reuse_judged；没有判定数据时为空
     kinds: tuple[KeywordKindStat, ...]  # 类型构成
     long_tail: tuple[KeywordBucket, ...]  # 长尾分布
     trend: tuple[KeywordTrendPoint, ...]  # 按天的产出与新增词

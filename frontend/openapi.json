@@ -2257,7 +2257,7 @@
           "prompts"
         ],
         "summary": "Compile Prompt Template",
-        "description": "编译校验与样例预览；不写库。",
+        "description": "编译校验与样例预览；不写库。词表注入与执行期共用同一套规则。",
         "operationId": "compile_prompt_template_api_llm_prompts_compile_post",
         "requestBody": {
           "content": {
@@ -3627,6 +3627,25 @@
             "type": "integer",
             "title": "Merges"
           },
+          "reused": {
+            "type": "integer",
+            "title": "Reused"
+          },
+          "reuse_judged": {
+            "type": "integer",
+            "title": "Reuse Judged"
+          },
+          "reuse_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reuse Rate"
+          },
           "kinds": {
             "items": {
               "$ref": "#/components/schemas/KeywordKindStatResponse"
@@ -3683,6 +3702,9 @@
           "average_per_message",
           "aliases",
           "merges",
+          "reused",
+          "reuse_judged",
+          "reuse_rate",
           "kinds",
           "long_tail",
           "trend",
@@ -3718,6 +3740,17 @@
           "kind": {
             "type": "string",
             "title": "Kind"
+          },
+          "reused": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reused"
           }
         },
         "type": "object",
@@ -3726,7 +3759,7 @@
           "kind"
         ],
         "title": "KeywordResponse",
-        "description": "一条检索关键词；text 用于展示，kind 用于检索优先级与界面标注。"
+        "description": "一条检索关键词；text 用于展示，kind 用于检索优先级与界面标注。\n\nreused 只在加工结果里给出：表示这条写法是否复用了当时注入的词表；其它场景\n（相关消息、合并影响面）没有这个判定，保持为空。"
       },
       "KeywordSourceStatResponse": {
         "properties": {

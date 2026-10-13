@@ -51,6 +51,9 @@ def keyword_overview_response(item: KeywordOverview) -> KeywordOverviewResponse:
         average_per_message=item.average_per_message,
         aliases=item.aliases,
         merges=item.merges,
+        reused=item.reused,
+        reuse_judged=item.reuse_judged,
+        reuse_rate=item.reuse_rate,
         kinds=[
             KeywordKindStatResponse(kind=stat.kind.value, terms=stat.terms, mentions=stat.mentions)
             for stat in item.kinds

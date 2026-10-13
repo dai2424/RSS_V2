@@ -180,8 +180,9 @@ def test_collection_enqueues_translation_and_enrichment(client: TestClient) -> N
     assert version["translations"][0]["title"] == "中文标题"
     assert version["enrichments"][0]["title"] == "精简标题"
     assert version["enrichments"][0]["keywords"] == [
-        {"text": "关键词甲", "kind": "entity"},
-        {"text": "关键词乙", "kind": "topic"},
+        # 首次加工时词表还是空的，没有可判定的复用，因此 reused 为空。
+        {"text": "关键词甲", "kind": "entity", "reused": None},
+        {"text": "关键词乙", "kind": "topic", "reused": None},
     ]
     assert version["enrichments"][0]["status"] == "succeeded"
     # 任务完成后不再排队，列表按任务类型分别展示真实状态。
@@ -314,7 +315,7 @@ def test_task_list_shows_target_model_and_prompt(client: TestClient) -> None:
     assert enriching["target_id"] == message["id"]
     assert enriching["target_label"] == message["latest_version"]["title"]
     assert enriching["model"] == "test-model"
-    assert enriching["prompt_version"] == "enrich-v2"
+    assert enriching["prompt_version"] == "enrich-v3"
 
     # 单个任务查询与重试返回同样的目标说明。
     single = client.get(f"/api/tasks/{enriching['id']}").json()

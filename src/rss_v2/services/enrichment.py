@@ -2,15 +2,17 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from rss_v2.domain import (
     DomainError,
     Enrichment,
     EnrichmentResult,
+    Keyword,
     LLMProtocol,
     MessageVersion,
     Prompt,
+    PromptVocabulary,
     Provider,
     ProviderKey,
     Task,
@@ -101,10 +103,11 @@ class EnrichmentService:
 
         version = self._input_version(task)
         prompt_version = str(task.payload.get("prompt_version", ""))
-        payload = self.prompts.payload(
+        rendered = self.prompts.payload(
             self.prompts.snapshot(str(task.payload.get("prompt_id", "")), prompt_version),
             version,
         )
+        payload = rendered.payload
         completed = next(
             (
                 item
@@ -128,7 +131,15 @@ class EnrichmentService:
             duration_ms: int,
         ) -> Enrichment:
             return self._save_result(
-                task, version, provider, model_name, key, prompt_version, result, None
+                task,
+                version,
+                provider,
+                model_name,
+                key,
+                prompt_version,
+                result,
+                None,
+                rendered.vocabulary,
             )
 
         def invoke(
@@ -147,7 +158,9 @@ class EnrichmentService:
             )
         except DomainError as exc:
             provider, model_name = self._failure_pair(task)
-            self._save_result(task, version, provider, model_name, None, prompt_version, None, exc)
+            self._save_result(
+                task, version, provider, model_name, None, prompt_version, None, exc, None
+            )
             raise
 
     def list_for_version(self, version_id: str) -> list[Enrichment]:
@@ -186,6 +199,7 @@ class EnrichmentService:
         prompt_version: str,
         result: EnrichmentResult | None,
         error: DomainError | None,
+        vocabulary: PromptVocabulary | None,
     ) -> Enrichment:
         """成功与失败共用版本关联和元数据存储。"""
 
@@ -196,7 +210,7 @@ class EnrichmentService:
                 status="succeeded" if result else "failed",
                 title=result.title if result else None,
                 summary=result.summary if result else None,
-                keywords=result.keywords if result else (),
+                keywords=_mark_reuse(result.keywords, vocabulary) if result else (),
                 provider_id=provider.id,
                 key_masked=mask_secret(key.secret) if key else None,
                 model=model_name,
@@ -209,3 +223,18 @@ class EnrichmentService:
             ),
             task.lease_token,
         )
+
+
+def _mark_reuse(
+    keywords: tuple[Keyword, ...], vocabulary: PromptVocabulary | None
+) -> tuple[Keyword, ...]:
+    """按注入词表硬判定复用：模型输出的写法归一化后落在词表里即为复用。
+
+    模型自报不可信（可以表演性填报），所以不要求它返回"复用/新建"字段，口径由服务端
+    说了算。没有词表（注入关闭或词表为空）时留空，让这些行不参与复用率统计。
+    """
+
+    if vocabulary is None or vocabulary.empty:
+        return keywords
+    terms = vocabulary.terms
+    return tuple(replace(item, reused=item.normalized in terms) for item in keywords)

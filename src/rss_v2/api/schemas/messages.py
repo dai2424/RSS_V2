@@ -30,10 +30,15 @@ class TranslationResponse(BaseModel):
 
 
 class KeywordResponse(BaseModel):
-    """一条检索关键词；text 用于展示，kind 用于检索优先级与界面标注。"""
+    """一条检索关键词；text 用于展示，kind 用于检索优先级与界面标注。
+
+    reused 只在加工结果里给出：表示这条写法是否复用了当时注入的词表；其它场景
+    （相关消息、合并影响面）没有这个判定，保持为空。
+    """
 
     text: str
     kind: str
+    reused: bool | None = None
 
 
 class RelatedMessageResponse(BaseModel):

@@ -119,7 +119,7 @@ class TranslationService:
         payload = self.prompts.payload(
             self.prompts.snapshot(str(task.payload.get("prompt_id", "")), prompt_version),
             version,
-        )
+        ).payload
         completed = next(
             (
                 item
