@@ -327,6 +327,11 @@ class SQLiteKeywordRepository:
 
         return keyword_vocabulary.prompt_vocabulary(self.database, limit, recent_days, timestamp)
 
+    def note_vocabulary(self, fingerprint: str, timestamp: int) -> int:
+        """记录注入词表的指纹并返回当前词表版本；内容没变不推进。"""
+
+        return keyword_vocabulary.note_vocabulary(self.database, fingerprint, timestamp)
+
     def messages_missing_enrichment(self, source_id: str | None, limit: int) -> list[str]:
         """没有成功加工结果的最新版本，按发布时间从新到旧。
 

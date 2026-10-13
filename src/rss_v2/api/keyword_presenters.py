@@ -54,6 +54,7 @@ def keyword_overview_response(item: KeywordOverview) -> KeywordOverviewResponse:
         reused=item.reused,
         reuse_judged=item.reuse_judged,
         reuse_rate=item.reuse_rate,
+        vocab_revision=item.vocab_revision,
         kinds=[
             KeywordKindStatResponse(kind=stat.kind.value, terms=stat.terms, mentions=stat.mentions)
             for stat in item.kinds

@@ -139,6 +139,7 @@ class KeywordOverviewResponse(BaseModel):
     reused: int
     reuse_judged: int
     reuse_rate: float | None
+    vocab_revision: int
     kinds: list[KeywordKindStatResponse]
     long_tail: list[KeywordBucketResponse]
     trend: list[KeywordTrendPointResponse]

@@ -1175,6 +1175,8 @@ export interface components {
       reuse_judged: number;
       /** Reuse Rate */
       reuse_rate: number | null;
+      /** Vocab Revision */
+      vocab_revision: number;
       /** Kinds */
       kinds: components["schemas"]["KeywordKindStatResponse"][];
       /** Long Tail */

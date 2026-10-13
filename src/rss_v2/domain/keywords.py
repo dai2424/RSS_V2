@@ -251,6 +251,7 @@ class KeywordOverview:
     reused: int  # 判定为复用了注入词表的词位数
     reuse_judged: int  # 有复用判定的词位数（注入上线前的旧数据没有判定）
     reuse_rate: float | None  # 复用率 = reused / reuse_judged；没有判定数据时为空
+    vocab_revision: int  # 当前词表版本；注入内容变化时递增，0 表示还没有加工过
     kinds: tuple[KeywordKindStat, ...]  # 类型构成
     long_tail: tuple[KeywordBucket, ...]  # 长尾分布
     trend: tuple[KeywordTrendPoint, ...]  # 按天的产出与新增词

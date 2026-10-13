@@ -320,6 +320,7 @@ class Enrichment:
     error_message: str | None  # 脱敏后的可读错误信息
     created_at: int  # 创建时间，UTC 秒
     updated_at: int  # 最近更新时间，UTC 秒
+    vocab_revision: int | None = None  # 加工时注入的词表版本；为空表示当时没有注入
 
 
 @dataclass(frozen=True, slots=True)

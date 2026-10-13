@@ -3646,6 +3646,10 @@
             ],
             "title": "Reuse Rate"
           },
+          "vocab_revision": {
+            "type": "integer",
+            "title": "Vocab Revision"
+          },
           "kinds": {
             "items": {
               "$ref": "#/components/schemas/KeywordKindStatResponse"
@@ -3705,6 +3709,7 @@
           "reused",
           "reuse_judged",
           "reuse_rate",
+          "vocab_revision",
           "kinds",
           "long_tail",
           "trend",

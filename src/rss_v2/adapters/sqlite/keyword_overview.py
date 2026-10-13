@@ -8,6 +8,7 @@ from __future__ import annotations
 import sqlite3
 from datetime import UTC, datetime, timedelta
 
+from rss_v2.adapters.sqlite import keyword_vocabulary
 from rss_v2.adapters.sqlite.connection import SQLiteDatabase
 from rss_v2.adapters.sqlite.keyword_sql import (
     CURRENT_ENRICHMENT,
@@ -63,6 +64,7 @@ def overview(database: SQLiteDatabase, days: int, top_sources: int) -> KeywordOv
         trend = _trend(connection, days)
         sources = _sources(connection, top_sources)
         reused, judged = _reuse(connection)
+        revision = keyword_vocabulary.vocabulary_revision(connection)
     finally:
         connection.close()
 
@@ -80,6 +82,7 @@ def overview(database: SQLiteDatabase, days: int, top_sources: int) -> KeywordOv
         reused=reused,
         reuse_judged=judged,
         reuse_rate=round(reused / judged, 4) if judged else None,
+        vocab_revision=revision,
         kinds=_kinds(keys),
         long_tail=_long_tail(keys),
         trend=trend,

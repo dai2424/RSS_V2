@@ -151,6 +151,17 @@ class PromptResolver:
         values, _ = self._values(templates, title, summary, content)
         return values
 
+    def record_version(self, vocabulary: PromptVocabulary | None) -> int | None:
+        """记录这次注入的词表版本，返回版本号；没有注入时返回 None。
+
+        只有加工执行调这里：编译预览与试跑共用注入规则但不记录，否则在界面上点一次
+        预览就会把版本推进一步，让所有存量结果看起来"早于当前词表版本"。
+        """
+
+        if vocabulary is None or self.keywords is None:
+            return None
+        return self.keywords.note_vocabulary(vocabulary.fingerprint, now())
+
     def _values(
         self, templates: tuple[str, ...], title: str, summary: str, content: str
     ) -> tuple[dict[str, str], PromptVocabulary | None]:

@@ -140,6 +140,7 @@ class EnrichmentService:
                 result,
                 None,
                 rendered.vocabulary,
+                self.prompts.record_version(rendered.vocabulary),
             )
 
         def invoke(
@@ -200,6 +201,7 @@ class EnrichmentService:
         result: EnrichmentResult | None,
         error: DomainError | None,
         vocabulary: PromptVocabulary | None,
+        vocab_revision: int | None = None,
     ) -> Enrichment:
         """成功与失败共用版本关联和元数据存储。"""
 
@@ -220,6 +222,7 @@ class EnrichmentService:
                 error_message=error.message if error else None,
                 created_at=now(),
                 updated_at=now(),
+                vocab_revision=vocab_revision,
             ),
             task.lease_token,
         )

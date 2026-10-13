@@ -26,6 +26,7 @@ def _enrichment(row: sqlite3.Row) -> Enrichment:
         error_message=row["error_message"],
         created_at=row["created_at"],
         updated_at=row["updated_at"],
+        vocab_revision=row["vocab_revision"],
     )
 
 
@@ -75,14 +76,14 @@ class SQLiteEnrichmentRepository:
                 """
                 INSERT INTO message_enrichments(id,message_version_id,status,title,summary,
                     keywords_json,provider_id,key_masked,model,prompt_version,task_id,
-                    error_code,error_message,created_at,updated_at)
-                VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                    error_code,error_message,created_at,updated_at,vocab_revision)
+                VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                 ON CONFLICT(message_version_id,prompt_version,model) DO UPDATE SET
                     status=excluded.status,title=excluded.title,summary=excluded.summary,
                     keywords_json=excluded.keywords_json,provider_id=excluded.provider_id,
                     key_masked=excluded.key_masked,task_id=excluded.task_id,
                     error_code=excluded.error_code,error_message=excluded.error_message,
-                    updated_at=excluded.updated_at
+                    updated_at=excluded.updated_at,vocab_revision=excluded.vocab_revision
                 """,
                 (
                     enrichment.id,
@@ -100,6 +101,7 @@ class SQLiteEnrichmentRepository:
                     enrichment.error_message,
                     enrichment.created_at,
                     enrichment.updated_at,
+                    enrichment.vocab_revision,
                 ),
             )
             # 同一写事务内重建关键词索引：关系表与结果行不允许出现半更新状态。

@@ -1,10 +1,13 @@
-"""注入提示词的词表快照。
+"""注入提示词的词表快照与词表版本。
 
 口径与词表页、检索完全一致（共用 `keyword_sql.KEY_AGGREGATE`）：只算每条消息最新版本里
 "当前生效"的加工结果，词条按别名解析后的规范词键合并。注入的是**展示写法**而不是匹配键，
 模型能直接复用的才是写法。
 
 "近期新增"只列没进前面分组的写法：同一个词在提示词里出现两次只会白费 token。
+
+词表版本（`vocabulary_state`）记的是"模型看到的注入内容变没变"：指纹一致就不推进，
+因此合并、新增词、改注入条数都会让它 +1，而重复加工同一条消息不会。
 """
 
 from __future__ import annotations
@@ -64,6 +67,40 @@ def prompt_vocabulary(
         events=tuple(groups[KeywordKind.EVENT.value]),
         recent=tuple(written.get(key, (key, ""))[0] for key in recent_keys),
     )
+
+
+def note_vocabulary(database: SQLiteDatabase, fingerprint: str, timestamp: int) -> int:
+    """记录本次注入的词表指纹，内容变化时推进版本号，返回当前版本。
+
+    只在加工执行时调用：编译预览与提示词试跑只渲染、不记录，否则在界面上点一次预览
+    就会让所有存量结果看起来"早于当前词表版本"。
+    """
+
+    with database.transaction() as connection:
+        row = connection.execute(
+            "SELECT fingerprint, revision FROM vocabulary_state WHERE id = 1"
+        ).fetchone()
+        if row is None:
+            connection.execute(
+                "INSERT INTO vocabulary_state(id,fingerprint,revision,updated_at) VALUES(1,?,?,?)",
+                (fingerprint, 1, timestamp),
+            )
+            return 1
+        if str(row["fingerprint"]) == fingerprint:
+            return int(row["revision"])
+        revision = int(row["revision"]) + 1
+        connection.execute(
+            "UPDATE vocabulary_state SET fingerprint=?, revision=?, updated_at=? WHERE id = 1",
+            (fingerprint, revision, timestamp),
+        )
+        return revision
+
+
+def vocabulary_revision(connection: sqlite3.Connection) -> int:
+    """当前词表版本；还没有任何加工记录时为 0。"""
+
+    row = connection.execute("SELECT revision FROM vocabulary_state WHERE id = 1").fetchone()
+    return int(row["revision"]) if row else 0
 
 
 def _recent_keys(

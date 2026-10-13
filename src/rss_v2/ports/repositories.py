@@ -384,6 +384,13 @@ class KeywordRepository(Protocol):
         """
         ...
 
+    def note_vocabulary(self, fingerprint: str, timestamp: int) -> int:
+        """记录这次注入的词表指纹，内容变化时推进版本号，返回当前词表版本。
+
+        只由加工执行调用：编译预览与试跑不推进，否则预览一次就会让存量结果看起来过期。
+        """
+        ...
+
 
 class VersionProcessing(Protocol):
     """版本入库后的自动处理入口：按来源配置和内容特征决定要建哪些任务。"""
