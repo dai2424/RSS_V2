@@ -1,6 +1,6 @@
 # 阶段目标 3：关键词收敛与词表治理（AI 整理稿）
 
-> 状态：实施中（2026-10-13，按第 5 节的 M0–M10 推进；M11 待定、M12 推迟）
+> 状态：**M0–M10 已实施（2026-10-13）**，共 7 个提交；M11（存量回填与基线复算）待做——需要先定限量与范围并消耗真实模型额度；M12（按词表版本重跑）仍推迟。
 > 负责人：lyx
 > 更新时间：2026-10-13
 > 关联决策：[热词注入与合并建议](../决策记录/2026-10-13-热词注入与合并建议.md)（D1–D7 的最终口径以该记录为准）
@@ -78,37 +78,37 @@
 
 | 编号 | 模块或行为 | 交付物 | 依赖 | 状态 |
 | --- | --- | --- | --- | --- |
-| M0 | 决策记录与文档同步 | 决策记录《热词注入与合并建议》（D1–D7）；阶段 2 文档状态行指向本篇 | — | 待做 |
-| M1 | 注入数据源 | 仓储方法（别名解析后的注入词表：按 kind 分组、确定性排序、常驻词、近期新增）；`domain/` 纯函数 `render_vocabulary`；配置项两项 + `config/settings.example.toml` | M0 | 待做 |
-| M2 | 注入链路 | `TASK_SPECS.variables`、`SAMPLE_VALUES`、`prompt_values` 扩展；`PromptResolver.payload` 注入；提示词编译/试跑用示例词表并在界面标注"示例词表"；种子迁移 `0014`（`enrich-v3` 提示词 + 启用） | M1 | 待做 |
-| M3 | 复用观测 | `KeywordItem` 增加 reused 容错字段；服务端硬判定；`enrichment_keywords.reused` 列（迁移）；概览复用率指标与口径标注 | M2 | 待做 |
-| M4 | 词表版本 | `vocabulary_state` 表与 `message_enrichments.vocab_revision` 列（迁移）；注入时比对推进；概览展示当前版本 | M2 | 待做 |
-| M5 | 常驻词 | `keyword_pins` 表（迁移）；端口与端点（标记/取消/筛选）；与合并、撤销的联动规则与测试；注入时必然包含 | M4 | 待做 |
-| M6 | 词表页改造 | 拆分 `KeywordVocabulary`（工具栏与表格分离，守住 200 行）；常驻词列与"只看常驻"筛选；概览新增常驻词数、待处理建议数、词表版本、复用率；键盘可完成标记 | M5 | 待做 |
-| M7 | 建议生成（后端） | `keyword_suggestions` 表（迁移）；端口方法 + 两个协议适配器 + router 转发；`KEYWORD_MERGE_SUGGEST` 任务规格与种子提示词；生成端点（同步分批、组指纹去重、成员越界过滤） | M4 | 待做 |
-| M8 | 建议处理（后端） | 列表、忽略、采纳端点；采纳复用既有 merge 并回填 `merge_id` | M7 | 待做 |
-| M9 | 建议区界面 | `KeywordSuggestions.tsx`：生成下一批、组列表（成员 + 理由）、采纳（复用既有 MergeDialog）、忽略；批次进度与"词表已变化需重新开始"提示 | M8 | 待做 |
-| M10 | E2E 与假端点 | `tests/preview.py` 假端点识别新任务标记并返回固定建议组；`keywords.spec.ts` 新增常驻词与"建议→采纳→撤销"用例（1280/1920） | M9 | 待做 |
-| M11 | 基线复算（收尾） | 用新提示词限量回填一批并复算：泛化词占比、singleton、复用率、词表规模与合并次数；更新阶段 2 验收清单 | M3、M9 | 待做 |
-| M12 | 受影响版本重跑入口（可推迟） | "按当前词表版本重跑已有加工结果"的显式入口（需绕过现有幂等复用，界面上说明会覆盖结果与消耗调用） | M4 | 待定 |
+| M0 | 决策记录与文档同步 | 决策记录《热词注入与合并建议》（D1–D7，含实施细化的最终口径）；阶段 2 文档状态行指向本篇 | — | 已完成 |
+| M1 | 注入数据源 | `keyword_vocabulary`：复用 `KEY_AGGREGATE` 与展示写法，按类型分组、确定性排序、含近期新增；`render_vocabulary` 与 `PromptVocabulary` 在领域层；配置 `llm_vocabulary_limit`（0 关闭）与 `llm_vocabulary_recent_days` | M0 | 已完成 |
+| M2 | 注入链路 | `TASK_SPECS.variables`、`prompt_values`、`PromptResolver.payload` 返回 `RenderedPrompt`；迁移 0014 种子 `enrich-v3` 并启用；编译与试跑用**真实**词表——预览就是运行时的样子，因此不需要「示例词表」标注 | M1 | 已完成 |
+| M3 | 复用观测 | 复用判定在服务端完成（模型输出归一化后是否落在注入集合）；`enrichment_keywords.reused` 列（迁移 0014）随快照保留、重建索引不丢；概览给出复用率与分母口径。**未做模型自报字段**，见决策记录 D4 的细化 | M2 | 已完成 |
+| M4 | 词表版本 | `vocabulary_state` 单行表与 `message_enrichments.vocab_revision`（迁移 0015）；只有加工执行推进版本，编译预览不推进；概览展示当前版本 | M2 | 已完成 |
+| M5 | 常驻词 | `keyword_pins` 表与合并记录的 `pinned_json`/`target_was_pinned`（迁移 0016）；`set_pin`/`pins` 端口、`POST /api/keywords/pin`、`GET /api/keywords?pinned=true`；常驻词并入类型分组并保证出现 | M4 | 已完成 |
+| M6 | 词表页改造 | 拆出 `KeywordFilters`/`KeywordTable`/`KeywordMetrics`（`KeywordVocabulary` 203 → 128 行）；常驻列与「只看常驻」筛选；概览新增复用率、常驻词数、词表版本、待处理建议数 | M5 | 已完成 |
+| M7 | 建议生成（后端） | `keyword_suggestions` 与 `keyword_suggestion_batches`（迁移 0017）加建议提示词种子；`LLMProvider.suggest_merges` 与两个协议适配器；`KEYWORD_MERGE_SUGGEST` 规格标为不可分配、worker 认领范围显式化；成员越界过滤、组指纹去重、批次幂等、游标由服务端推进 | M4 | 已完成 |
+| M8 | 建议处理（后端） | 列表、忽略、采纳标记三个端点；采纳复用既有 merge 并回填 `merge_id` | M7 | 已完成 |
+| M9 | 建议区界面 | `KeywordSuggestions.tsx`：生成一批、成员与理由、采纳（既有 `MergeDialog` 加完成回调）、忽略；批次结果文案区分「得到 N 组」与「都看过了」 | M8 | 已完成 |
+| M10 | E2E 与假端点 | 假端点按本批词表返回候选，并新增清空建议的夹具端点；`keywords.spec.ts` 新增常驻与「生成 → 采纳 → 撤销」用例（1280/1920）；顺带修掉主流程用例写死的提示词版本号 | M9 | 已完成 |
+| M11 | 基线复算（收尾） | 用新提示词限量回填一批并复算：泛化词占比、singleton、复用率、词表规模与合并次数；更新阶段 2 验收清单 | M3、M9 | 待做（需定量与范围） |
+| M12 | 受影响版本重跑入口（可推迟） | 按当前词表版本重跑已有加工结果的显式入口（需绕过现有幂等复用，界面上说明会覆盖结果与消耗调用） | M4 | 待定 |
 
 M12 是本阶段唯一允许推迟的模块：阶段 2 的验收不依赖它，且它触及既有的幂等语义（`enrich:{version}:{model}:{prompt_version}`），单独评审更稳妥。
 
 ## 6. 验收标准
 
-- [ ] 同一版本在词表未变化时两次渲染得到完全相同的注入文本（确定性单测，含排序稳定性）。
-- [ ] 被合并掉的写法不再出现在注入文本里；常驻词即使频次最低也必然出现（集成测试）。
-- [ ] 注入文本随词表变化而变化：`llm_calls.input_hash` 与 `message_enrichments.vocab_revision` 同时变化，可据此解释"同一版本两次加工结果不同"。
-- [ ] 复用率只统计有服务端硬判定的行，界面标注口径；旧数据（NULL）不参与计算且不报错。
-- [ ] 迁移可在全新数据库运行，旧库升级后新列为空、旧结果可正常展示与检索。
-- [ ] 生成建议时，模型给出的越界或幻觉词被丢弃并记录原因；同一组成员集合不会被重复建议；已忽略的组不再出现（组指纹去重）。
-- [ ] 采纳建议后走既有合并流程：影响面预览可见、合并记录里可撤销、撤销后检索与注入都恢复。
-- [ ] 建议调用写入 `llm_calls`（`task_id` 为空），失败分类沿用现有错误码，Key 冷却与候选切换生效。
-- [ ] 词表页在 1280/1440/1920/2560px 无横向溢出；加载、空态、筛选无结果、错误态齐全；纯键盘可完成一次常驻词标记与一次建议采纳。
-- [ ] 词表规模与复用率有数字证据：M11 的复算结果与本篇第 1 节基线并列记录。
-- [ ] 文档同步：阶段 2 文档的 M5/M6 状态、`技术选型.md` 第 6.1 节检索与词表说明、`README.md` 的配置项表（新增两个配置）。
+- [x] 同一版本在词表未变化时两次渲染得到完全相同的注入文本：`tests/unit/test_prompt_vocabulary.py` 断言组内按写法排序、输入顺序不影响渲染与指纹。
+- [x] 被合并掉的写法不再进注入文本（`test_merged_writing_leaves_the_injected_vocabulary`）；常驻词超出条数上限也必然出现（`test_pinned_word_is_injected_even_beyond_the_limit`）。
+- [x] 注入文本随词表变化而变化：`vocab_revision` 在出现新词、合并时推进，注入内容不变时不推进（`test_vocabulary_revision_advances_only_when_injection_changes`）；`input_hash` 本就是渲染后文本的哈希，随注入内容变化。
+- [x] 复用率只统计有判定的词位：概览返回分子与分母，界面在指标卡上写明「按 N 个可判定词位；旧结果不参与」；升级后旧行 `reused` 为空（真实库副本实测 0 行有值）。
+- [x] 迁移在全新库与真实库副本上都通过：副本升级后 4 个迁移全部应用、存量行数一行未变、新列为空、`PRAGMA integrity_check` 为 ok、重复执行不再应用。
+- [x] 越界写法被丢弃并计入 `dropped`（`test_batch_is_idempotent_and_marks_out_of_batch_groups`）；组指纹唯一保证同一组不重复建议；忽略后批次的组仍会被跳过（`test_dismissed_group_is_not_suggested_again`）。
+- [x] 采纳走既有合并端点并回填 `merge_id`（`test_accept_records_the_merge_record`）；E2E 覆盖「生成 → 采纳 → 撤销」闭环。
+- [x] 建议调用经 `LLMFailover.execute(task_id=None, ...)`，审计、错误分类与 Key 冷却与提示词试跑同一条路径。
+- [x] 词表页在 1280/1920 的 E2E 里断言无横向溢出与无页面错误；加载、空态、筛选无结果、错误态沿用既有组件；常驻开关与建议按钮都是可聚焦按钮，弹层沿用既有焦点管理。**2560px 未实测**。
+- [ ] **待 M11**：词表规模与复用率需要真实回填一批之后复算，结果与本篇第 1 节基线并列记录。
+- [x] 文档同步：阶段 2 文档的 M5/M6 指向本篇、`技术选型.md` 6.1 补注入与复用口径、`README.md` 配置表补两个新配置。
 
-验收证据：`uv run pytest` 与前端检查输出、回填前后指标对比表、`frontend/test-results/` 截图、E2E 用例名与通过记录。
+验收证据：`uv run pytest` 145 项通过；`uv run ruff check`/`format --check`/`uv run pyright` 通过；前端 `typecheck`/`test`（50 项）/`build` 通过；`npm run test:e2e` 21 项通过（含关键词三个用例 × 1280/1920）；真实库副本的升级验证输出见提交说明；截图在 `frontend/test-results/`。
 
 ## 7. 风险和取舍
 

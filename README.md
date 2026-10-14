@@ -38,6 +38,8 @@ RSS 来源管理 → 独立 worker 采集 → 消息版本 → 英文内容中�
 | `RSS_API_PORT` | `8000`；一键启动的首选端口，冲突时自动换用空闲端口 |
 | `RSS_WORKER_LEASE_SECONDS` | `300` |
 | `RSS_LLM_RETRY_COOLDOWN_SECONDS` | `60` |
+| `RSS_LLM_VOCABULARY_LIMIT` | `150`；加工前注入词表的条数上限，`0` 表示关闭注入 |
+| `RSS_LLM_VOCABULARY_RECENT_DAYS` | `7`；注入词表里「近期新增」一段的时间窗（天） |
 
 来源的时间偏移是对解析后的 UTC 发布时间追加分钟数，例如 `+60` 表示向后调整一小时；未知发布时间保持未知。Feed 原始更新时间作为来源元数据保留。
 
