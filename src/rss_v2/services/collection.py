@@ -14,6 +14,7 @@ from rss_v2.domain import (
     MessageVersion,
     Source,
     Task,
+    TaskLease,
     TaskStatus,
     TaskType,
 )
@@ -42,7 +43,10 @@ class CollectionService:
     tasks: TaskRepository
     processing: VersionProcessing  # 新版本入库后的自动翻译与内容加工
 
-    def collect(self, source_id: str, run_id: str | None = None) -> dict[str, int]:
+    def collect(
+        self, source_id: str, run_id: str | None = None, lease: TaskLease | None = None
+    ) -> dict[str, int]:
+        """采集一个来源；带租约时，新版本的写入要在同一事务里确认任务仍是本 worker 的。"""
         source = self.sources.get(source_id)
         if source is None:
             raise DomainError("source_not_found", "RSS 来源不存在")
@@ -83,11 +87,14 @@ class CollectionService:
             )
             counts = {"created": 0, "updated": 0, "skipped": 0, "failed": 0}
             for item in snapshot.items:
-                counts[self._store_item(source, item)] += 1
+                counts[self._store_item(source, item, lease)] += 1
             if run_id:
                 self.runs.record_result(run_id, source.id, counts)
             return counts
         except Exception as exc:
+            if isinstance(exc, DomainError) and exc.code == "task_lease_lost":
+                # 租约已被回收：这一轮不再写任何记账，接手的 worker 会重跑并给出结果。
+                raise
             self.health.add(
                 HealthCheck(
                     new_id(),
@@ -107,7 +114,7 @@ class CollectionService:
                 )
             raise
 
-    def _store_item(self, source: Source, item: FeedItem) -> str:
+    def _store_item(self, source: Source, item: FeedItem, lease: TaskLease | None = None) -> str:
         """三级精确去重，返回新增、更新或未变化的计数类别。"""
         item_url = normalize_url(item.url) if item.url else ""
         message = self.messages.find_by_external_id(source.id, item.external_id)
@@ -138,7 +145,7 @@ class CollectionService:
             language=source.language if source.language.value != "auto" else item.language,
             content_hash=item.content_hash,
         )
-        self.messages.add_version(version)
+        self.messages.add_version(version, lease)
         self.messages.upsert_message(
             Message(message.id, message.source_id, message.external_id, message.created_at, now())
         )

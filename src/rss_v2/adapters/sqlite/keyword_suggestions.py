@@ -17,7 +17,8 @@ from rss_v2.adapters.sqlite.keyword_sql import (
     MAX_TIME,
     MIN_TIME,
 )
-from rss_v2.domain import DomainError, Keyword, KeywordKind, MergeSuggestion
+from rss_v2.adapters.sqlite.lease import ensure_lease
+from rss_v2.domain import DomainError, Keyword, KeywordKind, MergeSuggestion, TaskLease
 
 
 class SQLiteSuggestionRepository:
@@ -49,11 +50,12 @@ class SQLiteSuggestionRepository:
         dropped: int,
         words: list[str],
         timestamp: int,
+        lease: TaskLease | None = None,
     ) -> list[MergeSuggestion]:
-        """批次台账、建议行与扫描记账同事务写入。"""
+        """批次台账、建议行与扫描记账同事务写入；带租约时先确认仍是领取者。"""
 
         return save_batch(
-            self.database, fingerprint, offset, suggestions, dropped, words, timestamp
+            self.database, fingerprint, offset, suggestions, dropped, words, timestamp, lease
         )
 
     def list(self, status: str | None, limit: int) -> list[MergeSuggestion]:
@@ -135,10 +137,14 @@ def save_batch(
     dropped: int,
     words: list[str],
     timestamp: int,
+    lease: TaskLease | None = None,
 ) -> list[MergeSuggestion]:
     """批次台账、建议行与"这些词已看过"同事务写入，返回落库后的建议。"""
 
     with database.transaction() as connection:
+        # 同一写事务内校验领取者：这次模型调用跑了很久，租约可能已经被回收。
+        # 过期 worker 若把结果写进台账，新 worker 会把这批词当成"已经看过"而跳过。
+        ensure_lease(connection, lease)
         connection.execute(
             """
             INSERT INTO keyword_suggestion_batches(batch_fingerprint,batch_offset,groups,dropped,created_at)

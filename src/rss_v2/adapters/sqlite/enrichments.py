@@ -6,7 +6,8 @@ import sqlite3
 
 from rss_v2.adapters.sqlite.connection import SQLiteDatabase
 from rss_v2.adapters.sqlite.keywords import encode_keywords, parse_keywords, write_keywords
-from rss_v2.domain import DomainError, Enrichment
+from rss_v2.adapters.sqlite.lease import ensure_lease
+from rss_v2.domain import Enrichment, TaskLease
 
 
 def _enrichment(row: sqlite3.Row) -> Enrichment:
@@ -65,13 +66,9 @@ class SQLiteEnrichmentRepository:
     def save(self, enrichment: Enrichment, lease_token: str | None = None) -> Enrichment:
         with self.database.transaction() as connection:
             # 与译文一致：同一写事务内校验领取者，过期 worker 不能覆盖新结果。
-            if lease_token is not None:
-                owned = connection.execute(
-                    "SELECT 1 FROM tasks WHERE id=? AND status='running' AND lease_token=?",
-                    (enrichment.task_id, lease_token),
-                ).fetchone()
-                if owned is None:
-                    raise DomainError("task_lease_lost", "任务租约已被回收，当前结果不再写入")
+            # 记录里没有任务 id 时无从校验（正常路径不会出现），此时不拦。
+            if lease_token and enrichment.task_id:
+                ensure_lease(connection, TaskLease(enrichment.task_id, lease_token))
             connection.execute(
                 """
                 INSERT INTO message_enrichments(id,message_version_id,status,title,summary,

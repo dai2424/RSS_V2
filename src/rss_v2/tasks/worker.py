@@ -14,6 +14,7 @@ from rss_v2.domain import (
     ExternalServiceError,
     Task,
     TaskType,
+    lease_of,
 )
 from rss_v2.tasks.lease import keep_lease
 
@@ -74,6 +75,7 @@ class Worker:
             self.container.collection_service.collect(
                 str(task.payload.get("source_id", "")),
                 str(task.payload.get("run_id", "")) or None,
+                lease_of(task),
             )
         elif task.task_type == TaskType.TRANSLATE_MESSAGE:
             translation = self.container.translation_service.run(task)

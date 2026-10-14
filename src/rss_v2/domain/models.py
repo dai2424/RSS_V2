@@ -384,6 +384,26 @@ class Task:
 
 
 @dataclass(frozen=True, slots=True)
+class TaskLease:
+    """任务租约：当前领取者的身份。
+
+    租约到期被回收后任务会重新入队，过期 worker 与新 worker 可能同时在跑同一条任务；
+    结果写入因此必须按 token 校验，"谁在写"决定写不写得进去。
+    """
+
+    task_id: str  # 任务 UUID
+    token: str  # 领取时生成的随机 token
+
+
+def lease_of(task: Task) -> TaskLease | None:
+    """取任务的租约；没有 token（未领取或已结束）时返回 None，表示无从校验。"""
+
+    if not task.lease_token:
+        return None
+    return TaskLease(task.id, task.lease_token)
+
+
+@dataclass(frozen=True, slots=True)
 class TaskView:
     """任务列表的展示视图：任务本体 + 它作用于哪条消息或哪个来源。
 

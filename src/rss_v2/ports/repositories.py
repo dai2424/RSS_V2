@@ -30,6 +30,7 @@ from rss_v2.domain import (
     Source,
     SourceDeletion,
     Task,
+    TaskLease,
     TaskSetting,
     TaskType,
     Translation,
@@ -110,7 +111,11 @@ class MessageRepository(Protocol):
 
     def latest_version(self, message_id: str) -> MessageVersion | None: ...
 
-    def add_version(self, version: MessageVersion) -> MessageVersion: ...
+    def add_version(
+        self, version: MessageVersion, lease: TaskLease | None = None
+    ) -> MessageVersion:
+        """写入新版本；带租约时在同一事务里确认采集任务仍由本 worker 持有。"""
+        ...
 
     def list_messages(
         self,
@@ -463,8 +468,13 @@ class SuggestionRepository(Protocol):
         dropped: int,
         words: list[str],
         timestamp: int,
+        lease: TaskLease | None = None,
     ) -> list[MergeSuggestion]:
-        """批次台账、建议行与"这些词已看过"的记账同事务写入。"""
+        """批次台账、建议行与"这些词已看过"的记账同事务写入。
+
+        带租约时先在同一事务里确认这条建议任务仍由本 worker 持有：模型调用耗时长，
+        租约到期被回收后过期 worker 不能把结果写进台账（否则新 worker 会当成已看过）。
+        """
         ...
 
     def list(self, status: str | None, limit: int) -> list[MergeSuggestion]:

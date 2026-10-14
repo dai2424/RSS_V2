@@ -16,11 +16,13 @@ from rss_v2.adapters.sqlite.keyword_sql import (
     like_pattern,
     prefix_pattern,
 )
+from rss_v2.adapters.sqlite.lease import ensure_lease
 from rss_v2.domain import (
     Message,
     MessageDeletion,
     MessageVersion,
     SourceLanguage,
+    TaskLease,
     normalize_keyword,
 )
 
@@ -170,8 +172,12 @@ class SQLiteMessageRepository:
         finally:
             connection.close()
 
-    def add_version(self, version: MessageVersion) -> MessageVersion:
+    def add_version(
+        self, version: MessageVersion, lease: TaskLease | None = None
+    ) -> MessageVersion:
         with self.database.transaction() as connection:
+            # 同一写事务内校验领取者：租约被回收后，过期 worker 不能再写入新版本。
+            ensure_lease(connection, lease)
             connection.execute(
                 """
                 INSERT INTO message_versions(

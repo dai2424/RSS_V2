@@ -61,6 +61,7 @@ from .models import (
     SourceDeletion,
     SourceLanguage,
     Task,
+    TaskLease,
     TaskSetting,
     TaskSettingView,
     TaskStatus,
@@ -68,6 +69,7 @@ from .models import (
     TaskView,
     Translation,
     TranslationResult,
+    lease_of,
 )
 
 __all__ = [
@@ -129,11 +131,13 @@ __all__ = [
     "SourceLanguage",
     "Task",
     "TaskDeletion",
+    "TaskLease",
     "TaskSetting",
     "TaskSettingView",
     "TaskStatus",
     "TaskView",
     "TaskType",
+    "lease_of",
     "Translation",
     "TranslationResult",
     "keyword_rejection_reason",

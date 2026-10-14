@@ -10,7 +10,14 @@ import respx
 from fastapi.testclient import TestClient
 
 from rss_v2.bootstrap import Container, build_container
-from rss_v2.domain import DomainError, ExternalServiceError, Provider, TaskStatus, TranslationResult
+from rss_v2.domain import (
+    DomainError,
+    ExternalServiceError,
+    Provider,
+    TaskStatus,
+    TranslationResult,
+    lease_of,
+)
 from rss_v2.domain.values import now
 from rss_v2.llm import PromptPayload
 from rss_v2.tasks.worker import Worker
@@ -124,6 +131,48 @@ def test_expired_worker_cannot_persist_translation(
     assert not container.translations.list_for_version(expired.input_version_id)
     result = container.translation_service.run(current)
     assert result.title == "中文标题" and result.task_id == current.id
+
+
+@respx.mock
+def test_expired_worker_cannot_persist_collected_version(client: TestClient) -> None:
+    """租约被回收后，过期 worker 采到的新版本不写库，也不写健康与运行记账。"""
+
+    changed = FEED.replace(
+        "A new computing platform is available.",
+        "A new computing platform is available. Updated after the second fetch.",
+    )
+    respx.get("https://one.test/feed").mock(
+        side_effect=[
+            httpx.Response(200, text=FEED),
+            httpx.Response(200, text=changed),
+            httpx.Response(200, text=changed),
+        ]
+    )
+    source_id = source(client)
+    container: Container = client.app.state.container
+    collect(client, source_id, Worker(container))
+    health_before = client.get(f"/api/sources/{source_id}/health").json()
+    # 第二次采集：正文变了，正常会写出第二个版本。
+    run_id = client.post("/api/collection/runs", json={"source_ids": [source_id]}).json()["id"]
+    expired = container.tasks.claim_next(["collect_source"], 100, 20)
+    assert expired is not None
+    container.tasks.reclaim_expired(121)
+    current = container.tasks.claim_next(["collect_source"], 121, 20)
+    assert current is not None and current.lease_token != expired.lease_token
+    with pytest.raises(DomainError, match="租约"):
+        container.collection_service.collect(source_id, run_id, lease_of(expired))
+    latest = client.get("/api/messages").json()["items"][0]["latest_version"]
+    assert latest["version_number"] == 1
+    # 抓取本身成功，健康记录只多这一条；失败记账留给接手的 worker。
+    health_after = client.get(f"/api/sources/{source_id}/health").json()
+    assert len(health_after) == len(health_before) + 1
+    assert all(item["http_status"] == 200 and item["error_code"] is None for item in health_after)
+
+    # 接手的 worker 用同一个来源重新采集，第二个版本正常落库。
+    counts = container.collection_service.collect(source_id, run_id, lease_of(current))
+    assert counts["updated"] == 1  # 已有消息的新版本记在 updated 上
+    latest = client.get("/api/messages").json()["items"][0]["latest_version"]
+    assert latest["version_number"] == 2
 
 
 @respx.mock

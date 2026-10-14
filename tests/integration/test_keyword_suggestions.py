@@ -3,6 +3,7 @@
 import time
 from typing import Any
 
+import pytest
 import respx
 from fastapi.testclient import TestClient
 from httpx import Response
@@ -19,11 +20,13 @@ from keyword_support import (
 )
 
 from rss_v2.domain import (
+    DomainError,
     ExternalServiceError,
     Keyword,
     KeywordKind,
     SuggestedGroup,
     SuggestResult,
+    TaskStatus,
 )
 from rss_v2.llm import PromptPayload
 
@@ -358,3 +361,33 @@ def test_same_group_is_not_suggested_twice(client: TestClient) -> None:
     assert suggestions(client) == []
     listed = client.get("/api/keywords/suggestions", params={"status": "dismissed"}).json()["items"]
     assert [row["id"] for row in listed] == [item["id"]]
+
+
+@respx.mock
+def test_expired_worker_cannot_store_suggestions(client: TestClient) -> None:
+    """租约被回收后，过期 worker 的模型结果既不进建议表也不进批次台账。
+
+    台账是关键：写进去就等于"这批词已经看过"，接手的 worker 会跳过它们，那批调用白花。
+    """
+
+    fake = SuggestProvider([("AWS", "云服务")])
+    seeded(client, fake, "https://suggest-lease.test/feed")
+    assert enqueue(client)["enqueued"] == 1
+    container = client.app.state.container
+    expired = container.tasks.claim_next(["keyword_merge_suggest"], 100, 20)
+    assert expired is not None
+    container.tasks.reclaim_expired(121)
+    current = container.tasks.claim_next(["keyword_merge_suggest"], 121, 20)
+    assert current is not None and current.lease_token != expired.lease_token
+
+    with pytest.raises(DomainError, match="租约"):
+        container.suggestion_service.run(expired)
+    assert fake.suggestion_calls == 1  # 模型确实调用了，只是结果被丢弃
+    assert suggestions(client) == []
+    assert container.tasks.get(expired.id).status == TaskStatus.RUNNING
+
+    # 接手的 worker 重新调用模型并落库：批次没有被过期结果提前记账。
+    batch = container.suggestion_service.run(current)
+    assert (batch.groups, fake.suggestion_calls) == (1, 2)
+    assert len(suggestions(client)) == 1
+    assert container.tasks.get(current.id).status == TaskStatus.SUCCEEDED

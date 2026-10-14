@@ -5,10 +5,8 @@ from __future__ import annotations
 import sqlite3
 
 from rss_v2.adapters.sqlite.connection import SQLiteDatabase
-from rss_v2.domain import (
-    DomainError,
-    Translation,
-)
+from rss_v2.adapters.sqlite.lease import ensure_lease
+from rss_v2.domain import TaskLease, Translation
 
 
 def _translation(row: sqlite3.Row) -> Translation:
@@ -64,13 +62,9 @@ class SQLiteTranslationRepository:
     def save(self, translation: Translation, lease_token: str | None = None) -> Translation:
         with self.database.transaction() as connection:
             # 同一写事务内校验领取者，过期 worker 不能覆盖新 worker 的译文。
-            if lease_token is not None:
-                owned = connection.execute(
-                    "SELECT 1 FROM tasks WHERE id=? AND status='running' AND lease_token=?",
-                    (translation.task_id, lease_token),
-                ).fetchone()
-                if owned is None:
-                    raise DomainError("task_lease_lost", "任务租约已被回收，当前结果不再写入")
+            # 记录里没有任务 id 时无从校验（正常路径不会出现），此时不拦。
+            if lease_token and translation.task_id:
+                ensure_lease(connection, TaskLease(translation.task_id, lease_token))
             connection.execute(
                 """
                 INSERT INTO translations(id,message_version_id,status,title,summary,content,provider_id,key_masked,model,prompt_version,task_id,error_code,error_message,created_at,updated_at)

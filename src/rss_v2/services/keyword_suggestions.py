@@ -36,8 +36,10 @@ from rss_v2.domain import (
     SuggestionStatus,
     SuggestResult,
     Task,
+    TaskLease,
     TaskStatus,
     TaskType,
+    lease_of,
     normalize_keyword,
 )
 from rss_v2.domain.prompts import render
@@ -203,7 +205,7 @@ class KeywordSuggestionService:
             tokens: dict[str, int],
             duration_ms: int,
         ) -> SuggestionBatch:
-            return self._store(fingerprint, batch_offset, entries, total, result)
+            return self._store(fingerprint, batch_offset, entries, total, result, lease_of(task))
 
         batch = self.failover.execute(
             task.id,
@@ -418,8 +420,13 @@ class KeywordSuggestionService:
         entries: list[KeywordEntry],
         total: int,
         result: SuggestResult,
+        lease: TaskLease | None = None,
     ) -> SuggestionBatch:
-        """把模型输出折算成可落库的建议：越界与重复的组丢弃并计数。"""
+        """把模型输出折算成可落库的建议：越界与重复的组丢弃并计数。
+
+        落库在同一事务里校验租约：模型调用耗时长，租约到期被回收后这次结果不能再写进
+        台账，否则接手的 worker 会把这些词当成已看过。
+        """
 
         known = {item.key: item for item in entries}
         seen = self.suggestions.existing_fingerprints()
@@ -462,6 +469,7 @@ class KeywordSuggestionService:
             dropped,
             [item.key for item in entries],
             now(),
+            lease,
         )
         logger.info("suggestion_batch offset=%d groups=%d dropped=%d", offset, len(stored), dropped)
         return SuggestionBatch(
