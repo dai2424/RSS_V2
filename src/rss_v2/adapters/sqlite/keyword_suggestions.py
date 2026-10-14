@@ -27,9 +27,19 @@ class SQLiteSuggestionRepository:
         return existing_fingerprints(self.database)
 
     def batch_result(self, fingerprint: str, offset: int) -> tuple[int, int] | None:
-        """已生成过的批次返回 (组数, 丢弃数)。"""
+        """指纹对应的批次是否生成过。"""
 
         return batch_result(self.database, fingerprint, offset)
+
+    def scanned_keys(self) -> set[str]:
+        """已经被模型看过的写法匹配键。"""
+
+        return scanned_keys(self.database)
+
+    def scanned_count(self) -> int:
+        """已经看过的写法数量。"""
+
+        return scanned_count(self.database)
 
     def save_batch(
         self,
@@ -37,11 +47,14 @@ class SQLiteSuggestionRepository:
         offset: int,
         suggestions: list[MergeSuggestion],
         dropped: int,
+        words: list[str],
         timestamp: int,
     ) -> list[MergeSuggestion]:
-        """批次台账与建议行同事务写入。"""
+        """批次台账、建议行与扫描记账同事务写入。"""
 
-        return save_batch(self.database, fingerprint, offset, suggestions, dropped, timestamp)
+        return save_batch(
+            self.database, fingerprint, offset, suggestions, dropped, words, timestamp
+        )
 
     def list(self, status: str | None, limit: int) -> list[MergeSuggestion]:
         """建议列表。"""
@@ -76,16 +89,50 @@ def existing_fingerprints(database: SQLiteDatabase) -> set[str]:
 
 
 def batch_result(database: SQLiteDatabase, fingerprint: str, offset: int) -> tuple[int, int] | None:
-    """已生成过的批次返回 (组数, 丢弃数)；没生成过返回 None。"""
+    """指纹对应的批次是否生成过：返回 (组数, 丢弃数)；没生成过返回 None。"""
+
+    connection = database.connect()
+    try:
+        return _batch_result(connection, fingerprint, offset)
+    finally:
+        connection.close()
+
+
+def _batch_result(
+    connection: sqlite3.Connection, fingerprint: str, offset: int
+) -> tuple[int, int] | None:
+    row = connection.execute(
+        "SELECT groups, dropped FROM keyword_suggestion_batches"
+        " WHERE batch_fingerprint=? AND batch_offset=?",
+        (fingerprint, offset),
+    ).fetchone()
+    return (int(row["groups"]), int(row["dropped"])) if row else None
+
+
+def scanned_keys(database: SQLiteDatabase) -> set[str]:
+    """已经被模型看过的写法匹配键。"""
+
+    connection = database.connect()
+    try:
+        return _scanned_keys(connection)
+    finally:
+        connection.close()
+
+
+def _scanned_keys(connection: sqlite3.Connection) -> set[str]:
+    rows = connection.execute("SELECT normalized FROM keyword_suggestion_scanned").fetchall()
+    return {str(row["normalized"]) for row in rows}
+
+
+def scanned_count(database: SQLiteDatabase) -> int:
+    """已经看过的写法数量。"""
 
     connection = database.connect()
     try:
         row = connection.execute(
-            "SELECT groups, dropped FROM keyword_suggestion_batches"
-            " WHERE batch_fingerprint=? AND batch_offset=?",
-            (fingerprint, offset),
+            "SELECT COUNT(*) AS total FROM keyword_suggestion_scanned"
         ).fetchone()
-        return (int(row["groups"]), int(row["dropped"])) if row else None
+        return int(row["total"]) if row else 0
     finally:
         connection.close()
 
@@ -96,9 +143,10 @@ def save_batch(
     offset: int,
     suggestions: list[MergeSuggestion],
     dropped: int,
+    words: list[str],
     timestamp: int,
 ) -> list[MergeSuggestion]:
-    """批次台账与建议行同事务写入，返回落库后的建议。"""
+    """批次台账、建议行与"这些词已看过"同事务写入，返回落库后的建议。"""
 
     with database.transaction() as connection:
         connection.execute(
@@ -108,6 +156,12 @@ def save_batch(
             ON CONFLICT(batch_fingerprint,batch_offset) DO NOTHING
             """,
             (fingerprint, offset, len(suggestions), dropped, timestamp),
+        )
+        # 看过就记账：下次只扫没看过的词，词表换序也不会让这批重扫。
+        connection.executemany(
+            "INSERT INTO keyword_suggestion_scanned(normalized,scanned_at) VALUES(?,?)"
+            " ON CONFLICT(normalized) DO NOTHING",
+            [(key, timestamp) for key in words],
         )
         for item in suggestions:
             connection.execute(

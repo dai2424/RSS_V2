@@ -14,12 +14,14 @@ import hashlib
 import logging
 import re
 from dataclasses import dataclass
+from typing import Any, cast
 
 from rss_v2.domain import (
     KEYWORD_KIND_LABELS,
     DomainError,
     Keyword,
     KeywordEntry,
+    KeywordKind,
     MergeSuggestion,
     Prompt,
     Provider,
@@ -55,8 +57,11 @@ _BATCH_LABEL = re.compile(r"^(.+?)\s*（(?:实体|主题|事件)）$")
 #: 超时；60 词约 86 秒，需要把 Provider 超时调到 180 秒以上。
 DEFAULT_BATCH_SIZE = 20
 
-#: 一次最多排多少批：整表扫完大约十几批，给一个上限防止误点把队列灌满。
+#: 一次最多排多少批：给一个上限防止误点把队列灌满。
 MAX_ENQUEUE = 50
+
+#: 组批时一次读多少词：一次读完再筛掉看过的，避免分批读时"看过的词"把新词挤到后面。
+MAX_WORDS = 2000
 
 
 @dataclass(slots=True)
@@ -73,20 +78,26 @@ class KeywordSuggestionService:
     batch_size: int = DEFAULT_BATCH_SIZE  # 每批词数；界面显式传 size 时以传入值为准
 
     def enqueue(self, count: int = 1, size: int | None = None) -> SuggestionEnqueue:
-        """把接下来的若干批排成任务；已经生成过或已经排过的批次不重复入队。"""
+        """把还没看过的词排成任务；看过的词不再计入，因此换序也不会重扫。
+
+        每一批的写法随任务快照一起保存：任务执行时只认这份快照，不再回头查词表——
+        否则两次执行之间词表变了，模型看到的和记账的就不是同一批词。
+        """
 
         prompt = self._active_prompt()
         batch_size = self._batch_size(size)
         batches = self._scan_batches(max(1, min(count, MAX_ENQUEUE)), batch_size)
         if not batches:
-            return SuggestionEnqueue(enqueued=0, first_offset=None, last_offset=None)
+            return SuggestionEnqueue(enqueued=0, queued_words=0)
         candidate = self.failover.first_available()
         if candidate is None:
             raise DomainError("llm_key_not_configured", "没有启用且具有可用 Key 的模型")
         provider, model = candidate
         enqueued = 0
-        for offset, fingerprint in batches:
-            key = self.idempotency_key(fingerprint, offset)
+        queued_words = 0
+        for offset, fingerprint, entries in batches:
+            key = self.idempotency_key(fingerprint)
+            queued_words += len(entries)
             self.tasks.create(
                 Task(
                     id=new_id(),
@@ -99,8 +110,9 @@ class KeywordSuggestionService:
                     output_version_id=None,
                     payload={
                         "offset": offset,
-                        "size": batch_size,
+                        "size": len(entries),
                         "fingerprint": fingerprint,
+                        "words": [_word_payload(item) for item in entries],
                         "provider_id": provider.id,
                         "model": model.model,
                         "prompt_id": prompt.id,
@@ -119,11 +131,7 @@ class KeywordSuggestionService:
             batches[0][0],
             batch_size,
         )
-        return SuggestionEnqueue(
-            enqueued=enqueued,
-            first_offset=batches[0][0],
-            last_offset=batches[-1][0],
-        )
+        return SuggestionEnqueue(enqueued=enqueued, queued_words=queued_words)
 
     def run(self, task: Task) -> SuggestionBatch:
         """执行一个批次任务：按任务快照渲染、调用模型、落库，最后结束任务。
@@ -132,20 +140,18 @@ class KeywordSuggestionService:
         撞上已完成的批次）时直接收尾，不再调用模型。
         """
 
-        offset = int(task.payload.get("offset", 0))
-        size = int(task.payload.get("size", self.batch_size))
+        batch_offset = int(task.payload.get("offset", 0))
+        entries = _payload_words(task)
         prompt = self.prompts.snapshot(
             str(task.payload.get("prompt_id", "")), str(task.payload.get("prompt_version", ""))
         )
-        entries = self.keywords.vocabulary(None, None, 1, None, None, False, size, offset)
         total = self._total()
         fingerprint = _batch_fingerprint([item.key for item in entries])
-        stored = self.suggestions.batch_result(fingerprint, offset)
+        stored = self.suggestions.batch_result(fingerprint, batch_offset)
         if stored is not None:
             self.tasks.complete(task.id, lease_token=task.lease_token)
             return SuggestionBatch(
                 vocabulary_fingerprint=fingerprint,
-                offset=offset,
                 size=len(entries),
                 total=total,
                 groups=stored[0],
@@ -155,7 +161,6 @@ class KeywordSuggestionService:
             self.tasks.complete(task.id, lease_token=task.lease_token)
             return SuggestionBatch(
                 vocabulary_fingerprint=fingerprint,
-                offset=offset,
                 size=0,
                 total=total,
                 groups=0,
@@ -183,7 +188,7 @@ class KeywordSuggestionService:
             tokens: dict[str, int],
             duration_ms: int,
         ) -> SuggestionBatch:
-            return self._store(fingerprint, offset, entries, total, result)
+            return self._store(fingerprint, batch_offset, entries, total, result)
 
         batch = self.failover.execute(
             task.id,
@@ -207,13 +212,13 @@ class KeywordSuggestionService:
             failed=self.tasks.count(status="failed", task_type=kind),
             pending=self.suggestions.pending_count(),
             total=total,
-            scanned=self._scanned_words(self._batch_size(None), total),
+            scanned=self.suggestions.scanned_count(),
         )
 
-    def idempotency_key(self, fingerprint: str, offset: int) -> str:
-        """一批一个任务，键里带内容指纹：词表变了，同一段就能重新排一次。"""
+    def idempotency_key(self, fingerprint: str) -> str:
+        """一批一个任务，键就是这批词的内容指纹：同一批词只排一次。"""
 
-        return f"suggest:{fingerprint}:{offset}"
+        return f"suggest:{fingerprint}"
 
     def _batch_size(self, size: int | None) -> int:
         return max(2, min(size or self.batch_size, MAX_BATCH))
@@ -227,43 +232,28 @@ class KeywordSuggestionService:
             raise DomainError("prompt_not_configured", "没有可用的合并建议提示词")
         return prompt
 
-    def _scan_batches(self, count: int, size: int) -> list[tuple[int, str]]:
-        """从还没看过的地方往后找该排的批次，返回 [(偏移, 内容指纹)]。
+    def _scan_batches(self, count: int, size: int) -> list[tuple[int, str, list[KeywordEntry]]]:
+        """把还没看过的词按词表顺序切成若干批，返回 [(起始位置, 指纹, 词表条目)]。
 
-        批次按顺序铺开：生成过的跳过，已经排过同样内容的（任务幂等键命中）也跳过，
-        其余排成新任务；凑够 count 批就停，后面的留到下次。
+        看过的词不再出现，因此词表换序不会让已扫过的词重扫；每批只取 size 个词，
+        凑够 count 批就停，后面的留到下次。
         """
 
-        total = self._total()
-        batches: list[tuple[int, str]] = []
-        start = self._scanned_words(size, total)
-        while start < total:
-            entries = self.keywords.vocabulary(None, None, 1, None, None, False, size, start)
+        seen = self.suggestions.scanned_keys()
+        pending = [
+            item
+            for item in self.keywords.vocabulary(None, None, 1, None, None, False, MAX_WORDS, 0)
+            if item.key not in seen
+        ]
+        batches: list[tuple[int, str, list[KeywordEntry]]] = []
+        for start in range(0, len(pending), size):
+            if len(batches) >= count:
+                break
+            entries = pending[start : start + size]
             fingerprint = _batch_fingerprint([item.key for item in entries])
-            if self.tasks.get_by_idempotency(self.idempotency_key(fingerprint, start)) is None:
-                if len(batches) >= count:
-                    break  # 已凑够要排的批次
-                batches.append((start, fingerprint))
-            start += size
+            if self.tasks.get_by_idempotency(self.idempotency_key(fingerprint)) is None:
+                batches.append((start, fingerprint, entries))
         return batches
-
-    def _scanned_words(self, size: int, total: int) -> int:
-        """已经看过多少词：从第 0 个词起连续生成过的批次加起来，遇到第一个没看过的就停。
-
-        用"连续前缀"而不是台账行数求和：批次是按顺序铺开的，这样既得到进度，也知道
-        下次该从哪里接着排——旧批次没记词数也能算对。
-        """
-
-        scanned = 0
-        while scanned < total:
-            entries = self.keywords.vocabulary(None, None, 1, None, None, False, size, scanned)
-            if not entries:
-                break
-            fingerprint = _batch_fingerprint([item.key for item in entries])
-            if self.suggestions.batch_result(fingerprint, scanned) is None:
-                break
-            scanned += len(entries)
-        return scanned
 
     def list(self, status: str | None = "pending", limit: int = 50) -> list[MergeSuggestion]:
         """建议列表；默认只看待处理的。"""
@@ -328,11 +318,17 @@ class KeywordSuggestionService:
                     merge_id=None,
                 )
             )
-        stored = self.suggestions.save_batch(fingerprint, offset, items, dropped, now())
+        stored = self.suggestions.save_batch(
+            fingerprint,
+            offset,
+            items,
+            dropped,
+            [item.key for item in entries],
+            now(),
+        )
         logger.info("suggestion_batch offset=%d groups=%d dropped=%d", offset, len(stored), dropped)
         return SuggestionBatch(
             vocabulary_fingerprint=fingerprint,
-            offset=offset,
             size=len(entries),
             total=total,
             groups=len(stored),
@@ -363,6 +359,44 @@ class KeywordSuggestionService:
             if any(item.normalized == key for item in members):
                 return key
         return members[0].normalized
+
+
+def _word_payload(item: KeywordEntry) -> dict[str, str]:
+    """任务快照里的一个词：匹配键、展示写法与类型，执行时不再回头查词表。"""
+
+    return {"key": item.key, "text": item.text, "kind": item.kind.value}
+
+
+def _payload_words(task: Task) -> list[KeywordEntry]:
+    """从任务快照读回这批词；缺字段的条目跳过，不让一个坏快照打断整批。"""
+
+    raw = task.payload.get("words")
+    if not isinstance(raw, list):
+        return []
+    entries: list[KeywordEntry] = []
+    for item in cast(list[object], raw):
+        entry = cast(dict[str, Any], item) if isinstance(item, dict) else {}
+        key = str(entry.get("key") or "")
+        text = str(entry.get("text") or "")
+        if not key or not text:
+            continue
+        try:
+            kind = KeywordKind(str(entry.get("kind") or "topic"))
+        except ValueError:
+            kind = KeywordKind.TOPIC
+        entries.append(
+            KeywordEntry(
+                key=key,
+                text=text,
+                kind=kind,
+                mentions=0,
+                sources=0,
+                first_seen_at=0,
+                last_seen_at=0,
+                aliases=(),
+            )
+        )
+    return entries
 
 
 def _strip_label(term: str) -> str:

@@ -125,6 +125,7 @@ def reset_suggestions() -> dict[str, int]:
         cleared = int(connection.execute("SELECT COUNT(*) FROM keyword_suggestions").fetchone()[0])
         connection.execute("DELETE FROM keyword_suggestions")
         connection.execute("DELETE FROM keyword_suggestion_batches")
+        connection.execute("DELETE FROM keyword_suggestion_scanned")
     return {"cleared": cleared}
 
 

@@ -85,7 +85,7 @@
 | M4 | 词表版本 | `vocabulary_state` 单行表与 `message_enrichments.vocab_revision`（迁移 0015）；只有加工执行推进版本，编译预览不推进；概览展示当前版本 | M2 | 已完成 |
 | M5 | 常驻词 | `keyword_pins` 表与合并记录的 `pinned_json`/`target_was_pinned`（迁移 0016）；`set_pin`/`pins` 端口、`POST /api/keywords/pin`、`GET /api/keywords?pinned=true`；常驻词并入类型分组并保证出现 | M4 | 已完成 |
 | M6 | 词表页改造 | 拆出 `KeywordFilters`/`KeywordTable`/`KeywordMetrics`（`KeywordVocabulary` 203 → 128 行）；常驻列与「只看常驻」筛选；概览新增复用率、常驻词数、词表版本、待处理建议数 | M5 | 已完成 |
-| M7 | 建议生成（后端） | `keyword_suggestions` 与 `keyword_suggestion_batches`（迁移 0017）加建议提示词种子；`LLMProvider.suggest_merges` 与两个协议适配器；成员越界过滤、组指纹去重、批次幂等。**2026-10-14 修订**：每批一个后台任务（迁移 0019 重建 `tasks` 表加类型），入队即返回、worker 执行，任务幂等键含内容指纹，任务页能看到进度与重试 | M4 | 已完成 |
+| M7 | 建议生成（后端） | `keyword_suggestions` 与 `keyword_suggestion_batches`（迁移 0017）加建议提示词种子；`LLMProvider.suggest_merges` 与两个协议适配器；成员越界过滤、组指纹去重。**2026-10-14 修订两次**：一是每批一个后台任务（迁移 0019 重建 `tasks` 表加类型），入队即返回、worker 执行；二是扫描范围按**词**记账（迁移 0020），只扫没看过的词，词表换序不重扫 | M4 | 已完成 |
 | M8 | 建议处理（后端） | 列表、忽略、采纳标记三个端点；采纳复用既有 merge 并回填 `merge_id` | M7 | 已完成 |
 | M9 | 建议区界面 | `KeywordSuggestions.tsx`：生成一批 / 排队扫完剩余、成员与理由、采纳（既有 `MergeDialog` 加完成回调）、忽略；显示「已看 N/M 个词」与排队/运行/失败数，有批次在跑时轮询刷新 | M8 | 已完成 |
 | M10 | E2E 与假端点 | 假端点按本批词表返回候选，并新增清空建议的夹具端点；`keywords.spec.ts` 新增常驻与「生成 → 采纳 → 撤销」用例（1280/1920）；顺带修掉主流程用例写死的提示词版本号 | M9 | 已完成 |

@@ -137,7 +137,7 @@ export function useKeywordSuggestions() {
         type: "info",
         content:
           data.enqueued > 0
-            ? `已排入 ${data.enqueued} 个批次，可在任务页看进度。`
+            ? `已排入 ${data.enqueued} 个批次、共 ${data.queued_words} 个词，可在任务页看进度。`
             : running > 0
               ? `已有 ${running} 个批次在排队或运行，等它们跑完。`
               : "词表都看过了，没有需要排的批次。",

@@ -33,7 +33,11 @@ export function KeywordSuggestions() {
         <Button
           className="secondary"
           disabled={busy || remaining === 0}
-          title={remaining === 0 ? "词表都看过了" : "排一个批次，约需几十秒"}
+          title={
+            remaining === 0
+              ? "词表都看过了"
+              : "排一个批次（只含没看过的词），约需几十秒"
+          }
           onClick={() => enqueue.mutate(1)}
         >
           {busy ? "排队中…" : "生成一批"}
@@ -43,7 +47,7 @@ export function KeywordSuggestions() {
           title={
             remaining === 0
               ? "词表都看过了"
-              : "按当前批次大小把剩下的词排完，由 worker 逐批执行"
+              : "把没看过的词按批次大小排完，由 worker 逐批执行"
           }
           onClick={() => enqueue.mutate(50)}
         >
@@ -65,8 +69,8 @@ export function KeywordSuggestions() {
           title="没有待确认的建议"
           description={
             remaining > 0
-              ? "点「生成一批」把词表交给模型找疑似同指组；已经忽略的组不会再出现。"
-              : "词表都看过了，没有更多可建议的词。"
+              ? "点「生成一批」把还没看过的词交给模型找疑似同指组；看过的词不会重扫，忽略过的组也不会再出现。"
+              : "词表都看过了，没有更多可建议的词；等有新词出现再来。"
           }
         />
       )}

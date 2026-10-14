@@ -1437,6 +1437,8 @@ export interface components {
     KeywordSuggestionStatusResponse: {
       /** Enqueued */
       enqueued: number;
+      /** Queued Words */
+      queued_words: number;
       /** Queued */
       queued: number;
       /** Running */

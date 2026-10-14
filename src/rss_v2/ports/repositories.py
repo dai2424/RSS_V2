@@ -412,7 +412,15 @@ class SuggestionRepository(Protocol):
         ...
 
     def batch_result(self, fingerprint: str, offset: int) -> tuple[int, int] | None:
-        """已生成过的批次返回 (组数, 丢弃数)；没生成过返回 None。"""
+        """指纹对应的批次是否生成过：返回 (组数, 丢弃数)；没生成过返回 None。"""
+        ...
+
+    def scanned_keys(self) -> set[str]:
+        """已经被模型看过的写法匹配键；建议只扫没看过的词。"""
+        ...
+
+    def scanned_count(self) -> int:
+        """已经看过的写法数量，用于界面显示进度。"""
         ...
 
     def save_batch(
@@ -421,9 +429,10 @@ class SuggestionRepository(Protocol):
         offset: int,
         suggestions: list[MergeSuggestion],
         dropped: int,
+        words: list[str],
         timestamp: int,
     ) -> list[MergeSuggestion]:
-        """批次台账与建议行同事务写入。"""
+        """批次台账、建议行与"这些词已看过"的记账同事务写入。"""
         ...
 
     def list(self, status: str | None, limit: int) -> list[MergeSuggestion]:

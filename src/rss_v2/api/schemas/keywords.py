@@ -117,6 +117,7 @@ class KeywordSuggestionStatusResponse(BaseModel):
     """一次入队的回执与当前进度。"""
 
     enqueued: int
+    queued_words: int
     queued: int
     running: int
     failed: int

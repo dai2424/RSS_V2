@@ -128,7 +128,7 @@ def test_task_runs_through_worker_and_marks_out_of_batch_groups(client: TestClie
     }
 
     receipt = enqueue(client)
-    assert receipt["enqueued"] == 1
+    assert receipt["enqueued"] == 1 and receipt["queued_words"] == 2
     assert (receipt["queued"], receipt["running"]) == (1, 0)
     assert (receipt["total"], receipt["scanned"]) == (2, 0)
     task = suggestion_task(client)
@@ -172,6 +172,43 @@ def test_enqueue_is_idempotent_and_reports_scan_progress(client: TestClient) -> 
     after = enqueue(client, count=5, size=2)
     assert after["enqueued"] == 0 and after["queued"] == 0
     assert state(client)["scanned"] == 2
+
+
+@respx.mock
+def test_only_new_words_are_scanned_after_the_vocabulary_changes(client: TestClient) -> None:
+    """扫过的词不因词表换序而重扫——新采集带来的新词才是下一批。
+
+    这是长期运行的关键：词表按频次与最近出现排序，新词会插到前面把旧词挤位；
+    如果按位置记账，挤位会让整张表看起来"没扫过"，于是每次都要从头再付一遍费用。
+    """
+
+    fake = SuggestProvider([("AWS", "云服务")])
+    seeded(client, fake, "https://suggest-inc-1.test/feed")
+    enqueue(client)
+    drain_worker(client)
+    assert state(client)["scanned"] == 2
+    assert fake.suggestion_calls == 1
+
+    # 第二个来源带来一条新消息与新词：它的最近出现更新，因此排在词表更前面。
+    fake.mapping["新话题出现"] = (Keyword("新话题", KeywordKind.TOPIC),)
+    respx.get("https://suggest-inc-2.test/feed").mock(
+        return_value=Response(
+            200, content=feed([("fresh", "新话题出现", "Sun, 11 Oct 2026 00:00:00 GMT")])
+        )
+    )
+    second = create_source(client, "https://suggest-inc-2.test/feed")
+    collect(client, second)
+    drain_worker(client)
+    after = state(client)
+    assert (after["total"], after["scanned"]) == (3, 2)
+
+    # 下一批只含那个新词：看过的两个词不再出现在提示词里。
+    enqueue(client)
+    drain_worker(client)
+    prompt = fake.suggestion_prompts[-1].user
+    assert "- 新话题（主题）" in prompt
+    assert "AWS" not in prompt and "云服务" not in prompt
+    assert state(client)["scanned"] == 3
 
 
 @respx.mock

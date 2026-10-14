@@ -243,8 +243,7 @@ class SuggestionEnqueue:
     """一次入队的结果：新排了几个批次、命中几个已存在的任务。"""
 
     enqueued: int  # 新创建的任务数
-    first_offset: int | None  # 本次排到的最小批次偏移；没有可排的批次时为空
-    last_offset: int | None  # 本次排到的最大批次偏移
+    queued_words: int  # 本次排进队列的词数
 
 
 @dataclass(frozen=True, slots=True)
@@ -256,15 +255,14 @@ class SuggestionStatus:
     failed: int  # 失败待处理的建议任务
     pending: int  # 待人工确认的建议组
     total: int  # 词表词数
-    scanned: int  # 已经生成过批次的词数（批次从第 0 个词连续铺开）
+    scanned: int  # 已经交给模型看过的写法数量
 
 
 @dataclass(frozen=True, slots=True)
 class SuggestionBatch:
     """一次生成的结果概要；已生成过的批次直接回放，不重复调用模型。"""
 
-    vocabulary_fingerprint: str  # 本批词表的指纹，词表变了就要重新开始
-    offset: int  # 本批在词表里的起始偏移
+    vocabulary_fingerprint: str  # 本批词表的内容指纹（同一批词只处理一次）
     size: int  # 本批实际取的词数
     total: int  # 词表总词数
     groups: int  # 本批落库的建议组数

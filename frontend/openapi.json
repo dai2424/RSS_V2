@@ -4318,6 +4318,10 @@
             "type": "integer",
             "title": "Enqueued"
           },
+          "queued_words": {
+            "type": "integer",
+            "title": "Queued Words"
+          },
           "queued": {
             "type": "integer",
             "title": "Queued"
@@ -4346,6 +4350,7 @@
         "type": "object",
         "required": [
           "enqueued",
+          "queued_words",
           "queued",
           "running",
           "failed",
