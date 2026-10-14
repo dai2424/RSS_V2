@@ -339,12 +339,12 @@ class SQLiteKeywordRepository:
         return history(self.database, limit)
 
     def prompt_vocabulary(
-        self, limit: int, recent_days: int, since: int, timestamp: int
+        self, limit: int, recent_days: int, since: int, min_mentions: int, timestamp: int
     ) -> PromptVocabulary:
         """注入提示词的词表快照；口径见 keyword_vocabulary。"""
 
         return keyword_vocabulary.prompt_vocabulary(
-            self.database, limit, recent_days, since, timestamp
+            self.database, limit, recent_days, since, min_mentions, timestamp
         )
 
     def set_pin(self, key: str, pinned: bool, timestamp: int) -> None:

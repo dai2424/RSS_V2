@@ -4,7 +4,8 @@
 "当前生效"的加工结果，词条按别名解析后的规范词键合并。注入的是**展示写法**而不是匹配键，
 模型能直接复用的才是写法。
 
-"近期新增"只列没进前面分组的写法：同一个词在提示词里出现两次只会白费 token。
+三段内容：窗口内达到门槛的热词（按类型分组）、近期新增写法、常驻词。"近期新增"只列没进
+前面分组的写法：同一个词在提示词里出现两次只会白费 token。
 
 词表版本（`vocabulary_state`）记的是"模型看到的注入内容变没变"：指纹一致就不推进，
 因此合并、新增词、改注入条数都会让它 +1，而重复加工同一条消息不会。
@@ -31,9 +32,24 @@ RECENT_LIMIT = 30
 
 
 def prompt_vocabulary(
-    database: SQLiteDatabase, limit: int, recent_days: int, since: int, timestamp: int
+    database: SQLiteDatabase,
+    limit: int,
+    recent_days: int,
+    since: int,
+    min_mentions: int,
+    timestamp: int,
 ) -> PromptVocabulary:
-    """取注入用词表：只取热词窗口内的写法；limit <= 0 表示调用方关闭了注入。"""
+    """取注入用词表：窗口内达到门槛的热词 + 近期新增写法 + 常驻词。
+
+    热词段与词表页的热词视图同一口径（近 since 起、出现次数 ≥ min_mentions）：低于门槛的
+    词不进词表页，也不该进提示词，否则"门槛"在注入与展示两处含义不同。常驻词不受窗口与
+    门槛限制，永远出现。
+
+    "近期新增"是**复用通道**，按首见时间而不是频次选取：新写法还来不及积累频次，而它恰恰
+    是复用最该生效的时候；条数上限 30 与"不进热词段"的去重让它的 token 成本有界。
+
+    limit <= 0 表示调用方关闭了注入。
+    """
 
     if limit <= 0:
         return PromptVocabulary(entities=(), topics=(), events=(), recent=())
@@ -44,10 +60,11 @@ def prompt_vocabulary(
         rows = connection.execute(
             f"""
             SELECT * FROM ({KEY_AGGREGATE})
+            WHERE mentions >= ?
             ORDER BY mentions DESC, last_seen DESC, keyword_key
             LIMIT ?
             """,
-            (since, MAX_TIME, size),
+            (since, MAX_TIME, max(1, min_mentions), size),
         ).fetchall()
         top_keys = [str(row["keyword_key"]) for row in rows]
         # 常驻词必然出现：超出条数上限也补进它所属的类型分组。
@@ -111,7 +128,11 @@ def vocabulary_revision(connection: sqlite3.Connection) -> int:
 def _recent_keys(
     connection: sqlite3.Connection, recent_days: int, timestamp: int, exclude: set[str]
 ) -> list[str]:
-    """近 N 天首次出现、且不在 Top N 里的规范词键，按首次出现从新到旧。"""
+    """近 N 天**首次出现**、且不在热词段里的规范词键，按首次出现从新到旧。
+
+    刻意不套热词门槛：这里按首见时间选词，选的是"刚冒出来的写法"，而刚出现的写法不可能
+    已有 5 次出现；用它做复用判定正是词表收敛的起点。
+    """
 
     if recent_days <= 0:
         return []

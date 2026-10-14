@@ -386,12 +386,13 @@ class KeywordRepository(Protocol):
         ...
 
     def prompt_vocabulary(
-        self, limit: int, recent_days: int, since: int, timestamp: int
+        self, limit: int, recent_days: int, since: int, min_mentions: int, timestamp: int
     ) -> PromptVocabulary:
-        """注入提示词的词表快照：**窗口内**按类型的 Top N 写法与近 N 天新增的写法。
+        """注入提示词的词表快照：**窗口内达到门槛**的 Top N 写法、近 N 天新增写法与常驻词。
 
-        limit 为 0 表示不注入，返回空词表；since 是热词窗口起点，timestamp 用于算"近期新增"。
-        窗口只决定选哪些词，注入文本里仍然只给写法、不给计数。
+        limit 为 0 表示不注入，返回空词表；since 是热词窗口起点、min_mentions 是热词门槛，
+        timestamp 用于算"近期新增"。窗口与门槛只决定选哪些词，注入文本里仍然只给写法、
+        不给计数；常驻词不受两者限制，必然出现。
         """
         ...
 

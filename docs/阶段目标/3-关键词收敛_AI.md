@@ -98,7 +98,7 @@ M12 是本阶段唯一允许推迟的模块：阶段 2 的验收不依赖它，�
 
 | 编号 | 模块 | 交付物 | 状态 |
 | --- | --- | --- | --- |
-| H1 | 热词口径 | `keyword_hot_days`（7）与 `keyword_hot_min_mentions`（5）两个配置；注入只取窗口内的词；词表页新增 `scope=hot|all`（默认热词、可切全量）；概览主指标改窗口口径并另给全量存量三个数字 | 已完成 |
+| H1 | 热词口径 | `keyword_hot_days`（7）与 `keyword_hot_min_mentions`（5）两个配置；注入的热词段只取窗口内达到门槛的词（另两段是「近期新增」与常驻词，见决策记录）；词表页新增 `scope=hot|all`（默认热词、可切全量）；概览主指标改窗口口径并另给全量存量三个数字 | 已完成 |
 | H2 | 生成时价值过滤 | 提示词 v4（迁移 0021，先自评再输出、点名数值与句子式反例）；`keyword_rejection_reason` 按**形态**剔除（句子式、只剩数值与单位、超长）并记日志 | 已完成 |
 | H3 | AI 常驻推荐 | 迁移 0022 的 `keyword_pin_suggestions` 与 pin-suggest 提示词；候选按"最近 4 周至少 3 周出现且本周仍在窗口内"算出（可复算）；模型只挑选，人工确认后才写 pin | 已完成 |
 | H4 | 清理 | 词表页「清理词表状态」（dry_run 预览 + 执行）与建议入队时的惰性清理；只清扫描记账与过期建议，**消息级关键词不动** | 已完成 |
@@ -107,6 +107,7 @@ M12 是本阶段唯一允许推迟的模块：阶段 2 的验收不依赖它，�
 
 - [x] 同一版本在词表未变化时两次渲染得到完全相同的注入文本：`tests/unit/test_prompt_vocabulary.py` 断言组内按写法排序、输入顺序不影响渲染与指纹。
 - [x] 被合并掉的写法不再进注入文本（`test_merged_writing_leaves_the_injected_vocabulary`）；常驻词超出条数上限也必然出现（`test_pinned_word_is_injected_even_beyond_the_limit`）。
+- [x] 注入的热词段与词表页同一门槛：不到门槛的写法不进提示词，标记常驻后立刻出现（`test_hot_threshold_gates_injection`）。
 - [x] 注入文本随词表变化而变化：`vocab_revision` 在出现新词、合并时推进，注入内容不变时不推进（`test_vocabulary_revision_advances_only_when_injection_changes`）；`input_hash` 本就是渲染后文本的哈希，随注入内容变化。
 - [x] 复用率只统计有判定的词位：概览返回分子与分母，界面在指标卡上写明「按 N 个可判定词位；旧结果不参与」；升级后旧行 `reused` 为空（真实库副本实测 0 行有值）。
 - [x] 迁移在全新库与真实库副本上都通过：副本升级后 4 个迁移全部应用、存量行数一行未变、新列为空、`PRAGMA integrity_check` 为 ok、重复执行不再应用。

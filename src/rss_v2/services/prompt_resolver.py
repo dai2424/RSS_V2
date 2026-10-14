@@ -56,6 +56,7 @@ class PromptResolver:
     vocabulary_limit: int = 0  # 注入条数上限，0 表示关闭注入
     vocabulary_recent_days: int = 7  # "近期新增"一段的时间窗（天）
     vocabulary_hot_days: int = 7  # 热词窗口（天）：只注入窗口内的词
+    vocabulary_min_mentions: int = 5  # 热词门槛：窗口内出现次数不到这个数的词不进热词段
 
     def resolve(self, source_id: str, task_kind: str) -> ResolvedTask:
         """解析某来源某类任务的生效配置；来源缺失时只用全局默认。"""
@@ -188,5 +189,6 @@ class PromptResolver:
             self.vocabulary_limit,
             self.vocabulary_recent_days,
             timestamp - self.vocabulary_hot_days * 86400,
+            self.vocabulary_min_mentions,
             timestamp,
         )

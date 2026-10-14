@@ -136,6 +136,7 @@ def build_container(settings: Settings | None = None, migrate: bool = True) -> C
         actual_settings.llm_vocabulary_limit,
         actual_settings.llm_vocabulary_recent_days,
         actual_settings.keyword_hot_days,
+        actual_settings.keyword_hot_min_mentions,
     )
     category_service = CategoryService(categories)
     source_service = SourceService(

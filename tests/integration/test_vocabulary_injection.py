@@ -1,5 +1,10 @@
 """词表注入与复用判定：注入内容进提示词、复用按注入集合硬判定、重建与合并不破坏口径。"""
 
+from collections.abc import Iterator
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
+
+import pytest
 import respx
 from fastapi.testclient import TestClient
 from httpx import Response
@@ -15,15 +20,50 @@ from keyword_support import (
     stub_providers,
 )
 
+from rss_v2.api.app import create_app
 from rss_v2.domain import Keyword, KeywordKind
+from rss_v2.settings import Settings
+
+
+def rfc2822(days_ago: int) -> str:
+    """相对当前时间的 RFC 2822 日期；注入只给窗口内的词，固定日期会随时间过期。"""
+
+    moment = datetime.now(tz=UTC) - timedelta(days=days_ago)
+    return moment.strftime("%a, %d %b %Y %H:%M:%S GMT")
+
 
 #: 按发布时间从新到旧；测试按"计算平台 → 存储芯片 → 电池 → 存储设备"的顺序加工。
 FEED = [
-    ("platform", "计算平台发布", "Sat, 10 Oct 2026 00:00:00 GMT"),
-    ("chip", "存储芯片涨价", "Fri, 09 Oct 2026 00:00:00 GMT"),
-    ("battery", "电池技术进展", "Thu, 08 Oct 2026 00:00:00 GMT"),
-    ("storage", "存储设备降价", "Wed, 07 Oct 2026 00:00:00 GMT"),
+    ("platform", "计算平台发布", rfc2822(1)),
+    ("chip", "存储芯片涨价", rfc2822(2)),
+    ("battery", "电池技术进展", rfc2822(3)),
+    ("storage", "存储设备降价", rfc2822(4)),
 ]
+
+
+def build_client(tmp_path: Path, min_mentions: int, recent_days: int = 7) -> TestClient:
+    """按指定热词门槛建应用。
+
+    本文件多数用例验证注入链路的形状（分组、复用、版本推进），样本里的词只出现一两次，
+    因此固定用门槛 1；门槛本身由 `test_hot_threshold_gates_injection` 用默认值覆盖。
+    """
+
+    settings = Settings(
+        runtime_dir=tmp_path / "runtime",
+        database_path=tmp_path / "runtime" / "db.sqlite",
+        migrations_dir=Path("migrations"),
+        keyword_hot_min_mentions=min_mentions,
+        llm_vocabulary_recent_days=recent_days,
+    )
+    return TestClient(create_app(settings))
+
+
+@pytest.fixture
+def client(tmp_path: Path) -> Iterator[TestClient]:
+    """覆盖 conftest 的默认应用：本文件要门槛 1，理由见 `build_client`。"""
+
+    with build_client(tmp_path, min_mentions=1) as test_client:
+        yield test_client
 
 
 def provider() -> KeywordProvider:
@@ -40,11 +80,14 @@ def provider() -> KeywordProvider:
 
 
 def seeded(
-    client: TestClient, fake: KeywordProvider, url: str = "https://inject.test/feed"
+    client: TestClient,
+    fake: KeywordProvider,
+    url: str = "https://inject.test/feed",
+    items: list[tuple[str, str, str]] = FEED,
 ) -> None:
-    """造三条待加工的消息：关掉自动加工，改成按顺序手动入队。"""
+    """造待加工的消息：关掉自动加工，改成按顺序手动入队。"""
 
-    respx.get(url).mock(return_value=Response(200, content=feed(FEED)))
+    respx.get(url).mock(return_value=Response(200, content=feed(items)))
     configure_model(client)
     source_id = create_source(client, url)
     disable_enrich(client, source_id)
@@ -208,3 +251,52 @@ def test_merged_writing_leaves_the_injected_vocabulary(client: TestClient) -> No
     assert overview(client)["vocab_revision"] == 4
     # 两种写法检索到同一个词条：被合并的写法仍然可检索，只是不再注入。
     assert len(search(client, keyword="AWS")) == len(search(client, keyword="云服务")) == 2
+
+
+#: 门槛用例的批次：五条产出同一个词（凑够门槛），一条长尾，两条探针。
+THRESHOLD_FEED = [
+    ("hot-1", "热词一", rfc2822(1)),
+    ("hot-2", "热词二", rfc2822(2)),
+    ("hot-3", "热词三", rfc2822(3)),
+    ("hot-4", "热词四", rfc2822(4)),
+    ("hot-5", "热词五", rfc2822(5)),
+    ("tail", "长尾消息", rfc2822(2)),
+    ("probe-1", "首批探针", rfc2822(1)),
+    ("probe-2", "次批探针", rfc2822(2)),
+]
+
+
+@respx.mock
+def test_hot_threshold_gates_injection(tmp_path: Path) -> None:
+    """注入的热词段与词表页同一门槛：不到门槛的写法不进提示词，常驻词不受门槛限制。
+
+    "近期新增"一段关掉（`recent_days=0`），否则只出现一次的写法会从那条复用通道进来，
+    测不到门槛本身。
+    """
+
+    with build_client(tmp_path, min_mentions=5, recent_days=0) as client:
+        fake = KeywordProvider(
+            mapping={
+                "热词": (Keyword("AWS", KeywordKind.ENTITY),),
+                "长尾": (Keyword("固态电池", KeywordKind.ENTITY),),
+            },
+            default=(Keyword("其它", KeywordKind.TOPIC),),
+        )
+        seeded(client, fake, url="https://threshold.test/feed", items=THRESHOLD_FEED)
+        for title in ("热词一", "热词二", "热词三", "热词四", "热词五"):
+            enrich_one(client, message_id(client, title))
+        enrich_one(client, message_id(client, "长尾消息"))
+        # 五条消息产出同一个词 → 达到门槛 5，出现在紧接着的加工提示词里。
+        assert "实体：AWS" in fake.prompts[-1].user
+
+        enrich_one(client, message_id(client, "首批探针"))
+        prompt = fake.prompts[-1].user
+        assert "实体：AWS" in prompt
+        # 只出现一次的长尾写法不进注入：门槛在注入与词表页含义相同。
+        assert "固态电池" not in prompt
+
+        # 人工标记常驻后，同一个词立刻出现在注入里——常驻不受窗口与门槛限制。
+        pinned = client.post("/api/keywords/pin", json={"key": "固态电池", "pinned": True})
+        assert pinned.status_code == 200, pinned.text
+        enrich_one(client, message_id(client, "次批探针"))
+        assert "固态电池" in fake.prompts[-1].user

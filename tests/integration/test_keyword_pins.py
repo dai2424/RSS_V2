@@ -1,5 +1,6 @@
 """常驻词：必然注入（含超出条数上限）、只看常驻筛选、与合并/撤销的联动。"""
 
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import respx
@@ -21,11 +22,19 @@ from rss_v2.api.app import create_app
 from rss_v2.domain import Keyword, KeywordKind
 from rss_v2.settings import Settings
 
+
+def rfc2822(days_ago: int) -> str:
+    """相对当前时间的 RFC 2822 日期；注入只给窗口内的词，固定日期会随时间过期。"""
+
+    moment = datetime.now(tz=UTC) - timedelta(days=days_ago)
+    return moment.strftime("%a, %d %b %Y %H:%M:%S GMT")
+
+
 #: 按发布时间从新到旧；测试按"计算平台 → 存储芯片 → 存储设备"的顺序加工。
 FEED = [
-    ("platform", "计算平台发布", "Sat, 10 Oct 2026 00:00:00 GMT"),
-    ("chip", "存储芯片涨价", "Fri, 09 Oct 2026 00:00:00 GMT"),
-    ("storage", "存储设备降价", "Thu, 08 Oct 2026 00:00:00 GMT"),
+    ("platform", "计算平台发布", rfc2822(1)),
+    ("chip", "存储芯片涨价", rfc2822(2)),
+    ("storage", "存储设备降价", rfc2822(3)),
 ]
 
 
@@ -44,8 +53,8 @@ def provider() -> KeywordProvider:
 def build_client(tmp_path: Path, vocabulary_limit: int) -> TestClient:
     """条数上限由配置决定，超出上限的常驻词是否出现只能在小上限下验证。
 
-    近期窗口关掉：新词本来就有一条"近期新增"通道，会把对照组的词也带进来，
-    这里只验证常驻这一条通道。
+    近期窗口与热词门槛都关到最低：这条用例验证的是条数上限与常驻的关系，样本里的词只出现
+    一两次，若沿默认门槛 5 整个热词段都会是空的（门槛本身由 test_vocabulary_injection 覆盖）。
     """
 
     settings = Settings(
@@ -54,6 +63,7 @@ def build_client(tmp_path: Path, vocabulary_limit: int) -> TestClient:
         migrations_dir=Path("migrations"),
         llm_vocabulary_limit=vocabulary_limit,
         llm_vocabulary_recent_days=0,
+        keyword_hot_min_mentions=1,
     )
     return TestClient(create_app(settings))
 
