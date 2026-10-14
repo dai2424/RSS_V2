@@ -38,7 +38,14 @@ def test_configuration_priority_and_runtime_paths(
 
 @pytest.mark.parametrize(
     "path",
-    ["/sources/new", "/sources/source-id", "/messages/message-id", "/tasks", "/settings/providers"],
+    [
+        "/sources/new",
+        "/sources/source-id",
+        "/messages/message-id",
+        "/leads/lead-id",
+        "/tasks",
+        "/settings/providers",
+    ],
 )
 def test_frontend_deep_links_reload(tmp_path: Path, path: str) -> None:
     frontend = tmp_path / "frontend"

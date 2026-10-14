@@ -37,6 +37,14 @@ const MessageDetail = lazy(() =>
     default: m.MessageDetailPage,
   })),
 );
+const Leads = lazy(() =>
+  import("./features/leads/LeadsPage").then((m) => ({ default: m.LeadsPage })),
+);
+const LeadDetail = lazy(() =>
+  import("./features/leads/LeadsPage").then((m) => ({
+    default: m.LeadDetailPage,
+  })),
+);
 const Tasks = lazy(() =>
   import("./features/tasks/TasksPage").then((m) => ({ default: m.TasksPage })),
 );
@@ -65,6 +73,8 @@ const router = createBrowserRouter(
       <Route path="/sources/:sourceId/edit" element={<SourceForm />} />
       <Route path="/messages" element={<Messages />} />
       <Route path="/messages/:messageId" element={<MessageDetail />} />
+      <Route path="/leads" element={<Leads />} />
+      <Route path="/leads/:leadId" element={<LeadDetail />} />
       <Route path="/tasks" element={<Tasks />} />
       <Route path="/settings/providers" element={<Providers />} />
       <Route path="/settings/prompts" element={<Prompts />} />

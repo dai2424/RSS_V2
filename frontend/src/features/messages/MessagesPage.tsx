@@ -23,6 +23,7 @@ import {
 import { Pagination } from "../../components/Pagination";
 import { sizeParams, usePaginationParams } from "../../lib/usePaginationParams";
 import { formatTime, preferredText, statusLabels } from "../../lib/display";
+import { LeadAddDialog, type LeadTarget } from "../leads/LeadAddDialog";
 import { MessageDeleteDialog, type DeleteTarget } from "./MessageDeleteDialog";
 
 type TaskStatus = "queued" | "running" | "succeeded" | "failed";
@@ -149,6 +150,7 @@ export function MessagesPage() {
     new Map(),
   );
   const [pending, setPending] = useState<DeleteTarget[] | null>(null);
+  const [leadTargets, setLeadTargets] = useState<LeadTarget[] | null>(null);
   const toggle = (target: DeleteTarget) =>
     setSelected((current) => {
       const next = new Map(current);
@@ -272,6 +274,12 @@ export function MessagesPage() {
         {selected.size > 0 && (
           <div className="toolbar card-pad">
             <span className="muted">已选择 {selected.size} 条消息</span>
+            <Button
+              className="secondary"
+              onClick={() => setLeadTargets([...selected.values()])}
+            >
+              加入线索
+            </Button>
             <Button
               className="danger"
               onClick={() => setPending([...selected.values()])}
@@ -472,6 +480,13 @@ export function MessagesPage() {
         targets={pending}
         onClose={() => {
           setPending(null);
+          setSelected(new Map());
+        }}
+      />
+      <LeadAddDialog
+        targets={leadTargets}
+        onClose={() => {
+          setLeadTargets(null);
           setSelected(new Map());
         }}
       />

@@ -4,6 +4,7 @@ import { Link, useParams } from "react-router-dom";
 import { api, requireResponse } from "../../api/client";
 import { Button, ErrorState, PageHeader } from "../../components/ui";
 import { formatTime, statusLabels } from "../../lib/display";
+import { LeadAddDialog, type LeadTarget } from "../leads/LeadAddDialog";
 import { RelatedMessages } from "./RelatedMessages";
 import { VersionCard } from "./VersionCard";
 
@@ -16,6 +17,7 @@ export function MessageDetailPage() {
   const { messageId = "" } = useParams();
   const queryClient = useQueryClient();
   const [versionId, setVersionId] = useState("");
+  const [leadTarget, setLeadTarget] = useState<LeadTarget | null>(null);
   const detail = useQuery({
     queryKey: ["message", messageId],
     refetchInterval: 3000,
@@ -113,6 +115,14 @@ export function MessageDetailPage() {
             历史版本只用于查看：翻译与内容加工在最新版本上进行。
           </span>
         )}
+        <Button
+          className="secondary"
+          onClick={() =>
+            setLeadTarget({ id: messageId, title: version?.title || "无标题" })
+          }
+        >
+          加入线索
+        </Button>
         {isLatest && translationTask && (
           <Link to="/tasks" className="muted" role="status">
             翻译任务：
@@ -132,6 +142,10 @@ export function MessageDetailPage() {
       {enrich.isError && <ErrorState message={enrich.error.message} />}
       {version && <VersionCard version={version} actionable={isLatest} />}
       <RelatedMessages messageId={messageId} />
+      <LeadAddDialog
+        targets={leadTarget ? [leadTarget] : null}
+        onClose={() => setLeadTarget(null)}
+      />
     </div>
   );
 }

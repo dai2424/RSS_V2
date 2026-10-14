@@ -447,6 +447,94 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/leads": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * List Leads
+     * @description 线索列表：按最近成员变化时间倒序。
+     */
+    get: operations["list_leads_api_leads_get"];
+    put?: never;
+    /**
+     * Create Lead
+     * @description 新建线索：至少两条消息，成员锁定为各自当前的最新版本。
+     */
+    post: operations["create_lead_api_leads_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/leads/{lead_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Lead Detail
+     * @description 线索详情：本体与成员（按加入时间从早到晚）。
+     */
+    get: operations["lead_detail_api_leads__lead_id__get"];
+    put?: never;
+    post?: never;
+    /**
+     * Delete Lead
+     * @description 删除线索；成员随外键级联删除，消息本身不受影响。
+     */
+    delete: operations["delete_lead_api_leads__lead_id__delete"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/leads/{lead_id}/messages": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Add Lead Messages
+     * @description 追加成员；已在线索里的消息会被跳过（幂等）。
+     */
+    post: operations["add_lead_messages_api_leads__lead_id__messages_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/leads/{lead_id}/messages/{version_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    /**
+     * Remove Lead Member
+     * @description 移除一个成员（按版本 id）。
+     */
+    delete: operations["remove_lead_member_api_leads__lead_id__messages__version_id__delete"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/keywords/suggestions": {
     parameters: {
       query?: never;
@@ -1596,6 +1684,135 @@ export interface components {
     KeywordUndoResponse: {
       /** Restored */
       restored: number;
+    };
+    /**
+     * LeadCreateRequest
+     * @description 新建线索：标题必填，成员用消息 id（服务端取各自当前的最新版本）。
+     */
+    LeadCreateRequest: {
+      /**
+       * Title
+       * @description 线索名，必填
+       */
+      title: string;
+      /**
+       * Note
+       * @description 可选备注
+       */
+      note?: string | null;
+      /**
+       * Message Ids
+       * @description 成员消息 id
+       */
+      message_ids: string[];
+    };
+    /**
+     * LeadDeletionResponse
+     * @description 删除线索的结果。
+     */
+    LeadDeletionResponse: {
+      /** Deleted */
+      deleted: number;
+    };
+    /**
+     * LeadDetailResponse
+     * @description 线索详情：本体 + 成员列表（按发布时间从早到晚）。
+     */
+    LeadDetailResponse: {
+      /** Id */
+      id: string;
+      /** Title */
+      title: string;
+      /** Note */
+      note: string | null;
+      /** Created At */
+      created_at: number;
+      /** Updated At */
+      updated_at: number;
+      /** Members */
+      members: components["schemas"]["LeadMemberResponse"][];
+    };
+    /**
+     * LeadListResponse
+     * @description 线索列表。
+     */
+    LeadListResponse: {
+      /** Items */
+      items: components["schemas"]["LeadResponse"][];
+      /** Total */
+      total: number;
+      /** Limit */
+      limit: number;
+      /** Offset */
+      offset: number;
+    };
+    /**
+     * LeadMemberRemovalResponse
+     * @description 移除成员的结果。
+     */
+    LeadMemberRemovalResponse: {
+      lead: components["schemas"]["LeadResponse"];
+      /** Removed */
+      removed: number;
+    };
+    /**
+     * LeadMemberResponse
+     * @description 线索成员：一条消息版本，以及界面需要的展示信息。
+     */
+    LeadMemberResponse: {
+      /** Message Id */
+      message_id: string;
+      /** Version Id */
+      version_id: string;
+      /** Version Number */
+      version_number: number;
+      /** Title */
+      title: string;
+      /** Source Id */
+      source_id: string;
+      /** Source Name */
+      source_name: string;
+      /** Published At */
+      published_at: number | null;
+      /** Collected At */
+      collected_at: number;
+      /** Added At */
+      added_at: number;
+    };
+    /**
+     * LeadMessagesRequest
+     * @description 给线索追加成员：同样传消息 id。
+     */
+    LeadMessagesRequest: {
+      /** Message Ids */
+      message_ids: string[];
+    };
+    /**
+     * LeadMessagesResponse
+     * @description 成员变动的结果：更新后的线索与本次新增条数。
+     */
+    LeadMessagesResponse: {
+      lead: components["schemas"]["LeadResponse"];
+      /** Added */
+      added: number;
+    };
+    /**
+     * LeadResponse
+     * @description 线索本体与成员条数。
+     */
+    LeadResponse: {
+      /** Id */
+      id: string;
+      /** Title */
+      title: string;
+      /** Note */
+      note: string | null;
+      /** Members */
+      members: number;
+      /** Created At */
+      created_at: number;
+      /** Updated At */
+      updated_at: number;
     };
     /**
      * MessageBulkDeleteRequest
@@ -3354,6 +3571,200 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["KeywordUndoResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  list_leads_api_leads_get: {
+    parameters: {
+      query?: {
+        limit?: number;
+        offset?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["LeadListResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  create_lead_api_leads_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["LeadCreateRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["LeadResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  lead_detail_api_leads__lead_id__get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        lead_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["LeadDetailResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  delete_lead_api_leads__lead_id__delete: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        lead_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["LeadDeletionResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  add_lead_messages_api_leads__lead_id__messages_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        lead_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["LeadMessagesRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["LeadMessagesResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  remove_lead_member_api_leads__lead_id__messages__version_id__delete: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        lead_id: string;
+        version_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["LeadMemberRemovalResponse"];
         };
       };
       /** @description Validation Error */

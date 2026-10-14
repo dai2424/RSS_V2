@@ -12,6 +12,7 @@ import { ToastHost } from "./Toast";
 const navigation = [
   ["/sources", "RSS 来源"],
   ["/messages", "消息"],
+  ["/leads", "线索"],
   ["/tasks", "任务"],
   ["/settings/providers", "模型配置"],
   ["/settings/prompts", "提示词"],
