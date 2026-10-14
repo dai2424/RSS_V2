@@ -15,9 +15,9 @@ from rss_v2.api.schemas import (
     KeywordOverviewResponse,
     KeywordResponse,
     KeywordSourceStatResponse,
-    KeywordSuggestionBatchResponse,
     KeywordSuggestionMemberResponse,
     KeywordSuggestionResponse,
+    KeywordSuggestionStatusResponse,
     KeywordTrendPointResponse,
     RelatedMessageResponse,
 )
@@ -28,7 +28,8 @@ from rss_v2.domain import (
     MergeRecord,
     MergeSuggestion,
     RelatedMessage,
-    SuggestionBatch,
+    SuggestionEnqueue,
+    SuggestionStatus,
 )
 
 
@@ -152,17 +153,21 @@ def merge_suggestion_response(item: MergeSuggestion) -> KeywordSuggestionRespons
     )
 
 
-def suggestion_batch_response(
-    item: SuggestionBatch, pending: int
-) -> KeywordSuggestionBatchResponse:
-    return KeywordSuggestionBatchResponse(
-        vocabulary_fingerprint=item.vocabulary_fingerprint,
-        offset=item.offset,
-        size=item.size,
+def suggestion_status_response(
+    item: SuggestionStatus, receipt: SuggestionEnqueue
+) -> KeywordSuggestionStatusResponse:
+    """入队回执：本次排了几个批次，以及当前的任务与建议进度。"""
+
+    return KeywordSuggestionStatusResponse(
+        enqueued=receipt.enqueued,
+        reused=receipt.reused,
+        done=receipt.done,
+        queued=item.queued,
+        running=item.running,
+        failed=item.failed,
+        pending=item.pending,
         total=item.total,
-        groups=item.groups,
-        dropped=item.dropped,
-        pending=pending,
+        scanned=item.scanned,
     )
 
 

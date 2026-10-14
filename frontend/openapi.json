@@ -1460,9 +1460,9 @@
         "tags": [
           "keywords"
         ],
-        "summary": "Generate Suggestions",
-        "description": "把词表的一批交给模型找同指候选；同一批重复请求直接回放。",
-        "operationId": "generate_suggestions_api_keywords_suggestions_post",
+        "summary": "Enqueue Suggestions",
+        "description": "把接下来的若干批排成任务；已经生成过或已经排过的批次不重复入队。\n\n每批一个任务，由独立 worker 执行：进度、耗时与失败重试都在任务页看得见。",
+        "operationId": "enqueue_suggestions_api_keywords_suggestions_post",
         "requestBody": {
           "required": true,
           "content": {
@@ -1474,12 +1474,12 @@
           }
         },
         "responses": {
-          "200": {
+          "202": {
             "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/KeywordSuggestionBatchResponse"
+                  "$ref": "#/components/schemas/KeywordSuggestionStatusResponse"
                 }
               }
             }
@@ -1773,16 +1773,16 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "pattern": "^(collect_source|translate_message|enrich_message)$"
+                  "pattern": "^(collect_source|translate_message|enrich_message|keyword_merge_suggest)$"
                 },
                 {
                   "type": "null"
                 }
               ],
-              "description": "任务类型：采集、翻译或内容加工",
+              "description": "任务类型：采集、翻译、内容加工或合并建议",
               "title": "Task Type"
             },
-            "description": "任务类型：采集、翻译或内容加工"
+            "description": "任务类型：采集、翻译、内容加工或合并建议"
           },
           {
             "name": "source_id",
@@ -4129,50 +4129,6 @@
         "title": "KeywordSuggestionAcceptRequest",
         "description": "采纳：带上已经完成的合并记录 id，仅用于标记与追溯。"
       },
-      "KeywordSuggestionBatchResponse": {
-        "properties": {
-          "vocabulary_fingerprint": {
-            "type": "string",
-            "title": "Vocabulary Fingerprint"
-          },
-          "offset": {
-            "type": "integer",
-            "title": "Offset"
-          },
-          "size": {
-            "type": "integer",
-            "title": "Size"
-          },
-          "total": {
-            "type": "integer",
-            "title": "Total"
-          },
-          "groups": {
-            "type": "integer",
-            "title": "Groups"
-          },
-          "dropped": {
-            "type": "integer",
-            "title": "Dropped"
-          },
-          "pending": {
-            "type": "integer",
-            "title": "Pending"
-          }
-        },
-        "type": "object",
-        "required": [
-          "vocabulary_fingerprint",
-          "offset",
-          "size",
-          "total",
-          "groups",
-          "dropped",
-          "pending"
-        ],
-        "title": "KeywordSuggestionBatchResponse",
-        "description": "一次生成的概要；重复请求同一批会回放这份数字，不重复调用模型。"
-      },
       "KeywordSuggestionListResponse": {
         "properties": {
           "items": {
@@ -4185,15 +4141,40 @@
           "pending": {
             "type": "integer",
             "title": "Pending"
+          },
+          "queued": {
+            "type": "integer",
+            "title": "Queued"
+          },
+          "running": {
+            "type": "integer",
+            "title": "Running"
+          },
+          "failed": {
+            "type": "integer",
+            "title": "Failed"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "scanned": {
+            "type": "integer",
+            "title": "Scanned"
           }
         },
         "type": "object",
         "required": [
           "items",
-          "pending"
+          "pending",
+          "queued",
+          "running",
+          "failed",
+          "total",
+          "scanned"
         ],
         "title": "KeywordSuggestionListResponse",
-        "description": "建议列表与待处理总数。"
+        "description": "建议列表与当前进度；界面据此显示\"还剩多少词没看\"并决定是否轮询。"
       },
       "KeywordSuggestionMemberResponse": {
         "properties": {
@@ -4235,17 +4216,12 @@
       },
       "KeywordSuggestionRequest": {
         "properties": {
-          "offset": {
-            "anyOf": [
-              {
-                "type": "integer",
-                "minimum": 0.0
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Offset"
+          "count": {
+            "type": "integer",
+            "maximum": 50.0,
+            "minimum": 1.0,
+            "title": "Count",
+            "default": 1
           },
           "size": {
             "anyOf": [
@@ -4263,7 +4239,7 @@
         },
         "type": "object",
         "title": "KeywordSuggestionRequest",
-        "description": "生成一批建议：两个字段都可以省略——接着上一批，用默认批次大小。"
+        "description": "排若干批建议任务：count 是批数（默认 1），size 是每批词数（默认取配置）。"
       },
       "KeywordSuggestionResponse": {
         "properties": {
@@ -4335,6 +4311,60 @@
         ],
         "title": "KeywordSuggestionResponse",
         "description": "一条待确认的合并建议。"
+      },
+      "KeywordSuggestionStatusResponse": {
+        "properties": {
+          "enqueued": {
+            "type": "integer",
+            "title": "Enqueued"
+          },
+          "reused": {
+            "type": "integer",
+            "title": "Reused"
+          },
+          "done": {
+            "type": "integer",
+            "title": "Done"
+          },
+          "queued": {
+            "type": "integer",
+            "title": "Queued"
+          },
+          "running": {
+            "type": "integer",
+            "title": "Running"
+          },
+          "failed": {
+            "type": "integer",
+            "title": "Failed"
+          },
+          "pending": {
+            "type": "integer",
+            "title": "Pending"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "scanned": {
+            "type": "integer",
+            "title": "Scanned"
+          }
+        },
+        "type": "object",
+        "required": [
+          "enqueued",
+          "reused",
+          "done",
+          "queued",
+          "running",
+          "failed",
+          "pending",
+          "total",
+          "scanned"
+        ],
+        "title": "KeywordSuggestionStatusResponse",
+        "description": "一次入队的回执与当前进度。"
       },
       "KeywordTrendPointResponse": {
         "properties": {

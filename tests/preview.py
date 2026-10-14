@@ -2,6 +2,7 @@
 
 import json
 import re
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -9,11 +10,15 @@ import uvicorn
 from fastapi import Request
 from fastapi.responses import Response
 
-from rss_v2.api.app import create_app
-from rss_v2.api.static import FrontendFiles
-from rss_v2.settings import Settings
-
+# 直接跑工作区的源码：uv 会把项目装进环境，包快照可能落后于刚改过的文件，
+# 那样 E2E 会在"旧代码"上通过。pytest 用 pythonpath 解决同一问题。
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "src"))
+
+from rss_v2.api.app import create_app  # noqa: E402  必须在 sys.path 调整之后
+from rss_v2.api.static import FrontendFiles  # noqa: E402
+from rss_v2.settings import Settings  # noqa: E402
+
 settings = Settings(runtime_dir=ROOT / "runtime/e2e", frontend_dist=ROOT / "runtime/no-dist")
 app = create_app(settings)
 

@@ -85,9 +85,9 @@
 | M4 | 词表版本 | `vocabulary_state` 单行表与 `message_enrichments.vocab_revision`（迁移 0015）；只有加工执行推进版本，编译预览不推进；概览展示当前版本 | M2 | 已完成 |
 | M5 | 常驻词 | `keyword_pins` 表与合并记录的 `pinned_json`/`target_was_pinned`（迁移 0016）；`set_pin`/`pins` 端口、`POST /api/keywords/pin`、`GET /api/keywords?pinned=true`；常驻词并入类型分组并保证出现 | M4 | 已完成 |
 | M6 | 词表页改造 | 拆出 `KeywordFilters`/`KeywordTable`/`KeywordMetrics`（`KeywordVocabulary` 203 → 128 行）；常驻列与「只看常驻」筛选；概览新增复用率、常驻词数、词表版本、待处理建议数 | M5 | 已完成 |
-| M7 | 建议生成（后端） | `keyword_suggestions` 与 `keyword_suggestion_batches`（迁移 0017）加建议提示词种子；`LLMProvider.suggest_merges` 与两个协议适配器；`KEYWORD_MERGE_SUGGEST` 规格标为不可分配、worker 认领范围显式化；成员越界过滤、组指纹去重、批次幂等、游标由服务端推进 | M4 | 已完成 |
+| M7 | 建议生成（后端） | `keyword_suggestions` 与 `keyword_suggestion_batches`（迁移 0017）加建议提示词种子；`LLMProvider.suggest_merges` 与两个协议适配器；成员越界过滤、组指纹去重、批次幂等。**2026-10-14 修订**：每批一个后台任务（迁移 0019 重建 `tasks` 表加类型），入队即返回、worker 执行，任务幂等键含内容指纹，任务页能看到进度与重试 | M4 | 已完成 |
 | M8 | 建议处理（后端） | 列表、忽略、采纳标记三个端点；采纳复用既有 merge 并回填 `merge_id` | M7 | 已完成 |
-| M9 | 建议区界面 | `KeywordSuggestions.tsx`：生成一批、成员与理由、采纳（既有 `MergeDialog` 加完成回调）、忽略；批次结果文案区分「得到 N 组」与「都看过了」 | M8 | 已完成 |
+| M9 | 建议区界面 | `KeywordSuggestions.tsx`：生成一批 / 排队扫完剩余、成员与理由、采纳（既有 `MergeDialog` 加完成回调）、忽略；显示「已看 N/M 个词」与排队/运行/失败数，有批次在跑时轮询刷新 | M8 | 已完成 |
 | M10 | E2E 与假端点 | 假端点按本批词表返回候选，并新增清空建议的夹具端点；`keywords.spec.ts` 新增常驻与「生成 → 采纳 → 撤销」用例（1280/1920）；顺带修掉主流程用例写死的提示词版本号 | M9 | 已完成 |
 | M11 | 基线复算（收尾） | 用新提示词限量回填一批并复算：泛化词占比、singleton、复用率、词表规模与合并次数；更新阶段 2 验收清单 | M3、M9 | 待做（需定量与范围） |
 | M12 | 受影响版本重跑入口（可推迟） | 按当前词表版本重跑已有加工结果的显式入口（需绕过现有幂等复用，界面上说明会覆盖结果与消耗调用） | M4 | 待定 |
@@ -103,7 +103,7 @@ M12 是本阶段唯一允许推迟的模块：阶段 2 的验收不依赖它，�
 - [x] 迁移在全新库与真实库副本上都通过：副本升级后 4 个迁移全部应用、存量行数一行未变、新列为空、`PRAGMA integrity_check` 为 ok、重复执行不再应用。
 - [x] 越界写法被丢弃并计入 `dropped`（`test_batch_is_idempotent_and_marks_out_of_batch_groups`）；组指纹唯一保证同一组不重复建议；忽略后批次的组仍会被跳过（`test_dismissed_group_is_not_suggested_again`）。
 - [x] 采纳走既有合并端点并回填 `merge_id`（`test_accept_records_the_merge_record`）；E2E 覆盖「生成 → 采纳 → 撤销」闭环。
-- [x] 建议调用经 `LLMFailover.execute(task_id=None, ...)`，审计、错误分类与 Key 冷却与提示词试跑同一条路径。
+- [x] 建议调用写入 `llm_calls`，审计、错误分类与 Key 冷却沿用同一条路径；**2026-10-14 起建议批次是任务表里的任务**（迁移 0019），调用记录带 `task_id`，失败可在任务页重试。
 - [x] 词表页在 1280/1920 的 E2E 里断言无横向溢出与无页面错误；加载、空态、筛选无结果、错误态沿用既有组件；常驻开关与建议按钮都是可聚焦按钮，弹层沿用既有焦点管理。**2560px 未实测**。
 - [ ] **待 M11**：词表规模与复用率需要真实回填一批之后复算，结果与本篇第 1 节基线并列记录。
 - [x] 文档同步：阶段 2 文档的 M5/M6 指向本篇、`技术选型.md` 6.1 补注入与复用口径、`README.md` 配置表补两个新配置。

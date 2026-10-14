@@ -34,15 +34,19 @@ type Task = components["schemas"]["TaskResponse"];
 
 const TASK_LABELS: Record<string, string> = {
   collect_source: "采集 RSS",
-  enrich_message: "内容加工",
   translate_message: "翻译消息",
+  enrich_message: "内容加工",
+  // 合并建议作用于词表而不是某条消息：目标列显示它看的是哪一段词，链接回词表页。
+  keyword_merge_suggest: "合并建议",
 };
 
 /** 任务已经结束的状态；只有这两种状态的耗时才有意义。 */
 const FINISHED = new Set(["succeeded", "failed"]);
 
-/** 目标链接：消息任务跳消息详情，采集任务跳来源详情。 */
+/** 目标链接：消息任务跳消息详情，采集任务跳来源详情，合并建议跳词表页。 */
 function targetPath(task: Task): string | null {
+  // 词表任务有目标说明但目标不是某条记录，因此先按类型判断再看 target_id。
+  if (task.target_kind === "vocabulary") return "/settings/keywords";
   if (!task.target_id) return null;
   if (task.target_kind === "source") return `/sources/${task.target_id}`;
   if (task.target_kind === "message") return `/messages/${task.target_id}`;

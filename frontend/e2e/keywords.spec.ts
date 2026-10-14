@@ -52,9 +52,13 @@ async function clearMerges(request: APIRequestContext) {
   }
 }
 
-/** 清掉建议与批次台账：批次台账防重复生成，用例要重复执行就得先清。 */
+/** 清掉建议、批次台账与遗留的已结束任务：用例要重复执行就得先清。 */
 async function clearSuggestions(request: APIRequestContext) {
   await request.post("/fixtures/suggestions/reset");
+  // 任务用产品自带的任务清理入口：已结束的批次任务留着会让"已排过"挡住重排。
+  await request.post("/api/tasks/clear", {
+    data: { statuses: ["succeeded", "failed"], dry_run: false },
+  });
 }
 
 /** 取消历史上遗留的常驻标记；词表跨运行累积，否则"只看常驻"会带着旧行。 */
@@ -225,18 +229,22 @@ for (const width of [1280, 1920]) {
 
     const block = page.locator(".card", { hasText: "合并建议" });
     await expect(block.getByText("没有待确认的建议")).toBeVisible();
-    await block.getByRole("button", { name: "生成一批建议" }).click();
-    // 假端点会从注入的词表里挑两个写法组成一组，因此这里必然出现可采纳的候选。
+
+    // 点一次只排一个批次：任务由独立 worker 执行，进度写在区块里。
+    await block.getByRole("button", { name: "生成一批" }).click();
+    await expect(page.getByText(/已排入 1 个批次/)).toBeVisible();
+    await page.screenshot({
+      path: testInfo.outputPath(`keywords-suggestions-${width}.png`),
+      fullPage: true,
+    });
+    await drainWorker(request);
+    // 假端点会从注入的词表里挑两个写法组成一组，等轮询把它带出来。
     await expect(
       block.getByRole("button", { name: "采纳" }).first(),
     ).toBeVisible({
       timeout: 20000,
     });
-    await expect(block.getByText(/本批 \d+ 个词/)).toBeVisible();
-    await page.screenshot({
-      path: testInfo.outputPath(`keywords-suggestions-${width}.png`),
-      fullPage: true,
-    });
+    await expect(block.getByText(/已看 \d+\/\d+ 个词/)).toBeVisible();
 
     // 采纳：复用既有合并弹层，确认后合并记录里能看到这次合并。
     await block.getByRole("button", { name: "采纳" }).first().click();
@@ -247,7 +255,21 @@ for (const width of [1280, 1920]) {
     await expect(page.getByText("已合并，可在合并记录里撤销。")).toBeVisible();
     await expect(block.getByText("没有待确认的建议")).toBeVisible();
 
+    // 任务列表里能看到这次批次：类型、目标（词表区间）与提示词版本。
+    await page.getByRole("link", { name: "任务", exact: true }).first().click();
+    const taskRow = page
+      .getByRole("row")
+      .filter({ hasText: "合并建议" })
+      .first();
+    await expect(taskRow).toContainText("词表第");
+    await expect(taskRow).toContainText("merge-suggest-v");
+    await page.screenshot({
+      path: testInfo.outputPath(`keywords-suggestion-task-${width}.png`),
+      fullPage: true,
+    });
+
     // 收尾：撤销这次合并，保证用例可重复执行。
+    await page.goto("/settings/keywords");
     const history = page.locator(".card", { hasText: "合并记录" });
     await history.getByRole("button", { name: "撤销" }).first().click();
     await expect(

@@ -189,6 +189,7 @@ def build_container(settings: Settings | None = None, migrate: bool = True) -> C
     suggestion_service = KeywordSuggestionService(
         keywords,
         suggestions,
+        tasks,
         resolver,
         llm_provider,
         failover,

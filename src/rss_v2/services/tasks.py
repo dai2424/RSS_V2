@@ -80,6 +80,8 @@ class TaskService:
     def view(self, task: Task) -> TaskView:
         """单个任务的目标说明。"""
 
+        if task.task_type == TaskType.KEYWORD_MERGE_SUGGEST.value:
+            return TaskView(task, "vocabulary", "", self._batch_label(task))
         kind, target_id = self._target(task)
         if not target_id:
             return TaskView(task, "unknown", "", "")
@@ -130,6 +132,16 @@ class TaskService:
         if task.status != TaskStatus.FAILED:
             raise DomainError("task_not_failed", "只有失败任务可以手动重试")
         return self.tasks.retry(task_id)
+
+    @staticmethod
+    def _batch_label(task: Task) -> str:
+        """合并建议任务的目标：它看的是词表里的哪一段，而不是某条消息。"""
+
+        offset = int(task.payload.get("offset", 0))
+        size = int(task.payload.get("size", 0))
+        if size <= 0:
+            return f"词表第 {offset + 1} 个词起"
+        return f"词表第 {offset + 1}–{offset + size} 个词"
 
     @staticmethod
     def _target(task: Task) -> tuple[str, str]:

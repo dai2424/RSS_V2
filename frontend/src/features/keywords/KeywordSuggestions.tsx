@@ -12,40 +12,46 @@ import { useKeywordSuggestions } from "./useKeywordsData";
 
 type Suggestion = components["schemas"]["KeywordSuggestionResponse"];
 
-/** 合并建议：模型给候选组，人工确认后才合并；采纳复用既有合并弹层。 */
+/** 合并建议：模型给候选组，人工确认后才合并；批次由独立 worker 执行，进度在这里显示。 */
 export function KeywordSuggestions() {
-  const { list, pending, generate, dismiss } = useKeywordSuggestions();
+  const { list, pending, queued, failed, total, scanned, enqueue, dismiss } =
+    useKeywordSuggestions();
   const [adopting, setAdopting] = useState<Suggestion | null>(null);
   const items = list.data?.items ?? [];
-  const batch = generate.data;
+  const busy = enqueue.isPending;
+  const remaining = Math.max(0, total - scanned);
 
   return (
     <Card className="card-pad">
       <div className="toolbar">
         <h2>合并建议</h2>
         <span className="muted">
-          待确认 {pending}{" "}
-          组；每批交给模型判断一次（约需几十秒），模型只给候选， 合并仍由你确认
+          待确认 {pending} 组；已看 {scanned}/{total} 个词
+          {queued > 0 ? `，${queued} 个批次在排队或运行` : ""}
+          {failed > 0 ? `，${failed} 个批次失败（可在任务页重试）` : ""}
         </span>
         <Button
           className="secondary"
-          disabled={generate.isPending}
-          onClick={() => generate.mutate(undefined)}
+          disabled={busy || remaining === 0}
+          title={remaining === 0 ? "词表都看过了" : "排一个批次，约需几十秒"}
+          onClick={() => enqueue.mutate(1)}
         >
-          {generate.isPending ? "生成中…" : "生成一批建议"}
+          {busy ? "排队中…" : "生成一批"}
+        </Button>
+        <Button
+          disabled={busy || remaining === 0}
+          title={
+            remaining === 0
+              ? "词表都看过了"
+              : "按当前批次大小把剩下的词排完，由 worker 逐批执行"
+          }
+          onClick={() => enqueue.mutate(50)}
+        >
+          排队扫完剩余
         </Button>
       </div>
-      {batch && (
-        <p className="muted">
-          {batch.size > 0
-            ? `本批 ${batch.size} 个词，得到 ${batch.groups} 组建议${
-                batch.dropped > 0 ? `，丢弃 ${batch.dropped} 组` : ""
-              }。`
-            : "词表都看过了，没有更多可建议的词。"}
-        </p>
-      )}
-      {generate.isError && (
-        <div className="alert-error">{generate.error.message}</div>
+      {enqueue.isError && (
+        <div className="alert-error">{enqueue.error.message}</div>
       )}
       {list.isLoading && <div className="loading">正在加载建议…</div>}
       {list.isError && (
@@ -57,7 +63,11 @@ export function KeywordSuggestions() {
       {!list.isLoading && !list.isError && items.length === 0 && (
         <EmptyState
           title="没有待确认的建议"
-          description="点「生成一批建议」把词表交给模型找疑似同指组；已经忽略的组不会再出现。"
+          description={
+            remaining > 0
+              ? "点「生成一批」把词表交给模型找疑似同指组；已经忽略的组不会再出现。"
+              : "词表都看过了，没有更多可建议的词。"
+          }
         />
       )}
       {items.length > 0 && (

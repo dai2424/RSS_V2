@@ -68,7 +68,7 @@ class Worker:
         return True
 
     def execute(self, task: Task) -> None:
-        """分发当前任务，不包含领取逻辑。"""
+        """分发当前任务，不包含领取逻辑；模型任务自行结束任务并写入结果关联。"""
 
         if task.task_type == TaskType.COLLECT_SOURCE:
             self.container.collection_service.collect(
@@ -81,6 +81,9 @@ class Worker:
         elif task.task_type == TaskType.ENRICH_MESSAGE:
             enrichment = self.container.enrichment_service.run(task)
             self.container.tasks.complete(task.id, enrichment.id, task.lease_token)
+        elif task.task_type == TaskType.KEYWORD_MERGE_SUGGEST:
+            # 批次结果写进建议表，任务本身没有"输出版本"可关联。
+            self.container.suggestion_service.run(task)
         else:
             raise DomainError("task_type_unsupported", "不支持的任务类型")
 

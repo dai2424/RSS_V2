@@ -107,10 +107,24 @@ class KeywordListResponse(Page[KeywordEntryResponse]):
 
 
 class KeywordSuggestionRequest(BaseModel):
-    """生成一批建议：两个字段都可以省略——接着上一批，用默认批次大小。"""
+    """排若干批建议任务：count 是批数（默认 1），size 是每批词数（默认取配置）。"""
 
-    offset: int | None = Field(default=None, ge=0)
+    count: int = Field(default=1, ge=1, le=50)
     size: int | None = Field(default=None, ge=2, le=100)
+
+
+class KeywordSuggestionStatusResponse(BaseModel):
+    """一次入队的回执与当前进度。"""
+
+    enqueued: int
+    reused: int
+    done: int
+    queued: int
+    running: int
+    failed: int
+    pending: int
+    total: int
+    scanned: int
 
 
 class KeywordSuggestionMemberResponse(BaseModel):
@@ -136,22 +150,15 @@ class KeywordSuggestionResponse(BaseModel):
 
 
 class KeywordSuggestionListResponse(BaseModel):
-    """建议列表与待处理总数。"""
+    """建议列表与当前进度；界面据此显示"还剩多少词没看"并决定是否轮询。"""
 
     items: list[KeywordSuggestionResponse]
     pending: int
-
-
-class KeywordSuggestionBatchResponse(BaseModel):
-    """一次生成的概要；重复请求同一批会回放这份数字，不重复调用模型。"""
-
-    vocabulary_fingerprint: str
-    offset: int
-    size: int
+    queued: int
+    running: int
+    failed: int
     total: int
-    groups: int
-    dropped: int
-    pending: int
+    scanned: int
 
 
 class KeywordSuggestionAcceptRequest(BaseModel):

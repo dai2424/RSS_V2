@@ -99,11 +99,16 @@ export function useSetKeywordPin() {
   });
 }
 
-/** 合并建议：待确认列表、生成下一批、忽略与采纳标记。 */
+/** 合并建议：待确认列表、排队批次与处置。批次由独立 worker 执行，因此这里轮询进度。 */
 export function useKeywordSuggestions() {
   const queryClient = useQueryClient();
   const list = useQuery({
     queryKey: ["keyword-suggestions"],
+    // 有批次在排队或运行时定时刷新，让结果自己出现；闲着就不轮询。
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      return data && data.queued + data.running > 0 ? 3000 : false;
+    },
     queryFn: async () => {
       const r = await api.GET("/api/keywords/suggestions", {
         params: { query: { status: "pending", limit: 50 } },
@@ -115,13 +120,24 @@ export function useKeywordSuggestions() {
     await queryClient.invalidateQueries({ queryKey: ["keyword-suggestions"] });
     await queryClient.invalidateQueries({ queryKey: ["keyword-overview"] });
   };
-  const generate = useMutation({
-    // 不带偏移：服务端接着上一批往后走，刷新页面也不会从头重复。
-    mutationFn: async () => {
-      const r = await api.POST("/api/keywords/suggestions", { body: {} });
+  const enqueue = useMutation({
+    // count 是批数：1 批用于试探，整表扫完就一次多排几批，由 worker 慢慢跑。
+    mutationFn: async (count: number) => {
+      const r = await api.POST("/api/keywords/suggestions", {
+        body: { count },
+      });
       const data = requireResponse(r.response, r.data, r.error);
       await refresh();
       return data;
+    },
+    onSuccess: (data) => {
+      showToast({
+        type: "success",
+        content:
+          data.enqueued > 0
+            ? `已排入 ${data.enqueued} 个批次，可在任务页看进度。`
+            : "没有需要排的批次：词表都看过了。",
+      });
     },
     onError: (error: Error) => {
       showToast({ type: "error", content: error.message });
@@ -167,5 +183,16 @@ export function useKeywordSuggestions() {
       });
     },
   });
-  return { list, pending: list.data?.pending ?? 0, generate, dismiss, accept };
+  const state = list.data;
+  return {
+    list,
+    pending: state?.pending ?? 0,
+    queued: (state?.queued ?? 0) + (state?.running ?? 0),
+    failed: state?.failed ?? 0,
+    total: state?.total ?? 0,
+    scanned: state?.scanned ?? 0,
+    enqueue,
+    dismiss,
+    accept,
+  };
 }

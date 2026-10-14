@@ -439,10 +439,12 @@ export interface paths {
     get: operations["list_suggestions_api_keywords_suggestions_get"];
     put?: never;
     /**
-     * Generate Suggestions
-     * @description 把词表的一批交给模型找同指候选；同一批重复请求直接回放。
+     * Enqueue Suggestions
+     * @description 把接下来的若干批排成任务；已经生成过或已经排过的批次不重复入队。
+     *
+     *     每批一个任务，由独立 worker 执行：进度、耗时与失败重试都在任务页看得见。
      */
-    post: operations["generate_suggestions_api_keywords_suggestions_post"];
+    post: operations["enqueue_suggestions_api_keywords_suggestions_post"];
     delete?: never;
     options?: never;
     head?: never;
@@ -1352,34 +1354,24 @@ export interface components {
       merge_id: string;
     };
     /**
-     * KeywordSuggestionBatchResponse
-     * @description 一次生成的概要；重复请求同一批会回放这份数字，不重复调用模型。
-     */
-    KeywordSuggestionBatchResponse: {
-      /** Vocabulary Fingerprint */
-      vocabulary_fingerprint: string;
-      /** Offset */
-      offset: number;
-      /** Size */
-      size: number;
-      /** Total */
-      total: number;
-      /** Groups */
-      groups: number;
-      /** Dropped */
-      dropped: number;
-      /** Pending */
-      pending: number;
-    };
-    /**
      * KeywordSuggestionListResponse
-     * @description 建议列表与待处理总数。
+     * @description 建议列表与当前进度；界面据此显示"还剩多少词没看"并决定是否轮询。
      */
     KeywordSuggestionListResponse: {
       /** Items */
       items: components["schemas"]["KeywordSuggestionResponse"][];
       /** Pending */
       pending: number;
+      /** Queued */
+      queued: number;
+      /** Running */
+      running: number;
+      /** Failed */
+      failed: number;
+      /** Total */
+      total: number;
+      /** Scanned */
+      scanned: number;
     };
     /**
      * KeywordSuggestionMemberResponse
@@ -1403,11 +1395,14 @@ export interface components {
     };
     /**
      * KeywordSuggestionRequest
-     * @description 生成一批建议：两个字段都可以省略——接着上一批，用默认批次大小。
+     * @description 排若干批建议任务：count 是批数（默认 1），size 是每批词数（默认取配置）。
      */
     KeywordSuggestionRequest: {
-      /** Offset */
-      offset?: number | null;
+      /**
+       * Count
+       * @default 1
+       */
+      count: number;
       /** Size */
       size?: number | null;
     };
@@ -1434,6 +1429,30 @@ export interface components {
       resolved_at: number | null;
       /** Merge Id */
       merge_id: string | null;
+    };
+    /**
+     * KeywordSuggestionStatusResponse
+     * @description 一次入队的回执与当前进度。
+     */
+    KeywordSuggestionStatusResponse: {
+      /** Enqueued */
+      enqueued: number;
+      /** Reused */
+      reused: number;
+      /** Done */
+      done: number;
+      /** Queued */
+      queued: number;
+      /** Running */
+      running: number;
+      /** Failed */
+      failed: number;
+      /** Pending */
+      pending: number;
+      /** Total */
+      total: number;
+      /** Scanned */
+      scanned: number;
     };
     /**
      * KeywordTrendPointResponse
@@ -3168,7 +3187,7 @@ export interface operations {
       };
     };
   };
-  generate_suggestions_api_keywords_suggestions_post: {
+  enqueue_suggestions_api_keywords_suggestions_post: {
     parameters: {
       query?: never;
       header?: never;
@@ -3182,12 +3201,12 @@ export interface operations {
     };
     responses: {
       /** @description Successful Response */
-      200: {
+      202: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["KeywordSuggestionBatchResponse"];
+          "application/json": components["schemas"]["KeywordSuggestionStatusResponse"];
         };
       };
       /** @description Validation Error */
@@ -3333,7 +3352,7 @@ export interface operations {
     parameters: {
       query?: {
         status?: string | null;
-        /** @description 任务类型：采集、翻译或内容加工 */
+        /** @description 任务类型：采集、翻译、内容加工或合并建议 */
         task_type?: string | null;
         /** @description 来源：采集任务看任务快照，消息任务看所属来源 */
         source_id?: string | null;

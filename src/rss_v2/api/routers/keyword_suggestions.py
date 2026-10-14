@@ -8,28 +8,31 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Query, Request
 
-from rss_v2.api.keyword_presenters import merge_suggestion_response, suggestion_batch_response
+from rss_v2.api.keyword_presenters import merge_suggestion_response, suggestion_status_response
 from rss_v2.api.presenters import container
 from rss_v2.api.schemas import (
     KeywordSuggestionAcceptRequest,
-    KeywordSuggestionBatchResponse,
     KeywordSuggestionListResponse,
     KeywordSuggestionPendingResponse,
     KeywordSuggestionRequest,
+    KeywordSuggestionStatusResponse,
 )
 
 suggestions_router = APIRouter(prefix="/api/keywords/suggestions", tags=["keywords"])
 
 
-@suggestions_router.post("", response_model=KeywordSuggestionBatchResponse)
-def generate_suggestions(
+@suggestions_router.post("", response_model=KeywordSuggestionStatusResponse, status_code=202)
+def enqueue_suggestions(
     request: Request, payload: KeywordSuggestionRequest
-) -> KeywordSuggestionBatchResponse:
-    """把词表的一批交给模型找同指候选；同一批重复请求直接回放。"""
+) -> KeywordSuggestionStatusResponse:
+    """把接下来的若干批排成任务；已经生成过或已经排过的批次不重复入队。
+
+    每批一个任务，由独立 worker 执行：进度、耗时与失败重试都在任务页看得见。
+    """
 
     service = container(request).suggestion_service
-    batch = service.generate(payload.offset, payload.size)
-    return suggestion_batch_response(batch, service.pending())
+    result = service.enqueue(payload.count, payload.size)
+    return suggestion_status_response(service.status(), result)
 
 
 @suggestions_router.get("", response_model=KeywordSuggestionListResponse)
@@ -41,9 +44,15 @@ def list_suggestions(
     """建议列表；默认只看待处理的。"""
 
     service = container(request).suggestion_service
+    state = service.status()
     return KeywordSuggestionListResponse(
         items=[merge_suggestion_response(item) for item in service.list(status, limit)],
-        pending=service.pending(),
+        pending=state.pending,
+        queued=state.queued,
+        running=state.running,
+        failed=state.failed,
+        total=state.total,
+        scanned=state.scanned,
     )
 
 
