@@ -8,6 +8,7 @@ import {
 import { KeywordCharts } from "./KeywordCharts";
 import { KeywordMaintenance } from "./KeywordMaintenance";
 import { KeywordMetrics } from "./KeywordMetrics";
+import { KeywordSuggestions } from "./KeywordSuggestions";
 import { MergeDialog, MergeHistory } from "./KeywordMerges";
 import { KeywordVocabulary } from "./KeywordVocabulary";
 import { useKeywordOverview, useKeywordVocabulary } from "./useKeywordsData";
@@ -111,6 +112,7 @@ export function KeywordsPage() {
           setSelection(new Map());
         }}
       />
+      <KeywordSuggestions />
       <MergeHistory />
     </div>
   );

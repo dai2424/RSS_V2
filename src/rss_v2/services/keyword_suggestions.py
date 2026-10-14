@@ -40,6 +40,9 @@ logger = logging.getLogger(__name__)
 #: 单批最大词数：再大就会让一次调用的输出难以核对，也容易超出上下文。
 MAX_BATCH = 100
 
+#: 默认批次大小：界面不带参数时用它，批次台账的切分也按它走。
+DEFAULT_BATCH_SIZE = 60
+
 
 @dataclass(slots=True)
 class KeywordSuggestionService:
@@ -52,14 +55,17 @@ class KeywordSuggestionService:
     failover: LLMFailover  # 候选回退、Key 冷却与调用审计
     cooldown_seconds: int  # 临时错误冷却秒数
 
-    def generate(self, offset: int = 0, size: int = 60) -> SuggestionBatch:
-        """生成一批建议；同一批已经生成过就直接回放，不再调用模型。"""
+    def generate(self, offset: int | None = None, size: int | None = None) -> SuggestionBatch:
+        """生成一批建议；同一批已经生成过就直接回放，不再调用模型。
+
+        offset 省略时接着上一批往后走：界面不需要记住游标，刷新页面也不会从头重复。
+        """
 
         prompt = self.prompts.active(TaskType.KEYWORD_MERGE_SUGGEST.value)
         if prompt is None:
             raise DomainError("prompt_not_configured", "没有可用的合并建议提示词")
-        start = max(0, offset)
-        batch_size = max(2, min(size, MAX_BATCH))
+        batch_size = max(2, min(size or DEFAULT_BATCH_SIZE, MAX_BATCH))
+        start = self._next_offset(batch_size) if offset is None else max(0, offset)
         entries = self.keywords.vocabulary(None, None, 1, None, None, False, batch_size, start)
         total = self.keywords.count_vocabulary(None, None, 1, None, None, False)
         fingerprint = _batch_fingerprint([item.key for item in entries])
@@ -114,6 +120,22 @@ class KeywordSuggestionService:
             invoke,
             persist,
         )
+
+    def _next_offset(self, size: int) -> int:
+        """第一批还没生成过的偏移；全都生成过则返回词表末尾。
+
+        按固定批次大小往后走，因此改批次大小会让游标对不上——界面上批次大小是固定的。
+        """
+
+        total = self.keywords.count_vocabulary(None, None, 1, None, None, False)
+        start = 0
+        while start < total:
+            entries = self.keywords.vocabulary(None, None, 1, None, None, False, size, start)
+            fingerprint = _batch_fingerprint([item.key for item in entries])
+            if self.suggestions.batch_result(fingerprint, start) is None:
+                return start
+            start += size
+        return total
 
     def list(self, status: str | None = "pending", limit: int = 50) -> list[MergeSuggestion]:
         """建议列表；默认只看待处理的。"""

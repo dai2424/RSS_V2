@@ -98,3 +98,74 @@ export function useSetKeywordPin() {
     },
   });
 }
+
+/** 合并建议：待确认列表、生成下一批、忽略与采纳标记。 */
+export function useKeywordSuggestions() {
+  const queryClient = useQueryClient();
+  const list = useQuery({
+    queryKey: ["keyword-suggestions"],
+    queryFn: async () => {
+      const r = await api.GET("/api/keywords/suggestions", {
+        params: { query: { status: "pending", limit: 50 } },
+      });
+      return requireResponse(r.response, r.data, r.error);
+    },
+  });
+  const refresh = async () => {
+    await queryClient.invalidateQueries({ queryKey: ["keyword-suggestions"] });
+    await queryClient.invalidateQueries({ queryKey: ["keyword-overview"] });
+  };
+  const generate = useMutation({
+    // 不带偏移：服务端接着上一批往后走，刷新页面也不会从头重复。
+    mutationFn: async () => {
+      const r = await api.POST("/api/keywords/suggestions", { body: {} });
+      const data = requireResponse(r.response, r.data, r.error);
+      await refresh();
+      return data;
+    },
+    onError: (error: Error) => {
+      showToast({ type: "error", content: error.message });
+    },
+  });
+  const dismiss = useMutation({
+    mutationFn: async (suggestionId: string) => {
+      const r = await api.POST(
+        "/api/keywords/suggestions/{suggestion_id}/dismiss",
+        {
+          params: { path: { suggestion_id: suggestionId } },
+        },
+      );
+      return requireResponse(r.response, r.data, r.error);
+    },
+    onSuccess: async () => {
+      await refresh();
+      showToast({ type: "success", content: "已忽略这组建议，不会再出现。" });
+    },
+    onError: (error: Error) => {
+      showToast({ type: "error", content: error.message });
+    },
+  });
+  const accept = useMutation({
+    mutationFn: async (input: { id: string; mergeId: string }) => {
+      const r = await api.POST(
+        "/api/keywords/suggestions/{suggestion_id}/accept",
+        {
+          params: { path: { suggestion_id: input.id } },
+          body: { merge_id: input.mergeId },
+        },
+      );
+      return requireResponse(r.response, r.data, r.error);
+    },
+    onSuccess: async () => {
+      await refresh();
+    },
+    onError: (error: Error) => {
+      // 合并已经完成，只是标记失败：提示人工忽略这条建议即可。
+      showToast({
+        type: "error",
+        content: `合并已完成，但建议状态没更新（${error.message}），可以点忽略收尾。`,
+      });
+    },
+  });
+  return { list, pending: list.data?.pending ?? 0, generate, dismiss, accept };
+}

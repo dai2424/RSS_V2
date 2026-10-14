@@ -4236,22 +4236,34 @@
       "KeywordSuggestionRequest": {
         "properties": {
           "offset": {
-            "type": "integer",
-            "minimum": 0.0,
-            "title": "Offset",
-            "default": 0
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Offset"
           },
           "size": {
-            "type": "integer",
-            "maximum": 100.0,
-            "minimum": 2.0,
-            "title": "Size",
-            "default": 60
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 100.0,
+                "minimum": 2.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Size"
           }
         },
         "type": "object",
         "title": "KeywordSuggestionRequest",
-        "description": "生成一批建议：offset 是词表里的起始位置，size 是这一批取多少词。"
+        "description": "生成一批建议：两个字段都可以省略——接着上一批，用默认批次大小。"
       },
       "KeywordSuggestionResponse": {
         "properties": {

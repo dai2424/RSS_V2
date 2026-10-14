@@ -107,10 +107,10 @@ class KeywordListResponse(Page[KeywordEntryResponse]):
 
 
 class KeywordSuggestionRequest(BaseModel):
-    """生成一批建议：offset 是词表里的起始位置，size 是这一批取多少词。"""
+    """生成一批建议：两个字段都可以省略——接着上一批，用默认批次大小。"""
 
-    offset: int = Field(default=0, ge=0)
-    size: int = Field(default=60, ge=2, le=100)
+    offset: int | None = Field(default=None, ge=0)
+    size: int | None = Field(default=None, ge=2, le=100)
 
 
 class KeywordSuggestionMemberResponse(BaseModel):

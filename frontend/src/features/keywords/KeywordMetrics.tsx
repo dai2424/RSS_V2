@@ -47,6 +47,11 @@ export function KeywordMetrics({ overview }: { overview: Overview }) {
         hint="注入内容变化时递增"
       />
       <Metric
+        label="合并建议"
+        value={overview.suggestions_pending}
+        hint="待人工确认的候选组"
+      />
+      <Metric
         label="加工任务"
         value={`排队 ${overview.tasks_queued} · 运行 ${overview.tasks_running}`}
         hint={`完成 ${overview.tasks_succeeded} · 失败 ${overview.tasks_failed}`}

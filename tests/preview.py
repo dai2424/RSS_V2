@@ -1,6 +1,7 @@
 """浏览器验收专用本机服务；fixture 端点不会进入生产应用。"""
 
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -22,6 +23,19 @@ def feed() -> Response:
     """仅提供固定 RSS，实际 HTTPX 适配器仍会访问网络边界。"""
     return Response(
         (ROOT / "tests/fixtures/sample_feed.xml").read_bytes(), media_type="application/xml"
+    )
+
+
+def _user_prompt(body: dict[str, Any]) -> str:
+    """读取请求里的用户提示；合并建议要从里面取本批词表。"""
+
+    messages = body.get("messages")
+    if not isinstance(messages, list):
+        return ""
+    return " ".join(
+        str(item.get("content", ""))
+        for item in messages
+        if isinstance(item, dict) and item.get("role") == "user"
     )
 
 
@@ -50,9 +64,35 @@ def _probe_text(system_prompt: str) -> str | None:
     return PROBE_REPLY if PROBE_MARKER in system_prompt else None
 
 
-def _fixture_content(system_prompt: str) -> dict[str, object]:
+#: 建议组里至少要两个词；不够两个就返回空建议。
+_BATCH_LINE = re.compile(r"^- (?P<text>.+)（(?P<kind>.+?)）$", re.MULTILINE)
+
+
+def _suggestion_groups(user_prompt: str) -> list[dict[str, object]]:
+    """从注入的词表里取前两个写法组成一组。
+
+    固定写死两个词会在词表变化时被服务端的越界过滤丢掉，这里照实"读词表再建议"，
+    与真实模型的行为一致。
+    """
+
+    terms = _BATCH_LINE.findall(user_prompt)
+    first = [item[0].strip() for item in terms]
+    if len(first) < 2:
+        return []
+    return [
+        {
+            "terms": first[:2],
+            "target": first[0],
+            "rationale": "固定样例：两条写法疑似同指",
+        }
+    ]
+
+
+def _fixture_content(system_prompt: str, user_prompt: str) -> dict[str, object]:
     """按任务类型标记返回对应结构；两种协议的假端点共用它。"""
 
+    if "[task: keyword_merge_suggest" in system_prompt:
+        return {"groups": _suggestion_groups(user_prompt)}
     if "[task: enrich_message" in system_prompt:
         return {
             "title": "精简标题",
@@ -69,6 +109,20 @@ def _fixture_content(system_prompt: str) -> dict[str, object]:
     }
 
 
+@app.post("/fixtures/suggestions/reset")
+def reset_suggestions() -> dict[str, int]:
+    """浏览器验收专用：清掉合并建议与批次台账，让用例可重复执行。
+
+    产品里没有"清空建议"的操作——批次台账是防重复付费的；只有夹具需要反复重放同一条流程。
+    """
+
+    with app.state.container.database.transaction() as connection:
+        cleared = int(connection.execute("SELECT COUNT(*) FROM keyword_suggestions").fetchone()[0])
+        connection.execute("DELETE FROM keyword_suggestions")
+        connection.execute("DELETE FROM keyword_suggestion_batches")
+    return {"cleared": cleared}
+
+
 @app.post("/fixtures/v1/chat/completions")
 async def completion(request: Request) -> dict[str, object]:
     """模拟兼容协议，按任务类型返回对应结构，不调用真实模型。"""
@@ -76,7 +130,11 @@ async def completion(request: Request) -> dict[str, object]:
     body = payload if isinstance(payload, dict) else {}
     prompt = _system_prompt(body)
     text = _probe_text(prompt)
-    reply = text if text is not None else json.dumps(_fixture_content(prompt), ensure_ascii=False)
+    reply = (
+        text
+        if text is not None
+        else json.dumps(_fixture_content(prompt, _user_prompt(body)), ensure_ascii=False)
+    )
     return {
         "choices": [{"message": {"content": reply}}],
         "usage": {"total_tokens": 3},
@@ -89,8 +147,15 @@ async def messages(request: Request) -> dict[str, object]:
     payload: object = await request.json()
     body = payload if isinstance(payload, dict) else {}
     prompt = str(body.get("system") or "")
+    user_prompt = _user_prompt({"messages": body.get("messages")}) or str(
+        body.get("messages") or ""
+    )
     text = _probe_text(prompt)
-    reply = text if text is not None else json.dumps(_fixture_content(prompt), ensure_ascii=False)
+    reply = (
+        text
+        if text is not None
+        else json.dumps(_fixture_content(prompt, user_prompt), ensure_ascii=False)
+    )
     return {
         "content": [{"type": "text", "text": reply}],
         "stop_reason": "end_turn",

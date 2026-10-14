@@ -165,7 +165,8 @@ for (const width of [1280, 1440, 1920]) {
       .getByRole("row")
       .filter({ hasText: "内容加工" })
       .first();
-    await expect(enrichRow).toContainText("enrich-v2");
+    // 提示词版本会随升级变化，这里只断言"显示了版本"，不写死具体版本号。
+    await expect(enrichRow).toContainText(/enrich-v\d+/);
     await expect(enrichRow.getByRole("link")).toHaveAttribute(
       "href",
       /^\/messages\//,

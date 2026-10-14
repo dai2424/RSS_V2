@@ -52,6 +52,11 @@ async function clearMerges(request: APIRequestContext) {
   }
 }
 
+/** 清掉建议与批次台账：批次台账防重复生成，用例要重复执行就得先清。 */
+async function clearSuggestions(request: APIRequestContext) {
+  await request.post("/fixtures/suggestions/reset");
+}
+
 /** 取消历史上遗留的常驻标记；词表跨运行累积，否则"只看常驻"会带着旧行。 */
 async function clearPins(request: APIRequestContext) {
   const pinned = await (
@@ -199,6 +204,55 @@ for (const width of [1280, 1920]) {
     await expect(
       page.getByRole("row").filter({ hasText: "计算平台" }),
     ).toHaveCount(0);
+
+    await expect(page.locator("body")).toHaveJSProperty("scrollWidth", width);
+    expect(errors).toEqual([]);
+  });
+
+  test(`合并建议生成与采纳 ${width}px`, async ({ page, request }, testInfo) => {
+    await page.setViewportSize({ width, height: 1000 });
+    const errors: string[] = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    await clearMerges(request);
+    await clearPins(request);
+    await clearSuggestions(request);
+    await seed(request, `suggest-${width}-${Date.now()}`);
+
+    await page.goto("/settings/keywords");
+    await expect(
+      page.getByRole("heading", { name: "关键词", exact: true }),
+    ).toBeVisible({ timeout: 15000 });
+
+    const block = page.locator(".card", { hasText: "合并建议" });
+    await expect(block.getByText("没有待确认的建议")).toBeVisible();
+    await block.getByRole("button", { name: "生成一批建议" }).click();
+    // 假端点会从注入的词表里挑两个写法组成一组，因此这里必然出现可采纳的候选。
+    await expect(
+      block.getByRole("button", { name: "采纳" }).first(),
+    ).toBeVisible({
+      timeout: 20000,
+    });
+    await expect(block.getByText(/本批 \d+ 个词/)).toBeVisible();
+    await page.screenshot({
+      path: testInfo.outputPath(`keywords-suggestions-${width}.png`),
+      fullPage: true,
+    });
+
+    // 采纳：复用既有合并弹层，确认后合并记录里能看到这次合并。
+    await block.getByRole("button", { name: "采纳" }).first().click();
+    const dialog = page.getByRole("dialog", { name: "合并关键词" });
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByText(/将并入 1 个词条/)).toBeVisible();
+    await dialog.getByRole("button", { name: "确认合并" }).click();
+    await expect(page.getByText("已合并，可在合并记录里撤销。")).toBeVisible();
+    await expect(block.getByText("没有待确认的建议")).toBeVisible();
+
+    // 收尾：撤销这次合并，保证用例可重复执行。
+    const history = page.locator(".card", { hasText: "合并记录" });
+    await history.getByRole("button", { name: "撤销" }).first().click();
+    await expect(
+      page.getByText("已撤销这次合并，写法回到各自词条。"),
+    ).toBeVisible();
 
     await expect(page.locator("body")).toHaveJSProperty("scrollWidth", width);
     expect(errors).toEqual([]);

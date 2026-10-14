@@ -16,10 +16,13 @@ export function MergeDialog({
   open,
   selected,
   onClose,
+  onMerged,
 }: {
   open: boolean;
   selected: { key: string; text: string; mentions: number }[];
   onClose: () => void;
+  /** 合并完成后的回调；建议区用它把建议标记为已采纳。 */
+  onMerged?: (mergeId: string) => void;
 }) {
   const [target, setTarget] = useState("");
   const queryClient = useQueryClient();
@@ -52,13 +55,16 @@ export function MergeDialog({
           dry_run: false,
         },
       });
-      return requireResponse(r.response, r.data, r.error);
+      const data = requireResponse(r.response, r.data, r.error);
+      if (!data.record) throw new Error("合并没有返回记录");
+      return data.record;
     },
-    onSuccess: async () => {
+    onSuccess: async (record) => {
       await queryClient.invalidateQueries({ queryKey: ["keyword-vocabulary"] });
       await queryClient.invalidateQueries({ queryKey: ["keyword-overview"] });
       await queryClient.invalidateQueries({ queryKey: ["keyword-merges"] });
       showToast({ type: "success", content: "已合并，可在合并记录里撤销。" });
+      onMerged?.(record.id);
       onClose();
     },
   });

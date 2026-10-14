@@ -1403,19 +1403,13 @@ export interface components {
     };
     /**
      * KeywordSuggestionRequest
-     * @description 生成一批建议：offset 是词表里的起始位置，size 是这一批取多少词。
+     * @description 生成一批建议：两个字段都可以省略——接着上一批，用默认批次大小。
      */
     KeywordSuggestionRequest: {
-      /**
-       * Offset
-       * @default 0
-       */
-      offset: number;
-      /**
-       * Size
-       * @default 60
-       */
-      size: number;
+      /** Offset */
+      offset?: number | null;
+      /** Size */
+      size?: number | null;
     };
     /**
      * KeywordSuggestionResponse

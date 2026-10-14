@@ -72,7 +72,9 @@ def seeded(client: TestClient, fake: SuggestProvider, url: str) -> None:
     drain_worker(client)
 
 
-def generate(client: TestClient, offset: int = 0, size: int = 60) -> dict[str, Any]:
+def generate(client: TestClient, offset: int | None = None, size: int = 60) -> dict[str, Any]:
+    """不带偏移就是"生成下一批"：服务端接着上一批往后走。"""
+
     response = client.post("/api/keywords/suggestions", json={"offset": offset, "size": size})
     assert response.status_code == 200, response.text
     return dict(response.json())
@@ -103,8 +105,10 @@ def test_batch_is_idempotent_and_marks_out_of_batch_groups(client: TestClient) -
     assert "- 云服务（实体）" in prompt
 
     # 同一批再来一次：直接回放，不再调用模型。
-    again = generate(client)
-    assert again["groups"] == 1 and fake.suggestion_calls == 1
+    replay = generate(client, offset=0)
+    assert replay["groups"] == 1 and fake.suggestion_calls == 1
+    # 不带偏移则是"生成下一批"：这一批已经生成过，于是走到末尾，仍然不调用模型。
+    assert generate(client)["size"] == 0 and fake.suggestion_calls == 1
 
     items = pending(client)
     assert len(items) == 1
@@ -112,6 +116,22 @@ def test_batch_is_idempotent_and_marks_out_of_batch_groups(client: TestClient) -
     assert [item["key"] for item in items[0]["members"]] == ["aws", "云服务"]
     assert items[0]["rationale"] == "同一事物"
     assert client.get("/api/keywords/overview").json()["suggestions_pending"] == 1
+
+
+@respx.mock
+def test_next_batch_continues_where_the_last_stopped(client: TestClient) -> None:
+    """省略偏移时接着上一批：词表只有一批就回放，不会重复调用模型。"""
+
+    fake = SuggestProvider([("AWS", "云服务")])
+    seeded(client, fake, "https://suggest-cursor.test/feed")
+    first = generate(client, size=2)
+    assert first["offset"] == 0 and first["size"] == 2
+    assert fake.suggestion_calls == 1
+
+    # 词表只有两个词，下一批已经没有内容了：不调用模型，界面据此提示"看完了"。
+    second = generate(client, size=2)
+    assert second["offset"] == 2 and second["size"] == 0
+    assert fake.suggestion_calls == 1
 
 
 @respx.mock
@@ -132,7 +152,7 @@ def test_dismissed_group_is_not_suggested_again(client: TestClient) -> None:
     # 重复处理与重复生成都被明确拒绝或跳过。
     again = client.post(f"/api/keywords/suggestions/{suggestion['id']}/dismiss")
     assert again.status_code == 400
-    assert generate(client)["groups"] == 1
+    assert generate(client, offset=0)["groups"] == 1
     assert fake.suggestion_calls == 1
 
 
