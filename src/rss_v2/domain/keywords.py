@@ -36,8 +36,20 @@ KEYWORD_LIMIT = 6
 #: 刻意不含 ASCII 句点与冒号——「GPT-6.1」「19.98万元」里的点不是句读。
 _SENTENCE_PUNCTUATION = re.compile(r"[，。！？；、,;!?]")
 
-#: 只为数字与单位存在的写法：剥离数字后剩下的语义字符不超过这个数就判为数值/价格。
-_MINIMUM_SEMANTIC_CHARS = 3
+#: 纯数值/价格/数量的形态：整条写法只由数字、分隔符与这些单位组成才算。
+#: 刻意不做"去掉数字后剩几个字符"的粗判——那会把 H100、A100、B200、5G 这类
+#: 型号与制式一起删掉，而它们恰恰是检索价值最高的写法之一。
+#: 单字母单位（N/V/A/W）刻意不收：它们与型号撞名，A100、V100 明显更值得保留。
+_QUANTITY_UNITS = (
+    "万元|亿元|万亿|万|亿|千|百|元|美元|欧元|日元|人民币|个百分点|%|％|折|起|约|左右|上下"
+    "|以内|以上|千瓦|兆瓦|瓦|度|吨|公斤|克|公里|千米|米|厘米|毫米|秒|分钟|小时|天|年|月|日|号"
+    "|MPa|GPa|kPa|GB|TB|MB|KB|GHz|MHz|kHz|Hz|kW|MW|km|cm|mm|ml|kg|℃"
+)
+_QUANTITY_SHAPE = re.compile(
+    rf"^[\d\s.,，、\-~－—至到:：/]*"
+    rf"(?:{_QUANTITY_UNITS})?"
+    rf"(?:[\d\s.,，、\-~－—至到:：/]*(?:{_QUANTITY_UNITS})?)*$"
+)
 
 #: 写法的长度上限（字符）：再长就不会有人用来检索，多半是模型把一句话塞了进来。
 MAXIMUM_KEYWORD_LENGTH = 24
@@ -71,14 +83,8 @@ def keyword_rejection_reason(text: str) -> str | None:
         return "句子式写法"
     if len(stripped) > MAXIMUM_KEYWORD_LENGTH:
         return "过长"
-    if any(char.isdigit() for char in stripped):
-        semantic = "".join(
-            char
-            for char in stripped
-            if not char.isdigit() and not _EDGE_PUNCTUATION.match(char) and not char.isspace()
-        )
-        if len(semantic) < _MINIMUM_SEMANTIC_CHARS:
-            return "只有数值与单位"
+    if any(char.isdigit() for char in stripped) and _QUANTITY_SHAPE.match(stripped):
+        return "只有数值与单位"
     return None
 
 

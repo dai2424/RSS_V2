@@ -12,9 +12,12 @@ from rss_v2.domain import keyword_rejection_reason
         "19.98万元",
         "17.18万-21.78万",
         "2250千瓦",
-        "1612N",
-        "2027款",
+        "2400MPa",
         "2027",
+        "19.98 万元",
+        "约 5000 元",
+        # 带后缀的价格：单位表覆盖了「起」「约」这类常见后缀。
+        "19.99万元起",
         # 句子式写法：带了句读标点。
         "Day 9/ We've rolled out optimizations, and more",
         "华为发布新品，售价公布",
@@ -35,6 +38,12 @@ def test_rejects_non_searchable_shapes(text: str) -> None:
         "GPT-6.1 Sol",
         "800V高压平台",
         "2400MPa热成型钢",
+        "H100",
+        "A100",
+        "B200",
+        "V100",
+        "5G",
+        "RTX5090",
         "理想MEGA",
         "新一代理想MEGA",
         "ChatGPT",
@@ -47,14 +56,17 @@ def test_keeps_searchable_shapes(text: str) -> None:
     assert keyword_rejection_reason(text) is None
 
 
-def test_boundary_keeps_short_suffix_forms() -> None:
-    """规则故意不覆盖「19.99万元起」这类带后缀的价格。
+def test_boundary_keeps_single_letter_suffix_forms() -> None:
+    """单字母单位（N/V/A/W）刻意不进单位表：它们与型号撞名。
 
-    要剔除它就得把"单位词"列成表，那张表迟早误伤「GPT-4」这类真型号；这类写法交给
-    提示词约束，并由热词门槛挡在热词表之外——形态规则只负责明显的那几类。
+    代价是「1612N」这类写法留在词表里（由门槛与人工合并收尾），换来的是 A100、V100
+    不会被误删——型号的检索价值高得多。「2027款」同理：款不是单位，形态上是"数字+词"。
     """
 
-    assert keyword_rejection_reason("19.99万元起") is None
+    assert keyword_rejection_reason("1612N") is None
+    assert keyword_rejection_reason("2027款") is None
+    # 纯数字仍在拒绝范围内。
+    assert keyword_rejection_reason("2027") == "只有数值与单位"
 
 
 def test_reason_is_readable() -> None:
