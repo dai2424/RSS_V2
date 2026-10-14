@@ -1437,10 +1437,6 @@ export interface components {
     KeywordSuggestionStatusResponse: {
       /** Enqueued */
       enqueued: number;
-      /** Reused */
-      reused: number;
-      /** Done */
-      done: number;
       /** Queued */
       queued: number;
       /** Running */

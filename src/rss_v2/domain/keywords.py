@@ -243,16 +243,8 @@ class SuggestionEnqueue:
     """一次入队的结果：新排了几个批次、命中几个已存在的任务。"""
 
     enqueued: int  # 新创建的任务数
-    reused: int  # 已有任务命中幂等键的数量（不重复付费）
-    done: int  # 已经生成过、这次跳过的批次数
     first_offset: int | None  # 本次排到的最小批次偏移；没有可排的批次时为空
     last_offset: int | None  # 本次排到的最大批次偏移
-
-    @property
-    def total(self) -> int:
-        """本次涉及的任务数（新建 + 复用）。"""
-
-        return self.enqueued + self.reused
 
 
 @dataclass(frozen=True, slots=True)
@@ -277,7 +269,6 @@ class SuggestionBatch:
     total: int  # 词表总词数
     groups: int  # 本批落库的建议组数
     dropped: int  # 被丢弃的组数（越界写法、已建议过、已同指等）
-    words: int = 0  # 本批覆盖的词数，用于算"看过多少词"
 
 
 @dataclass(frozen=True, slots=True)

@@ -31,6 +31,3 @@ ALTER TABLE tasks_suggest RENAME TO tasks;
 CREATE INDEX idx_tasks_claim ON tasks(status, lease_until, created_at);
 CREATE INDEX idx_tasks_available ON tasks(status, available_at, created_at);
 
--- 批次台账记下本批覆盖的词数：界面要显示"看过多少词、还剩多少"，
--- 而批次是按顺序铺开的，词数相加就是扫描进度。
-ALTER TABLE keyword_suggestion_batches ADD COLUMN batch_words INTEGER NOT NULL DEFAULT 0;

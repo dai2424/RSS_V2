@@ -411,8 +411,8 @@ class SuggestionRepository(Protocol):
         """已经建议过的成员集合指纹，用于去重（含已忽略与已采纳）。"""
         ...
 
-    def batch_result(self, fingerprint: str, offset: int) -> tuple[int, int, int] | None:
-        """已生成过的批次返回 (组数, 丢弃数, 词数)；没生成过返回 None。"""
+    def batch_result(self, fingerprint: str, offset: int) -> tuple[int, int] | None:
+        """已生成过的批次返回 (组数, 丢弃数)；没生成过返回 None。"""
         ...
 
     def save_batch(
@@ -421,14 +421,9 @@ class SuggestionRepository(Protocol):
         offset: int,
         suggestions: list[MergeSuggestion],
         dropped: int,
-        words: int,
         timestamp: int,
     ) -> list[MergeSuggestion]:
-        """批次台账与建议行同事务写入；words 是本批覆盖的词数。"""
-        ...
-
-    def scanned_words(self) -> int:
-        """已经生成过批次的词数：批次按顺序从第 0 个词铺开，相加即扫描进度。"""
+        """批次台账与建议行同事务写入。"""
         ...
 
     def list(self, status: str | None, limit: int) -> list[MergeSuggestion]:

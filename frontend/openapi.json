@@ -4318,14 +4318,6 @@
             "type": "integer",
             "title": "Enqueued"
           },
-          "reused": {
-            "type": "integer",
-            "title": "Reused"
-          },
-          "done": {
-            "type": "integer",
-            "title": "Done"
-          },
           "queued": {
             "type": "integer",
             "title": "Queued"
@@ -4354,8 +4346,6 @@
         "type": "object",
         "required": [
           "enqueued",
-          "reused",
-          "done",
           "queued",
           "running",
           "failed",

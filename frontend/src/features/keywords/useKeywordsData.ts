@@ -131,12 +131,16 @@ export function useKeywordSuggestions() {
       return data;
     },
     onSuccess: (data) => {
+      // 没排出新批次有两种原因：还有批次在跑，或者词表已经看完了。
+      const running = data.queued + data.running;
       showToast({
-        type: "success",
+        type: "info",
         content:
           data.enqueued > 0
             ? `已排入 ${data.enqueued} 个批次，可在任务页看进度。`
-            : "没有需要排的批次：词表都看过了。",
+            : running > 0
+              ? `已有 ${running} 个批次在排队或运行，等它们跑完。`
+              : "词表都看过了，没有需要排的批次。",
       });
     },
     onError: (error: Error) => {

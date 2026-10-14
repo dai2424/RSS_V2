@@ -128,7 +128,7 @@ def test_task_runs_through_worker_and_marks_out_of_batch_groups(client: TestClie
     }
 
     receipt = enqueue(client)
-    assert receipt["enqueued"] == 1 and receipt["reused"] == 0
+    assert receipt["enqueued"] == 1
     assert (receipt["queued"], receipt["running"]) == (1, 0)
     assert (receipt["total"], receipt["scanned"]) == (2, 0)
     task = suggestion_task(client)
@@ -160,14 +160,17 @@ def test_enqueue_is_idempotent_and_reports_scan_progress(client: TestClient) -> 
 
     first = enqueue(client, count=5, size=2)
     assert first["enqueued"] == 1  # 词表只有一批，多要也排不出来
+
+    # 连点两次：第二次命中的是已经排过的批次，不重复入队，也就不会重复付费。
+    again = enqueue(client, count=5, size=2)
+    assert again["enqueued"] == 0 and again["queued"] == 1
+
     drain_worker(client)
     assert fake.suggestion_calls == 1
 
-    again = enqueue(client, count=5, size=2)
-    # 这一批已经排过（任务还在）：既不再排任务，也不重复调用模型。
-    assert again["enqueued"] == 0 and again["reused"] + again["done"] == 1
-    drain_worker(client)
-    assert fake.suggestion_calls == 1
+    # 生成过之后再排：这一批不需要再排，进度显示已经看过。
+    after = enqueue(client, count=5, size=2)
+    assert after["enqueued"] == 0 and after["queued"] == 0
     assert state(client)["scanned"] == 2
 
 
@@ -218,7 +221,7 @@ def test_dismissed_group_is_not_suggested_again(client: TestClient) -> None:
     # 重复处理被拒绝；重复入队命中已生成批次，不再调用模型。
     assert client.post(f"/api/keywords/suggestions/{suggestion['id']}/dismiss").status_code == 400
     replay = enqueue(client)
-    assert replay["enqueued"] == 0 and replay["reused"] + replay["done"] == 1
+    assert replay["enqueued"] == 0
     assert fake.suggestion_calls == 1
 
 

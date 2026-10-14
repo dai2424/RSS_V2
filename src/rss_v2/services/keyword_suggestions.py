@@ -77,22 +77,16 @@ class KeywordSuggestionService:
 
         prompt = self._active_prompt()
         batch_size = self._batch_size(size)
-        batches, done = self._scan_batches(max(1, min(count, MAX_ENQUEUE)), batch_size)
+        batches = self._scan_batches(max(1, min(count, MAX_ENQUEUE)), batch_size)
         if not batches:
-            return SuggestionEnqueue(
-                enqueued=0, reused=0, done=done, first_offset=None, last_offset=None
-            )
+            return SuggestionEnqueue(enqueued=0, first_offset=None, last_offset=None)
         candidate = self.failover.first_available()
         if candidate is None:
             raise DomainError("llm_key_not_configured", "没有启用且具有可用 Key 的模型")
         provider, model = candidate
         enqueued = 0
-        reused = 0
         for offset, fingerprint in batches:
             key = self.idempotency_key(fingerprint, offset)
-            if self.tasks.get_by_idempotency(key) is not None:
-                reused += 1
-                continue
             self.tasks.create(
                 Task(
                     id=new_id(),
@@ -120,16 +114,13 @@ class KeywordSuggestionService:
             )
             enqueued += 1
         logger.info(
-            "suggestion_enqueued enqueued=%d reused=%d offset=%d size=%d",
+            "suggestion_enqueued enqueued=%d offset=%d size=%d",
             enqueued,
-            reused,
             batches[0][0],
             batch_size,
         )
         return SuggestionEnqueue(
             enqueued=enqueued,
-            reused=reused,
-            done=done,
             first_offset=batches[0][0],
             last_offset=batches[-1][0],
         )
@@ -159,7 +150,6 @@ class KeywordSuggestionService:
                 total=total,
                 groups=stored[0],
                 dropped=stored[1],
-                words=stored[2],
             )
         if not entries:
             self.tasks.complete(task.id, lease_token=task.lease_token)
@@ -170,7 +160,6 @@ class KeywordSuggestionService:
                 total=total,
                 groups=0,
                 dropped=0,
-                words=0,
             )
         values = {"vocabulary": _batch_text(entries)}
         payload = PromptPayload(
@@ -211,13 +200,14 @@ class KeywordSuggestionService:
         """任务进度与待确认数量；界面据此显示进度并决定是否轮询。"""
 
         kind = TaskType.KEYWORD_MERGE_SUGGEST.value
+        total = self._total()
         return SuggestionStatus(
             queued=self.tasks.count(status="queued", task_type=kind),
             running=self.tasks.count(status="running", task_type=kind),
             failed=self.tasks.count(status="failed", task_type=kind),
             pending=self.suggestions.pending_count(),
-            total=self._total(),
-            scanned=min(self.suggestions.scanned_words(), self._total()),
+            total=total,
+            scanned=self._scanned_words(self._batch_size(None), total),
         )
 
     def idempotency_key(self, fingerprint: str, offset: int) -> str:
@@ -237,32 +227,43 @@ class KeywordSuggestionService:
             raise DomainError("prompt_not_configured", "没有可用的合并建议提示词")
         return prompt
 
-    def _scan_batches(self, count: int, size: int) -> tuple[list[tuple[int, str]], int]:
-        """从第 0 个词往后找该排的批次，返回 ([(偏移, 内容指纹)], 已生成过的批次数)。
+    def _scan_batches(self, count: int, size: int) -> list[tuple[int, str]]:
+        """从还没看过的地方往后找该排的批次，返回 [(偏移, 内容指纹)]。
 
-        批次按顺序铺开，因此从头扫一遍即可：生成过的（批次台账里有）跳过，
-        已经排过同样内容的（任务幂等键命中）也跳过，其余排成新任务。
+        批次按顺序铺开：生成过的跳过，已经排过同样内容的（任务幂等键命中）也跳过，
+        其余排成新任务；凑够 count 批就停，后面的留到下次。
         """
 
         total = self._total()
         batches: list[tuple[int, str]] = []
-        done = 0
-        start = 0
+        start = self._scanned_words(size, total)
         while start < total:
             entries = self.keywords.vocabulary(None, None, 1, None, None, False, size, start)
             fingerprint = _batch_fingerprint([item.key for item in entries])
-            if self.suggestions.batch_result(fingerprint, start) is not None:
-                done += 1
-            elif (
-                self.tasks.get_by_idempotency(self.idempotency_key(fingerprint, start)) is not None
-            ):
-                pass  # 同样的内容已经排过：不重复入队，也不重复付费
-            elif len(batches) < count:
+            if self.tasks.get_by_idempotency(self.idempotency_key(fingerprint, start)) is None:
+                if len(batches) >= count:
+                    break  # 已凑够要排的批次
                 batches.append((start, fingerprint))
-            else:
-                break  # 已凑够要排的批次，后面的留到下次
             start += size
-        return batches, done
+        return batches
+
+    def _scanned_words(self, size: int, total: int) -> int:
+        """已经看过多少词：从第 0 个词起连续生成过的批次加起来，遇到第一个没看过的就停。
+
+        用"连续前缀"而不是台账行数求和：批次是按顺序铺开的，这样既得到进度，也知道
+        下次该从哪里接着排——旧批次没记词数也能算对。
+        """
+
+        scanned = 0
+        while scanned < total:
+            entries = self.keywords.vocabulary(None, None, 1, None, None, False, size, scanned)
+            if not entries:
+                break
+            fingerprint = _batch_fingerprint([item.key for item in entries])
+            if self.suggestions.batch_result(fingerprint, scanned) is None:
+                break
+            scanned += len(entries)
+        return scanned
 
     def list(self, status: str | None = "pending", limit: int = 50) -> list[MergeSuggestion]:
         """建议列表；默认只看待处理的。"""
@@ -327,9 +328,7 @@ class KeywordSuggestionService:
                     merge_id=None,
                 )
             )
-        stored = self.suggestions.save_batch(
-            fingerprint, offset, items, dropped, len(entries), now()
-        )
+        stored = self.suggestions.save_batch(fingerprint, offset, items, dropped, now())
         logger.info("suggestion_batch offset=%d groups=%d dropped=%d", offset, len(stored), dropped)
         return SuggestionBatch(
             vocabulary_fingerprint=fingerprint,
@@ -338,7 +337,6 @@ class KeywordSuggestionService:
             total=total,
             groups=len(stored),
             dropped=dropped,
-            words=len(entries),
         )
 
     def _members(self, group: SuggestedGroup, known: dict[str, KeywordEntry]) -> list[Keyword]:

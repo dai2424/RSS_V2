@@ -26,15 +26,10 @@ class SQLiteSuggestionRepository:
 
         return existing_fingerprints(self.database)
 
-    def batch_result(self, fingerprint: str, offset: int) -> tuple[int, int, int] | None:
-        """已生成过的批次返回 (组数, 丢弃数, 词数)。"""
+    def batch_result(self, fingerprint: str, offset: int) -> tuple[int, int] | None:
+        """已生成过的批次返回 (组数, 丢弃数)。"""
 
         return batch_result(self.database, fingerprint, offset)
-
-    def scanned_words(self) -> int:
-        """已经生成过批次的词数合计。"""
-
-        return scanned_words(self.database)
 
     def save_batch(
         self,
@@ -42,14 +37,11 @@ class SQLiteSuggestionRepository:
         offset: int,
         suggestions: list[MergeSuggestion],
         dropped: int,
-        words: int,
         timestamp: int,
     ) -> list[MergeSuggestion]:
         """批次台账与建议行同事务写入。"""
 
-        return save_batch(
-            self.database, fingerprint, offset, suggestions, dropped, words, timestamp
-        )
+        return save_batch(self.database, fingerprint, offset, suggestions, dropped, timestamp)
 
     def list(self, status: str | None, limit: int) -> list[MergeSuggestion]:
         """建议列表。"""
@@ -83,34 +75,17 @@ def existing_fingerprints(database: SQLiteDatabase) -> set[str]:
         connection.close()
 
 
-def batch_result(
-    database: SQLiteDatabase, fingerprint: str, offset: int
-) -> tuple[int, int, int] | None:
-    """已生成过的批次返回 (组数, 丢弃数, 词数)；没生成过返回 None。"""
+def batch_result(database: SQLiteDatabase, fingerprint: str, offset: int) -> tuple[int, int] | None:
+    """已生成过的批次返回 (组数, 丢弃数)；没生成过返回 None。"""
 
     connection = database.connect()
     try:
         row = connection.execute(
-            "SELECT groups, dropped, batch_words FROM keyword_suggestion_batches"
+            "SELECT groups, dropped FROM keyword_suggestion_batches"
             " WHERE batch_fingerprint=? AND batch_offset=?",
             (fingerprint, offset),
         ).fetchone()
-        if row is None:
-            return None
-        return int(row["groups"]), int(row["dropped"]), int(row["batch_words"])
-    finally:
-        connection.close()
-
-
-def scanned_words(database: SQLiteDatabase) -> int:
-    """已经生成过批次的词数合计。"""
-
-    connection = database.connect()
-    try:
-        row = connection.execute(
-            "SELECT COALESCE(SUM(batch_words), 0) AS total FROM keyword_suggestion_batches"
-        ).fetchone()
-        return int(row["total"]) if row else 0
+        return (int(row["groups"]), int(row["dropped"])) if row else None
     finally:
         connection.close()
 
@@ -121,7 +96,6 @@ def save_batch(
     offset: int,
     suggestions: list[MergeSuggestion],
     dropped: int,
-    words: int,
     timestamp: int,
 ) -> list[MergeSuggestion]:
     """批次台账与建议行同事务写入，返回落库后的建议。"""
@@ -129,13 +103,11 @@ def save_batch(
     with database.transaction() as connection:
         connection.execute(
             """
-            INSERT INTO keyword_suggestion_batches(
-                batch_fingerprint,batch_offset,groups,dropped,batch_words,created_at
-            )
-            VALUES(?,?,?,?,?,?)
+            INSERT INTO keyword_suggestion_batches(batch_fingerprint,batch_offset,groups,dropped,created_at)
+            VALUES(?,?,?,?,?)
             ON CONFLICT(batch_fingerprint,batch_offset) DO NOTHING
             """,
-            (fingerprint, offset, len(suggestions), dropped, words, timestamp),
+            (fingerprint, offset, len(suggestions), dropped, timestamp),
         )
         for item in suggestions:
             connection.execute(

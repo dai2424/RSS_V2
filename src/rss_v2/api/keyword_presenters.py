@@ -160,8 +160,6 @@ def suggestion_status_response(
 
     return KeywordSuggestionStatusResponse(
         enqueued=receipt.enqueued,
-        reused=receipt.reused,
-        done=receipt.done,
         queued=item.queued,
         running=item.running,
         failed=item.failed,
