@@ -5,6 +5,7 @@ from .routers.collection import collection_router
 from .routers.keyword_pin_suggestions import pin_suggestions_router
 from .routers.keyword_suggestions import suggestions_router
 from .routers.keywords import keywords_router
+from .routers.leads import leads_router
 from .routers.messages import messages_router
 from .routers.prompts import prompts_router, task_settings_router
 from .routers.providers import providers_router
@@ -16,6 +17,7 @@ __all__ = [
     "sources_router",
     "collection_router",
     "keywords_router",
+    "leads_router",
     "suggestions_router",
     "pin_suggestions_router",
     "messages_router",

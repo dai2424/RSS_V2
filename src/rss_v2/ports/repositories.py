@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import Any, Protocol
 
 from rss_v2.domain import (
@@ -11,6 +12,9 @@ from rss_v2.domain import (
     HealthCheck,
     KeywordEntry,
     KeywordOverview,
+    Lead,
+    LeadMember,
+    LeadSummary,
     LLMCall,
     MergePreview,
     MergeRecord,
@@ -191,6 +195,38 @@ class TranslationRepository(Protocol):
     def save(self, translation: Translation, lease_token: str | None = None) -> Translation: ...
 
     def get(self, translation_id: str) -> Translation | None: ...
+
+
+class LeadRepository(Protocol):
+    """线索本体与成员；成员精确到消息版本。"""
+
+    def create(self, lead: Lead, version_ids: Sequence[str]) -> Lead:
+        """写入线索与初始成员（版本 id 去重；重复的忽略）。"""
+        ...
+
+    def get(self, lead_id: str) -> Lead | None:
+        """按 id 取线索；不存在返回 None。"""
+        ...
+
+    def list(self, limit: int, offset: int) -> tuple[list[LeadSummary], int]:
+        """线索列表与总数；按最近成员变化时间倒序。"""
+        ...
+
+    def members(self, lead_id: str) -> list[LeadMember]:
+        """成员列表，按发布时间（缺失时用采集时间）从早到晚。"""
+        ...
+
+    def add_members(self, lead_id: str, version_ids: Sequence[str], timestamp: int) -> int:
+        """追加成员，返回实际新增条数；已存在的版本忽略。"""
+        ...
+
+    def remove_member(self, lead_id: str, version_id: str, timestamp: int) -> int:
+        """移除一个成员，返回删除行数。"""
+        ...
+
+    def delete(self, lead_id: str) -> int:
+        """删除线索（成员级联），返回删除行数。"""
+        ...
 
 
 class TaskRepository(Protocol):

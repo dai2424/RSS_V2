@@ -166,6 +166,48 @@ class MessageVersion:
 
 
 @dataclass(frozen=True, slots=True)
+class Lead:
+    """线索：人工选定的一组消息，语义是"这些消息说的是同一件事"。"""
+
+    id: str  # 实体 UUID
+    title: str  # 人工命名的线索名，用于列表与草稿标题默认值
+    note: str | None  # 可选备注，只作展示
+    created_at: int  # 创建时间，UTC 秒
+    updated_at: int  # 最近一次成员变化时间，UTC 秒
+
+
+@dataclass(frozen=True, slots=True)
+class LeadMember:
+    """线索成员：一条消息版本，以及列表需要的展示信息。"""
+
+    message_id: str  # 消息 UUID
+    version_id: str  # 加入时锁定的消息版本 UUID
+    version_number: int  # 该消息的版本号，界面用它说明"引用的是哪一版"
+    title: str  # 该版本的标题
+    source_id: str  # 来源 UUID
+    source_name: str  # 来源名
+    published_at: int | None  # 发布时间，UTC 秒；缺失为空
+    collected_at: int  # 采集时间，UTC 秒
+    added_at: int  # 加入线索的时间，UTC 秒
+
+
+@dataclass(frozen=True, slots=True)
+class LeadSummary:
+    """线索列表的一行：线索本体 + 成员条数。"""
+
+    lead: Lead  # 线索本体
+    members: int  # 成员（消息版本）条数
+
+
+@dataclass(frozen=True, slots=True)
+class LeadDetail:
+    """线索详情：本体与成员，按加入时间从早到晚。"""
+
+    lead: Lead  # 线索本体
+    members: tuple[LeadMember, ...]  # 成员列表
+
+
+@dataclass(frozen=True, slots=True)
 class Prompt:
     """一条提示词版本；版本不可变，修改等于新建版本。"""
 

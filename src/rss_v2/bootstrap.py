@@ -15,6 +15,7 @@ from rss_v2.adapters.sqlite.connection import SQLiteDatabase
 from rss_v2.adapters.sqlite.enrichments import SQLiteEnrichmentRepository
 from rss_v2.adapters.sqlite.keyword_suggestions import SQLiteSuggestionRepository
 from rss_v2.adapters.sqlite.keywords import SQLiteKeywordRepository
+from rss_v2.adapters.sqlite.leads import SQLiteLeadRepository
 from rss_v2.adapters.sqlite.llm import SQLiteLLMCallRepository, SQLiteLLMConfigRepository
 from rss_v2.adapters.sqlite.messages import SQLiteMessageRepository
 from rss_v2.adapters.sqlite.migrations import MigrationRunner
@@ -35,6 +36,7 @@ from rss_v2.services.collection import CollectionService
 from rss_v2.services.enrichment import EnrichmentService
 from rss_v2.services.keyword_suggestions import KeywordSuggestionService
 from rss_v2.services.keywords import KeywordService
+from rss_v2.services.leads import LeadService
 from rss_v2.services.llm_failover import LLMFailover
 from rss_v2.services.messages import MessageService
 from rss_v2.services.processing import ProcessingService
@@ -63,6 +65,7 @@ class Container:
     translations: SQLiteTranslationRepository
     enrichments: SQLiteEnrichmentRepository
     keywords: SQLiteKeywordRepository
+    leads: SQLiteLeadRepository
     suggestions: SQLiteSuggestionRepository
     llm_config: SQLiteLLMConfigRepository
     llm_calls: SQLiteLLMCallRepository
@@ -78,6 +81,7 @@ class Container:
     task_setting_service: TaskSettingService
     message_service: MessageService
     keyword_service: KeywordService
+    lead_service: LeadService
     suggestion_service: KeywordSuggestionService
     task_service: TaskService
     provider_service: ProviderService
@@ -114,6 +118,7 @@ def build_container(settings: Settings | None = None, migrate: bool = True) -> C
     translations = SQLiteTranslationRepository(database)
     enrichments = SQLiteEnrichmentRepository(database)
     keywords = SQLiteKeywordRepository(database)
+    leads = SQLiteLeadRepository(database)
     suggestions = SQLiteSuggestionRepository(database)
     llm_config = SQLiteLLMConfigRepository(database)
     llm_calls = SQLiteLLMCallRepository(database)
@@ -204,6 +209,7 @@ def build_container(settings: Settings | None = None, migrate: bool = True) -> C
         actual_settings.llm_suggestion_batch_size,
         actual_settings.keyword_hot_days,
     )
+    lead_service = LeadService(leads, messages)
     task_service = TaskService(tasks, messages, sources)
     provider_service = ProviderService(llm_config)
     return Container(
@@ -218,6 +224,7 @@ def build_container(settings: Settings | None = None, migrate: bool = True) -> C
         translations,
         enrichments,
         keywords,
+        leads,
         suggestions,
         llm_config,
         llm_calls,
@@ -233,6 +240,7 @@ def build_container(settings: Settings | None = None, migrate: bool = True) -> C
         task_setting_service,
         message_service,
         keyword_service,
+        lead_service,
         suggestion_service,
         task_service,
         provider_service,
