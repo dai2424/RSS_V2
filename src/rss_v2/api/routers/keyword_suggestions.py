@@ -53,6 +53,7 @@ def list_suggestions(
         failed=state.failed,
         total=state.total,
         scanned=state.scanned,
+        last_scanned_at=state.last_scanned_at,
     )
 
 

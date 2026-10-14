@@ -117,20 +117,20 @@ def test_task_runs_through_worker_and_marks_out_of_batch_groups(client: TestClie
 
     fake = SuggestProvider([("AWS", "云服务"), ("不存在的写法", "另一个不存在的写法")])
     seeded(client, fake, "https://suggest.test/feed")
-    assert state(client) == {
-        "items": [],
-        "pending": 0,
-        "queued": 0,
-        "running": 0,
-        "failed": 0,
-        "total": 2,
-        "scanned": 0,
-    }
+    before = state(client)
+    assert before["total"] == 2
+    assert (before["scanned"], before["last_scanned_at"]) == (0, None)
+    assert (before["pending"], before["queued"], before["running"], before["failed"]) == (
+        0,
+        0,
+        0,
+        0,
+    )
 
     receipt = enqueue(client)
     assert receipt["enqueued"] == 1 and receipt["queued_words"] == 2
     assert (receipt["queued"], receipt["running"]) == (1, 0)
-    assert (receipt["total"], receipt["scanned"]) == (2, 0)
+    assert receipt["total"] == 2
     task = suggestion_task(client)
     assert task["status"] == "queued"
     assert task["task_type"] == "keyword_merge_suggest"
@@ -149,6 +149,7 @@ def test_task_runs_through_worker_and_marks_out_of_batch_groups(client: TestClie
     assert suggestion_task(client)["status"] == "succeeded"
     after = state(client)
     assert (after["queued"], after["pending"], after["scanned"]) == (0, 1, 2)
+    assert after["last_scanned_at"] is not None
 
 
 @respx.mock
@@ -168,18 +169,20 @@ def test_enqueue_is_idempotent_and_reports_scan_progress(client: TestClient) -> 
     drain_worker(client)
     assert fake.suggestion_calls == 1
 
-    # 生成过之后再排：这一批不需要再排，进度显示已经看过。
+    # 生成过之后再排：滚动重扫会排出新的一批（老词换个搭档重看）——这是刻意的，
+    # 合并是同指判断，一次看过不等于以后不用再看。
     after = enqueue(client, count=5, size=2)
-    assert after["enqueued"] == 0 and after["queued"] == 0
+    assert after["enqueued"] == 1
     assert state(client)["scanned"] == 2
 
 
 @respx.mock
-def test_only_new_words_are_scanned_after_the_vocabulary_changes(client: TestClient) -> None:
-    """扫过的词不因词表换序而重扫——新采集带来的新词才是下一批。
+def test_scan_is_rolling_after_the_vocabulary_changes(client: TestClient) -> None:
+    """扫描是滚动的：新词与最久没看过的老词混排，换序不会让整表重扫。
 
-    这是长期运行的关键：词表按频次与最近出现排序，新词会插到前面把旧词挤位；
-    如果按位置记账，挤位会让整张表看起来"没扫过"，于是每次都要从头再付一遍费用。
+    这是长期运行的关键：合并是同指判断，新写法要和老写法放在一起才判断得出；而词表
+    按频次与最近出现排序，新词会插到前面把旧词挤位——若按位置记账，挤位会让整张表
+    看起来"没扫过"，于是每次都要从头再付一遍费用。
     """
 
     fake = SuggestProvider([("AWS", "云服务")])
@@ -202,12 +205,13 @@ def test_only_new_words_are_scanned_after_the_vocabulary_changes(client: TestCli
     after = state(client)
     assert (after["total"], after["scanned"]) == (3, 2)
 
-    # 下一批只含那个新词：看过的两个词不再出现在提示词里。
+    # 下一批是新旧混排：新词与"最久没看过"的老词同批出现——同指判断需要它们碰面，
+    # 而且词表与写法会变，看过的词也要轮着重扫。
     enqueue(client)
     drain_worker(client)
     prompt = fake.suggestion_prompts[-1].user
     assert "- 新话题（主题）" in prompt
-    assert "AWS" not in prompt and "云服务" not in prompt
+    assert "- AWS（实体）" in prompt or "- 云服务（实体）" in prompt
     assert state(client)["scanned"] == 3
 
 
@@ -257,9 +261,11 @@ def test_dismissed_group_is_not_suggested_again(client: TestClient) -> None:
 
     # 重复处理被拒绝；重复入队命中已生成批次，不再调用模型。
     assert client.post(f"/api/keywords/suggestions/{suggestion['id']}/dismiss").status_code == 400
+    # 滚动重扫会再排一批，但已忽略的组不会再出现（组指纹去重）。
     replay = enqueue(client)
-    assert replay["enqueued"] == 0
-    assert fake.suggestion_calls == 1
+    assert replay["enqueued"] == 1
+    drain_worker(client)
+    assert suggestions(client) == []
 
 
 @respx.mock

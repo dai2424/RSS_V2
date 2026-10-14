@@ -255,7 +255,8 @@ class SuggestionStatus:
     failed: int  # 失败待处理的建议任务
     pending: int  # 待人工确认的建议组
     total: int  # 词表词数
-    scanned: int  # 已经交给模型看过的写法数量
+    scanned: int  # 交给模型看过至少一次的写法数量
+    last_scanned_at: int | None  # 最近一次扫描时间，UTC 秒；从没扫过时为空
 
 
 @dataclass(frozen=True, slots=True)

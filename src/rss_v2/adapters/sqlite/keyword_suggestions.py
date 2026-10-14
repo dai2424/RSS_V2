@@ -31,15 +31,10 @@ class SQLiteSuggestionRepository:
 
         return batch_result(self.database, fingerprint, offset)
 
-    def scanned_keys(self) -> set[str]:
-        """已经被模型看过的写法匹配键。"""
+    def scanned_at(self) -> dict[str, int]:
+        """写法匹配键 → 上次交给模型看的时间。"""
 
-        return scanned_keys(self.database)
-
-    def scanned_count(self) -> int:
-        """已经看过的写法数量。"""
-
-        return scanned_count(self.database)
+        return scanned_at(self.database)
 
     def save_batch(
         self,
@@ -109,30 +104,15 @@ def _batch_result(
     return (int(row["groups"]), int(row["dropped"])) if row else None
 
 
-def scanned_keys(database: SQLiteDatabase) -> set[str]:
-    """已经被模型看过的写法匹配键。"""
+def scanned_at(database: SQLiteDatabase) -> dict[str, int]:
+    """写法匹配键 → 上次交给模型看的时间。"""
 
     connection = database.connect()
     try:
-        return _scanned_keys(connection)
-    finally:
-        connection.close()
-
-
-def _scanned_keys(connection: sqlite3.Connection) -> set[str]:
-    rows = connection.execute("SELECT normalized FROM keyword_suggestion_scanned").fetchall()
-    return {str(row["normalized"]) for row in rows}
-
-
-def scanned_count(database: SQLiteDatabase) -> int:
-    """已经看过的写法数量。"""
-
-    connection = database.connect()
-    try:
-        row = connection.execute(
-            "SELECT COUNT(*) AS total FROM keyword_suggestion_scanned"
-        ).fetchone()
-        return int(row["total"]) if row else 0
+        rows = connection.execute(
+            "SELECT normalized, scanned_at FROM keyword_suggestion_scanned"
+        ).fetchall()
+        return {str(row["normalized"]): int(row["scanned_at"]) for row in rows}
     finally:
         connection.close()
 

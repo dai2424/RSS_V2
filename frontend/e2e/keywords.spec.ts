@@ -231,7 +231,7 @@ for (const width of [1280, 1920]) {
     await expect(block.getByText("没有待确认的建议")).toBeVisible();
 
     // 点一次只排一个批次：任务由独立 worker 执行，进度写在区块里。
-    await block.getByRole("button", { name: "生成一批" }).click();
+    await block.getByRole("button", { name: "扫一批" }).click();
     await expect(page.getByText(/已排入 1 个批次/)).toBeVisible();
     await page.screenshot({
       path: testInfo.outputPath(`keywords-suggestions-${width}.png`),
@@ -244,7 +244,7 @@ for (const width of [1280, 1920]) {
     ).toBeVisible({
       timeout: 20000,
     });
-    await expect(block.getByText(/已看 \d+\/\d+ 个词/)).toBeVisible();
+    await expect(block.getByText(/新词 \d+ 个/)).toBeVisible();
 
     // 采纳：复用既有合并弹层，确认后合并记录里能看到这次合并。
     await block.getByRole("button", { name: "采纳" }).first().click();

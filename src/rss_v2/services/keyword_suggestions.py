@@ -206,13 +206,15 @@ class KeywordSuggestionService:
 
         kind = TaskType.KEYWORD_MERGE_SUGGEST.value
         total = self._total()
+        scanned_at = self.suggestions.scanned_at()
         return SuggestionStatus(
             queued=self.tasks.count(status="queued", task_type=kind),
             running=self.tasks.count(status="running", task_type=kind),
             failed=self.tasks.count(status="failed", task_type=kind),
             pending=self.suggestions.pending_count(),
             total=total,
-            scanned=self.suggestions.scanned_count(),
+            scanned=len(scanned_at),
+            last_scanned_at=max(scanned_at.values()) if scanned_at else None,
         )
 
     def idempotency_key(self, fingerprint: str) -> str:
@@ -233,26 +235,35 @@ class KeywordSuggestionService:
         return prompt
 
     def _scan_batches(self, count: int, size: int) -> list[tuple[int, str, list[KeywordEntry]]]:
-        """把还没看过的词按词表顺序切成若干批，返回 [(起始位置, 指纹, 词表条目)]。
+        """按"最久没看过"排队组批，返回 [(起始位置, 指纹, 词表条目)]。
 
-        看过的词不再出现，因此词表换序不会让已扫过的词重扫；每批只取 size 个词，
-        凑够 count 批就停，后面的留到下次。
+        合并是同指判断，因此把"从没看过的词"与"最久没看过的词"交替排列：每批天然新旧
+        混合——新写法不会孤零零地出现（要和老写法放在一起才判断得出是否同指），老词也在
+        持续重扫（词表与写法会变，一次看过不等于以后不用再看）。某一侧空了就按另一侧的
+        顺序继续，因此第一轮之后自然变成滚动重扫。
         """
 
-        seen = self.suggestions.scanned_keys()
-        pending = [
-            item
-            for item in self.keywords.vocabulary(None, None, 1, None, None, False, MAX_WORDS, 0)
-            if item.key not in seen
-        ]
+        scanned_at = self.suggestions.scanned_at()
+        entries = self.keywords.vocabulary(None, None, 1, None, None, False, MAX_WORDS, 0)
+        fresh = [item for item in entries if item.key not in scanned_at]
+        old = sorted(
+            (item for item in entries if item.key in scanned_at),
+            key=lambda item: (scanned_at[item.key], item.key),
+        )
+        queue = _interleave(fresh, old)
         batches: list[tuple[int, str, list[KeywordEntry]]] = []
-        for start in range(0, len(pending), size):
+        for start in range(0, len(queue), size):
             if len(batches) >= count:
                 break
-            entries = pending[start : start + size]
-            fingerprint = _batch_fingerprint([item.key for item in entries])
+            batch = queue[start : start + size]
+            # 指纹带上每一词的"上次看过时间"：同一批词重扫是新的一批，
+            # 而同一轮里连点两次仍是同一批，不会重复付费。
+            fingerprint = _batch_fingerprint(
+                [item.key for item in batch],
+                [scanned_at.get(item.key, 0) for item in batch],
+            )
             if self.tasks.get_by_idempotency(self.idempotency_key(fingerprint)) is None:
-                batches.append((start, fingerprint, entries))
+                batches.append((start, fingerprint, batch))
         return batches
 
     def list(self, status: str | None = "pending", limit: int = 50) -> list[MergeSuggestion]:
@@ -399,6 +410,18 @@ def _payload_words(task: Task) -> list[KeywordEntry]:
     return entries
 
 
+def _interleave(fresh: list[KeywordEntry], old: list[KeywordEntry]) -> list[KeywordEntry]:
+    """新词与旧词交替排列：每批都能同时看到"没见过的写法"和"见过但很久没看的写法"。"""
+
+    queue: list[KeywordEntry] = []
+    for index in range(max(len(fresh), len(old))):
+        if index < len(fresh):
+            queue.append(fresh[index])
+        if index < len(old):
+            queue.append(old[index])
+    return queue
+
+
 def _strip_label(term: str) -> str:
     """去掉模型抄回来的类型标注；没有标注时原样返回。"""
 
@@ -419,11 +442,16 @@ def _batch_text(entries: list[KeywordEntry]) -> str:
     )
 
 
-def _batch_fingerprint(keys: list[str]) -> str:
-    """本批词表的指纹：词表内容或切批位置变了，就要重新开始而不是接着用旧偏移。"""
+def _batch_fingerprint(keys: list[str], scanned: list[int] | None = None) -> str:
+    """一批词的指纹：内容相同、这些词的"上次看过时间"也相同才算同一批。
 
-    digest = hashlib.sha256("\n".join(keys).encode("utf-8")).hexdigest()
-    return digest[:16]
+    带上时间维度是为了让滚动重扫能生成新任务——否则同一批词重扫会被当成重复入队而跳过。
+    """
+
+    seed = "\n".join(keys)
+    if scanned is not None:
+        seed += "\n" + "\n".join(str(value) for value in scanned)
+    return hashlib.sha256(seed.encode("utf-8")).hexdigest()[:16]
 
 
 def _group_fingerprint(keys: list[str]) -> str:

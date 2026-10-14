@@ -188,13 +188,17 @@ export function useKeywordSuggestions() {
     },
   });
   const state = list.data;
+  const total = state?.total ?? 0;
+  const scanned = state?.scanned ?? 0;
   return {
     list,
     pending: state?.pending ?? 0,
     queued: (state?.queued ?? 0) + (state?.running ?? 0),
     failed: state?.failed ?? 0,
-    total: state?.total ?? 0,
-    scanned: state?.scanned ?? 0,
+    total,
+    // 从没交给模型看过的词：扫描是滚动的，这个数只表示"还没排上的新词"。
+    fresh: Math.max(0, total - scanned),
+    lastScannedAt: state?.last_scanned_at ?? null,
     enqueue,
     dismiss,
     accept,

@@ -1372,6 +1372,8 @@ export interface components {
       total: number;
       /** Scanned */
       scanned: number;
+      /** Last Scanned At */
+      last_scanned_at: number | null;
     };
     /**
      * KeywordSuggestionMemberResponse
@@ -1396,6 +1398,8 @@ export interface components {
     /**
      * KeywordSuggestionRequest
      * @description 排若干批建议任务：count 是批数（默认 1），size 是每批词数（默认取配置）。
+     *
+     *     扫描是滚动的：新词优先，老词按最久没看过排队重扫，因此没有"扫完"这个终态。
      */
     KeywordSuggestionRequest: {
       /**
@@ -1451,6 +1455,8 @@ export interface components {
       total: number;
       /** Scanned */
       scanned: number;
+      /** Last Scanned At */
+      last_scanned_at: number | null;
     };
     /**
      * KeywordTrendPointResponse

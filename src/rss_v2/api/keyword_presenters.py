@@ -167,6 +167,7 @@ def suggestion_status_response(
         pending=item.pending,
         total=item.total,
         scanned=item.scanned,
+        last_scanned_at=item.last_scanned_at,
     )
 
 

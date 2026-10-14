@@ -7,6 +7,7 @@ import {
   EmptyState,
   ErrorState,
 } from "../../components/ui";
+import { formatTime } from "../../lib/display";
 import { MergeDialog } from "./KeywordMerges";
 import { useKeywordSuggestions } from "./useKeywordsData";
 
@@ -14,44 +15,46 @@ type Suggestion = components["schemas"]["KeywordSuggestionResponse"];
 
 /** 合并建议：模型给候选组，人工确认后才合并；批次由独立 worker 执行，进度在这里显示。 */
 export function KeywordSuggestions() {
-  const { list, pending, queued, failed, total, scanned, enqueue, dismiss } =
-    useKeywordSuggestions();
+  const {
+    list,
+    pending,
+    queued,
+    failed,
+    fresh,
+    lastScannedAt,
+    enqueue,
+    dismiss,
+  } = useKeywordSuggestions();
   const [adopting, setAdopting] = useState<Suggestion | null>(null);
   const items = list.data?.items ?? [];
   const busy = enqueue.isPending;
-  const remaining = Math.max(0, total - scanned);
 
   return (
     <Card className="card-pad">
       <div className="toolbar">
         <h2>合并建议</h2>
         <span className="muted">
-          待确认 {pending} 组；已看 {scanned}/{total} 个词
-          {queued > 0 ? `，${queued} 个批次在排队或运行` : ""}
-          {failed > 0 ? `，${failed} 个批次失败（可在任务页重试）` : ""}
+          待确认 {pending} 组；新词 {fresh} 个
+          {lastScannedAt
+            ? ` · 上次扫描 ${formatTime(lastScannedAt)}`
+            : " · 还没扫过"}
+          {queued > 0 ? ` · ${queued} 个批次在排队或运行` : ""}
+          {failed > 0 ? ` · ${failed} 个批次失败（可在任务页重试）` : ""}
         </span>
         <Button
           className="secondary"
-          disabled={busy || remaining === 0}
-          title={
-            remaining === 0
-              ? "词表都看过了"
-              : "排一个批次（只含没看过的词），约需几十秒"
-          }
+          disabled={busy}
+          title="排一个批次（约需几十秒）：新词优先，老词按最久没看过排队重扫"
           onClick={() => enqueue.mutate(1)}
         >
-          {busy ? "排队中…" : "生成一批"}
+          {busy ? "排队中…" : "扫一批"}
         </Button>
         <Button
-          disabled={busy || remaining === 0}
-          title={
-            remaining === 0
-              ? "词表都看过了"
-              : "把没看过的词按批次大小排完，由 worker 逐批执行"
-          }
-          onClick={() => enqueue.mutate(50)}
+          disabled={busy}
+          title="一次排十批，由 worker 逐批执行；扫描是滚动的，不存在扫完的终态"
+          onClick={() => enqueue.mutate(10)}
         >
-          排队扫完剩余
+          接着扫 10 批
         </Button>
       </div>
       {enqueue.isError && (
@@ -67,11 +70,7 @@ export function KeywordSuggestions() {
       {!list.isLoading && !list.isError && items.length === 0 && (
         <EmptyState
           title="没有待确认的建议"
-          description={
-            remaining > 0
-              ? "点「生成一批」把还没看过的词交给模型找疑似同指组；看过的词不会重扫，忽略过的组也不会再出现。"
-              : "词表都看过了，没有更多可建议的词；等有新词出现再来。"
-          }
+          description="点「扫一批」把词表里的写法交给模型找疑似同指组：新词优先，老词按最久没看过轮着重看，忽略过的组不会再出现。"
         />
       )}
       {items.length > 0 && (

@@ -415,12 +415,12 @@ class SuggestionRepository(Protocol):
         """指纹对应的批次是否生成过：返回 (组数, 丢弃数)；没生成过返回 None。"""
         ...
 
-    def scanned_keys(self) -> set[str]:
-        """已经被模型看过的写法匹配键；建议只扫没看过的词。"""
-        ...
+    def scanned_at(self) -> dict[str, int]:
+        """写法匹配键 → 上次交给模型看的时间（UTC 秒）。
 
-    def scanned_count(self) -> int:
-        """已经看过的写法数量，用于界面显示进度。"""
+        合并建议是滚动任务：从没看过的词优先，其余按"最久没看过"排队重扫，
+        因此这里要的是时间而不是"是否看过"。
+        """
         ...
 
     def save_batch(
