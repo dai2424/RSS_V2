@@ -216,17 +216,16 @@ export function KeywordCharts({ overview }: { overview: Overview }) {
         unit="规范词数"
         data={kinds}
         highlight
-        summary={`实体 ${kinds[0]?.value ?? 0} 个、主题 ${kinds[1]?.value ?? 0} 个、事件 ${kinds[2]?.value ?? 0} 个。`}
+        // 按标签取值，不按位置：接口返回的顺序不由界面决定，按下标取会串位。
+        summary={composition(kinds)}
       />
       <CategoryChart
         title="长尾分布"
         unit="规范词数"
         data={longTail}
         highlight
-        summary={`只出现一次的写法有 ${longTail[0]?.value ?? 0} 个，占 ${percent(
-          longTail[0]?.value ?? 0,
-          overview.terms,
-        )}。`}
+        // 分母用全量词表：长尾分布说的是存量，热词口径的条数会把占比算成十几倍。
+        summary={singletonSummary(longTail, overview.terms_all)}
       />
       <CategoryChart
         title="来源分布"
@@ -253,4 +252,20 @@ function kindLabel(kind: string): string {
 export function percent(value: number, total: number): string {
   if (!total) return "—";
   return `${((value / total) * 100).toFixed(1)}%`;
+}
+
+/** 类型构成的一句话说明：按标签匹配，接口换顺序也不会串位。 */
+export function composition(data: { label: string; value: number }[]): string {
+  if (data.length === 0) return "还没有关键词产出类型。";
+  return data.map((item) => `${item.label} ${item.value} 个`).join("、") + "。";
+}
+
+/** 长尾第一条（只出现一次）的占比；分母是全量词表，不是热词口径的词数。 */
+export function singletonSummary(
+  data: { label: string; value: number }[],
+  total: number,
+): string {
+  const bucket = data.find((item) => item.label.includes("一次")) ?? data[0];
+  if (!bucket) return "还没有长尾数据。";
+  return `只出现一次的写法有 ${bucket.value} 个，占 ${percent(bucket.value, total)}（全量词表 ${total} 个）。`;
 }
