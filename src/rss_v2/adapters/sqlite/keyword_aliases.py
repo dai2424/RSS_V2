@@ -178,25 +178,46 @@ def merge(database: SQLiteDatabase, sources: list[str], target: str) -> MergeRec
         # 常驻标记跟着写法走：成员上的标记搬到目标词，撤销时据记录还原。
         pins = keyword_pins.move_to_target(connection, sources, target, timestamp)
         for source in sources:
-            # 先把已经是该词别名的行改指目标，并记住原值以便撤销。
+            # 先把"已经指向该词"的别名改指目标；每条改动前都记一行变更记录，
+            # 撤销时按记录回放，因此链式合并怎么撤都不会互相覆盖。
+            pointing = connection.execute(
+                "SELECT alias_norm, merge_id FROM keyword_aliases WHERE canonical_norm=?",
+                (source,),
+            ).fetchall()
+            for row in pointing:
+                connection.execute(
+                    """
+                    INSERT INTO keyword_alias_changes(
+                        merge_id,alias_norm,previous_canonical,previous_merge_id)
+                    VALUES(?,?,?,?)
+                    """,
+                    (merge_id, str(row["alias_norm"]), source, row["merge_id"]),
+                )
             connection.execute(
-                """
-                UPDATE keyword_aliases
-                SET canonical_norm=?, merge_id=?, previous_canonical=canonical_norm,
-                    previous_merge_id=merge_id
-                WHERE canonical_norm=?
-                """,
+                "UPDATE keyword_aliases SET canonical_norm=?, merge_id=? WHERE canonical_norm=?",
                 (target, merge_id, source),
             )
-            # 源词本身作为写法也要指过去；已有别名行（例如它曾被并入别处）不覆盖。
-            connection.execute(
-                """
-                INSERT INTO keyword_aliases(alias_norm,canonical_norm,merge_id,created_at)
-                VALUES(?,?,?,?)
-                ON CONFLICT(alias_norm) DO NOTHING
-                """,
-                (source, target, merge_id, timestamp),
-            )
+            # 源词本身作为写法也要指过去；已有别名行（例如它曾被并入别处）不覆盖，
+            # 也就不算本次改动，不需要记变更。
+            existing = connection.execute(
+                "SELECT 1 FROM keyword_aliases WHERE alias_norm=?", (source,)
+            ).fetchone()
+            if existing is None:
+                connection.execute(
+                    """
+                    INSERT INTO keyword_alias_changes(
+                        merge_id,alias_norm,previous_canonical,previous_merge_id)
+                    VALUES(?,?,NULL,NULL)
+                    """,
+                    (merge_id, source),
+                )
+                connection.execute(
+                    """
+                    INSERT INTO keyword_aliases(alias_norm,canonical_norm,merge_id,created_at)
+                    VALUES(?,?,?,?)
+                    """,
+                    (source, target, merge_id, timestamp),
+                )
         connection.execute(
             """
             INSERT INTO keyword_merges(id,target_norm,target_raw,members_json,affected_messages,
@@ -231,8 +252,9 @@ def merge(database: SQLiteDatabase, sources: list[str], target: str) -> MergeRec
 def undo(database: SQLiteDatabase, merge_id: str) -> int:
     """撤销一次合并，返回恢复的行数。
 
-    由本次合并新建的别名直接删除；被改写的别名按 `previous_canonical` 回填，
-    因此链式合并可以逐次解开，而不是一次性抹掉所有指向。
+    按 `keyword_alias_changes` 里本次合并的变更记录回放：新建的别名删除，改指的回填原值。
+    每条记录保存的是改动前的完整状态，因此链式合并无论按什么顺序撤销都能回到当时的样子——
+    这正是"只存一层历史"做不到的地方。
     """
 
     with database.transaction() as connection:
@@ -245,23 +267,45 @@ def undo(database: SQLiteDatabase, merge_id: str) -> int:
             raise DomainError("keyword_merge_not_found", "合并记录不存在")
         if row["undone_at"] is not None:
             raise DomainError("keyword_merge_undone", "这次合并已经撤销过了")
-        created = connection.execute(
-            "SELECT COUNT(*) FROM keyword_aliases WHERE merge_id=? AND previous_canonical IS NULL",
-            (merge_id,),
-        ).fetchone()[0]
-        connection.execute(
-            "DELETE FROM keyword_aliases WHERE merge_id=? AND previous_canonical IS NULL",
-            (merge_id,),
-        )
-        restored = connection.execute(
+        # 撤销顺序：更晚的合并如果也改过同一批写法，必须先从新的撤起，否则回放会把后来的
+        # 改动一起抹掉（每份记录只描述"它自己动手前"的状态）。
+        later = connection.execute(
             """
-            UPDATE keyword_aliases
-            SET canonical_norm=previous_canonical, merge_id=previous_merge_id,
-                previous_canonical=NULL, previous_merge_id=NULL
-            WHERE merge_id=? AND previous_canonical IS NOT NULL
+            SELECT 1 FROM keyword_alias_changes c
+            JOIN keyword_merges m ON m.id = c.merge_id
+            WHERE c.merge_id <> ? AND m.undone_at IS NULL
+              AND m.rowid > (SELECT rowid FROM keyword_merges WHERE id=?)
+              AND c.alias_norm IN (
+                  SELECT alias_norm FROM keyword_alias_changes WHERE merge_id=?
+              )
+            LIMIT 1
             """,
+            (merge_id, merge_id, merge_id),
+        ).fetchone()
+        if later is not None:
+            raise DomainError(
+                "keyword_undo_order", "更晚的合并也改过这些写法，请先从最新的合并开始撤销"
+            )
+        changes = connection.execute(
+            "SELECT alias_norm, previous_canonical, previous_merge_id"
+            " FROM keyword_alias_changes WHERE merge_id=? ORDER BY alias_norm",
             (merge_id,),
-        ).rowcount
+        ).fetchall()
+        created = 0
+        restored = 0
+        for change in changes:
+            if change["previous_canonical"] is None:
+                connection.execute(
+                    "DELETE FROM keyword_aliases WHERE alias_norm=?", (change["alias_norm"],)
+                )
+                created += 1
+                continue
+            connection.execute(
+                "UPDATE keyword_aliases SET canonical_norm=?, merge_id=? WHERE alias_norm=?",
+                (change["previous_canonical"], change["previous_merge_id"], change["alias_norm"]),
+            )
+            restored += 1
+        connection.execute("DELETE FROM keyword_alias_changes WHERE merge_id=?", (merge_id,))
         keyword_pins.restore(
             connection,
             row["pinned_json"],

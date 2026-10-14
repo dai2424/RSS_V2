@@ -30,7 +30,7 @@ def test_fresh_database_and_checksum(tmp_path: Path) -> None:
     shutil.copytree("migrations", migrations)
     database = SQLiteDatabase(tmp_path / "rss.db")
     runner = MigrationRunner(database, migrations)
-    assert len(runner.run()) == 22
+    assert len(runner.run()) == 23
     assert runner.run() == []
     path = migrations / "0001_initial.sql"
     path.write_text(path.read_text(encoding="utf-8") + "\n-- mutation\n", encoding="utf-8")
@@ -115,13 +115,13 @@ def test_keyword_tables_and_structured_prompt_seed(tmp_path: Path) -> None:
         alias_columns = {
             row["name"] for row in connection.execute("PRAGMA table_info(keyword_aliases)")
         }
+        assert {"alias_norm", "canonical_norm", "merge_id", "created_at"} <= alias_columns
+        # 撤销改为按"每次合并的独立变更记录"回放：一层历史的旧列已删（它是丢关系的根因）。
+        assert "previous_canonical" not in alias_columns
+        assert "previous_merge_id" not in alias_columns
         assert {
-            "alias_norm",
-            "canonical_norm",
-            "merge_id",
-            "previous_canonical",
-            "previous_merge_id",
-        } <= alias_columns
+            row["name"] for row in connection.execute("PRAGMA table_info(keyword_alias_changes)")
+        } == {"merge_id", "alias_norm", "previous_canonical", "previous_merge_id"}
         merge_columns = {
             row["name"] for row in connection.execute("PRAGMA table_info(keyword_merges)")
         }
@@ -156,7 +156,7 @@ def test_two_processes_do_not_apply_migration_twice(tmp_path: Path) -> None:
         results = list(
             pool.map(lambda _: MigrationRunner(database, Path("migrations")).run(), range(2))
         )
-    assert sum(len(result) for result in results) == 22
+    assert sum(len(result) for result in results) == 23
 
 
 def test_upgrade_preserves_versions_and_translations(tmp_path: Path) -> None:

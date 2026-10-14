@@ -17,6 +17,7 @@ from typing import Any, cast
 
 from rss_v2.adapters.sqlite import (
     keyword_overview,
+    keyword_pin_candidates,
     keyword_pins,
     keyword_stats,
     keyword_vocabulary,
@@ -361,7 +362,9 @@ class SQLiteKeywordRepository:
     ) -> list[PinCandidate]:
         """跨周候选；口径见 keyword_pins。"""
 
-        return keyword_pins.candidates(self.database, timestamp, since, weeks, minimum_weeks)
+        return keyword_pin_candidates.candidates(
+            self.database, timestamp, since, weeks, minimum_weeks
+        )
 
     def save_pin_suggestions(
         self, items: list[PinSuggestion], timestamp: int

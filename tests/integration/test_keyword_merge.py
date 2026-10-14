@@ -148,3 +148,54 @@ def test_merge_rejects_unknown_target_and_same_target(client: TestClient) -> Non
 
     not_found = client.post("/api/keywords/merges/no-such-merge/undo")
     assert not_found.status_code == 404, not_found.text
+
+
+@respx.mock
+def test_chained_undo_restores_each_step(client: TestClient) -> None:
+    """链式合并逐次撤销：每撤一次都回到上一层的写法归属（曾在这里丢过关系）。"""
+
+    seeded(client, "https://chain.test/feed")
+    # 四层链条：谷歌云 → 云服务 → AWS → OpenAI
+    first = merge(client, ["谷歌云"], "云服务")["record"]["id"]
+    second = merge(client, ["云服务"], "AWS")["record"]["id"]
+    third = merge(client, ["AWS"], "OpenAI")["record"]["id"]
+
+    def hits(keyword: str) -> set[str]:
+        return {item["id"] for item in search(client, keyword=keyword, limit="50")}
+
+    # 链条顶端：三种写法都指向 OpenAI 的那条消息。
+    assert hits("谷歌云") == hits("云服务") == hits("AWS") == hits("OpenAI")
+
+    # 撤销第三次：AWS 回到自己，与 OpenAI 分开。
+    assert client.post(f"/api/keywords/merges/{third}/undo").status_code == 200
+    assert hits("AWS") != hits("OpenAI")
+    assert hits("谷歌云") == hits("云服务") == hits("AWS")
+
+    # 撤销第二次：AWS 与 云服务 也分开——但第一次合并的关系必须还在。
+    assert client.post(f"/api/keywords/merges/{second}/undo").status_code == 200
+    assert hits("谷歌云") == hits("云服务")
+    assert hits("AWS") != hits("云服务")
+    assert hits("OpenAI") != hits("云服务")
+
+    # 撤销第一次：回到初始状态，四种写法各自独立。
+    assert client.post(f"/api/keywords/merges/{first}/undo").status_code == 200
+    assert hits("谷歌云") != hits("云服务")
+    assert hits("AWS") != hits("云服务")
+    # 注意：OpenAI 与 云服务 本来就同现于第三条消息，因此不能拿它们比"是否分开"。
+    assert hits("谷歌云") != hits("AWS")
+
+
+@respx.mock
+def test_undo_must_start_from_the_newest_merge(client: TestClient) -> None:
+    """撤销顺序：更新的合并改过同一批写法时，必须先撤新的，否则会静默丢关系。"""
+
+    seeded(client, "https://order.test/feed")
+    first = merge(client, ["谷歌云"], "云服务")["record"]["id"]
+    second = merge(client, ["云服务"], "AWS")["record"]["id"]
+
+    blocked = client.post(f"/api/keywords/merges/{first}/undo")
+    assert blocked.status_code == 400
+    assert blocked.json()["code"] == "keyword_undo_order"
+
+    assert client.post(f"/api/keywords/merges/{second}/undo").status_code == 200
+    assert client.post(f"/api/keywords/merges/{first}/undo").status_code == 200
