@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from typing import Protocol
 
-from rss_v2.domain import EnrichmentResult, Provider, TranslationResult
+from rss_v2.domain import EnrichmentResult, Provider, SuggestResult, TranslationResult
 
 
 @dataclass(frozen=True, slots=True)
@@ -38,6 +38,17 @@ class LLMProvider(Protocol):
         prompt: PromptPayload,
         prompt_version: str,
     ) -> tuple[EnrichmentResult, dict[str, int], int]: ...
+
+    def suggest_merges(
+        self,
+        provider: Provider,
+        model: str,
+        secret: str,
+        prompt: PromptPayload,
+        prompt_version: str,
+    ) -> tuple[SuggestResult, dict[str, int], int]:
+        """按词表批次给出疑似同指组；与消息版本无关，调用方负责落入建议表。"""
+        ...
 
     def probe(
         self,

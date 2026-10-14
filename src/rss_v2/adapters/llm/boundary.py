@@ -31,6 +31,53 @@ from rss_v2.domain import (
 from rss_v2.llm import PromptPayload
 
 
+class SuggestionItem(BaseModel):
+    """模型给出的一组疑似同指写法。
+
+    字段名做常见变体容错（terms/keywords/words），组内容按字符串处理：
+    归一化与"是否真的在批次里"的判定都在服务端完成。
+    """
+
+    model_config = ConfigDict(extra="ignore", populate_by_name=True)
+
+    terms: list[str] = Field(
+        validation_alias=AliasChoices("terms", "keywords", "words", "members", "texts")
+    )
+    target: str = ""
+    rationale: str = Field(
+        default="", validation_alias=AliasChoices("rationale", "reason", "why", "note")
+    )
+
+    @field_validator("terms", mode="before")
+    @classmethod
+    def _split_terms(cls, value: object) -> object:
+        """模型偶尔把一组写法写成顿号分隔的字符串。"""
+
+        if isinstance(value, str):
+            return [item for item in re.split(r"[,，、;；/]", value) if item.strip()]
+        return value
+
+
+class KeywordSuggestionsResponse(BaseModel):
+    """合并建议应答：只认 groups，缺字段按"没有建议"处理。"""
+
+    model_config = ConfigDict(extra="ignore", populate_by_name=True)
+
+    groups: list[SuggestionItem] = Field(
+        default_factory=list[SuggestionItem],
+        validation_alias=AliasChoices("groups", "suggestions", "merges"),
+    )
+
+    @field_validator("groups", mode="before")
+    @classmethod
+    def _wrap_single_group(cls, value: object) -> object:
+        """模型只给一组时可能不套外层数组。"""
+
+        if isinstance(value, dict):
+            return [cast(dict[str, object], value)]
+        return value
+
+
 class TranslationResponse(BaseModel):
     """模型返回的结构化翻译结果。"""
 

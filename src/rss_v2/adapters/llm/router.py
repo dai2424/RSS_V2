@@ -8,6 +8,7 @@ from rss_v2.domain import (
     EnrichmentResult,
     ExternalServiceError,
     Provider,
+    SuggestResult,
     TranslationResult,
 )
 from rss_v2.llm import LLMProvider, PromptPayload
@@ -42,6 +43,16 @@ class ProtocolRouter:
         prompt_version: str,
     ) -> tuple[EnrichmentResult, dict[str, int], int]:
         return self._for(provider).enrich(provider, model, secret, prompt, prompt_version)
+
+    def suggest_merges(
+        self,
+        provider: Provider,
+        model: str,
+        secret: str,
+        prompt: PromptPayload,
+        prompt_version: str,
+    ) -> tuple[SuggestResult, dict[str, int], int]:
+        return self._for(provider).suggest_merges(provider, model, secret, prompt, prompt_version)
 
     def probe(
         self,

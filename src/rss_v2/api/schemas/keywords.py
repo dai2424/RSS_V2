@@ -106,6 +106,66 @@ class KeywordListResponse(Page[KeywordEntryResponse]):
     """词表分页结果。"""
 
 
+class KeywordSuggestionRequest(BaseModel):
+    """生成一批建议：offset 是词表里的起始位置，size 是这一批取多少词。"""
+
+    offset: int = Field(default=0, ge=0)
+    size: int = Field(default=60, ge=2, le=100)
+
+
+class KeywordSuggestionMemberResponse(BaseModel):
+    """建议组里的一个写法：key 用于合并，text 用于展示。"""
+
+    key: str
+    text: str
+    kind: str
+
+
+class KeywordSuggestionResponse(BaseModel):
+    """一条待确认的合并建议。"""
+
+    id: str
+    members: list[KeywordSuggestionMemberResponse]
+    target_key: str
+    target_text: str
+    rationale: str
+    status: str
+    created_at: int
+    resolved_at: int | None
+    merge_id: str | None
+
+
+class KeywordSuggestionListResponse(BaseModel):
+    """建议列表与待处理总数。"""
+
+    items: list[KeywordSuggestionResponse]
+    pending: int
+
+
+class KeywordSuggestionBatchResponse(BaseModel):
+    """一次生成的概要；重复请求同一批会回放这份数字，不重复调用模型。"""
+
+    vocabulary_fingerprint: str
+    offset: int
+    size: int
+    total: int
+    groups: int
+    dropped: int
+    pending: int
+
+
+class KeywordSuggestionAcceptRequest(BaseModel):
+    """采纳：带上已经完成的合并记录 id，仅用于标记与追溯。"""
+
+    merge_id: str = Field(min_length=1, max_length=64)
+
+
+class KeywordSuggestionPendingResponse(BaseModel):
+    """处置后的待处理数量，界面据此更新提示。"""
+
+    pending: int
+
+
 class KeywordKindStatResponse(BaseModel):
     """某一类型的关键词规模。"""
 
@@ -156,6 +216,7 @@ class KeywordOverviewResponse(BaseModel):
     reuse_rate: float | None
     vocab_revision: int
     pinned: int
+    suggestions_pending: int
     kinds: list[KeywordKindStatResponse]
     long_tail: list[KeywordBucketResponse]
     trend: list[KeywordTrendPointResponse]

@@ -425,6 +425,70 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/keywords/suggestions": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * List Suggestions
+     * @description 建议列表；默认只看待处理的。
+     */
+    get: operations["list_suggestions_api_keywords_suggestions_get"];
+    put?: never;
+    /**
+     * Generate Suggestions
+     * @description 把词表的一批交给模型找同指候选；同一批重复请求直接回放。
+     */
+    post: operations["generate_suggestions_api_keywords_suggestions_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/keywords/suggestions/{suggestion_id}/dismiss": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Dismiss Suggestion
+     * @description 忽略一条建议；忽略过的组不会再被建议。
+     */
+    post: operations["dismiss_suggestion_api_keywords_suggestions__suggestion_id__dismiss_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/keywords/suggestions/{suggestion_id}/accept": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Accept Suggestion
+     * @description 标记建议已采纳；合并已在既有端点完成，这里只记下记录 id。
+     */
+    post: operations["accept_suggestion_api_keywords_suggestions__suggestion_id__accept_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/tasks/{task_id}": {
     parameters: {
       query?: never;
@@ -1201,6 +1265,8 @@ export interface components {
       vocab_revision: number;
       /** Pinned */
       pinned: number;
+      /** Suggestions Pending */
+      suggestions_pending: number;
       /** Kinds */
       kinds: components["schemas"]["KeywordKindStatResponse"][];
       /** Long Tail */
@@ -1276,6 +1342,104 @@ export interface components {
       mentions: number;
       /** Top */
       top: components["schemas"]["KeywordResponse"][];
+    };
+    /**
+     * KeywordSuggestionAcceptRequest
+     * @description 采纳：带上已经完成的合并记录 id，仅用于标记与追溯。
+     */
+    KeywordSuggestionAcceptRequest: {
+      /** Merge Id */
+      merge_id: string;
+    };
+    /**
+     * KeywordSuggestionBatchResponse
+     * @description 一次生成的概要；重复请求同一批会回放这份数字，不重复调用模型。
+     */
+    KeywordSuggestionBatchResponse: {
+      /** Vocabulary Fingerprint */
+      vocabulary_fingerprint: string;
+      /** Offset */
+      offset: number;
+      /** Size */
+      size: number;
+      /** Total */
+      total: number;
+      /** Groups */
+      groups: number;
+      /** Dropped */
+      dropped: number;
+      /** Pending */
+      pending: number;
+    };
+    /**
+     * KeywordSuggestionListResponse
+     * @description 建议列表与待处理总数。
+     */
+    KeywordSuggestionListResponse: {
+      /** Items */
+      items: components["schemas"]["KeywordSuggestionResponse"][];
+      /** Pending */
+      pending: number;
+    };
+    /**
+     * KeywordSuggestionMemberResponse
+     * @description 建议组里的一个写法：key 用于合并，text 用于展示。
+     */
+    KeywordSuggestionMemberResponse: {
+      /** Key */
+      key: string;
+      /** Text */
+      text: string;
+      /** Kind */
+      kind: string;
+    };
+    /**
+     * KeywordSuggestionPendingResponse
+     * @description 处置后的待处理数量，界面据此更新提示。
+     */
+    KeywordSuggestionPendingResponse: {
+      /** Pending */
+      pending: number;
+    };
+    /**
+     * KeywordSuggestionRequest
+     * @description 生成一批建议：offset 是词表里的起始位置，size 是这一批取多少词。
+     */
+    KeywordSuggestionRequest: {
+      /**
+       * Offset
+       * @default 0
+       */
+      offset: number;
+      /**
+       * Size
+       * @default 60
+       */
+      size: number;
+    };
+    /**
+     * KeywordSuggestionResponse
+     * @description 一条待确认的合并建议。
+     */
+    KeywordSuggestionResponse: {
+      /** Id */
+      id: string;
+      /** Members */
+      members: components["schemas"]["KeywordSuggestionMemberResponse"][];
+      /** Target Key */
+      target_key: string;
+      /** Target Text */
+      target_text: string;
+      /** Rationale */
+      rationale: string;
+      /** Status */
+      status: string;
+      /** Created At */
+      created_at: number;
+      /** Resolved At */
+      resolved_at: number | null;
+      /** Merge Id */
+      merge_id: string | null;
     };
     /**
      * KeywordTrendPointResponse
@@ -2964,6 +3128,138 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["KeywordUndoResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  list_suggestions_api_keywords_suggestions_get: {
+    parameters: {
+      query?: {
+        /** @description pending / accepted / dismissed */
+        status?: string | null;
+        limit?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["KeywordSuggestionListResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  generate_suggestions_api_keywords_suggestions_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["KeywordSuggestionRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["KeywordSuggestionBatchResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  dismiss_suggestion_api_keywords_suggestions__suggestion_id__dismiss_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        suggestion_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["KeywordSuggestionPendingResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  accept_suggestion_api_keywords_suggestions__suggestion_id__accept_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        suggestion_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["KeywordSuggestionAcceptRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["KeywordSuggestionPendingResponse"];
         };
       };
       /** @description Validation Error */

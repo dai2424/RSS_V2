@@ -14,6 +14,7 @@ from rss_v2.domain import (
     LLMCall,
     MergePreview,
     MergeRecord,
+    MergeSuggestion,
     Message,
     MessageDeletion,
     MessageVersion,
@@ -400,6 +401,45 @@ class KeywordRepository(Protocol):
 
         只由加工执行调用：编译预览与试跑不推进，否则预览一次就会让存量结果看起来过期。
         """
+        ...
+
+
+class SuggestionRepository(Protocol):
+    """合并建议存取端口。"""
+
+    def existing_fingerprints(self) -> set[str]:
+        """已经建议过的成员集合指纹，用于去重（含已忽略与已采纳）。"""
+        ...
+
+    def batch_result(self, fingerprint: str, offset: int) -> tuple[int, int] | None:
+        """已生成过的批次返回 (组数, 丢弃数)；没生成过返回 None。"""
+        ...
+
+    def save_batch(
+        self,
+        fingerprint: str,
+        offset: int,
+        suggestions: list[MergeSuggestion],
+        dropped: int,
+        timestamp: int,
+    ) -> list[MergeSuggestion]:
+        """批次台账与建议行同事务写入。"""
+        ...
+
+    def list(self, status: str | None, limit: int) -> list[MergeSuggestion]:
+        """建议列表；status 为空表示不过滤。"""
+        ...
+
+    def pending_count(self) -> int:
+        """待处理建议数。"""
+        ...
+
+    def dismiss(self, suggestion_id: str, timestamp: int) -> None:
+        """忽略一条建议。"""
+        ...
+
+    def accept(self, suggestion_id: str, merge_id: str, timestamp: int) -> None:
+        """标记建议已采纳并记下合并记录。"""
         ...
 
 

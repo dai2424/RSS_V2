@@ -14,6 +14,7 @@ from rss_v2.adapters.llm.boundary import (
     PROBE_VERSION,
     USER_AGENT,
     EnrichmentResponse,
+    KeywordSuggestionsResponse,
     SchemaT,
     TranslationResponse,
     error_detail,
@@ -31,6 +32,8 @@ from rss_v2.domain import (
     EnrichmentResult,
     ExternalServiceError,
     Provider,
+    SuggestedGroup,
+    SuggestResult,
     TaskType,
     TranslationResult,
 )
@@ -112,6 +115,31 @@ class OpenAICompatibleProvider:
         )
         result = EnrichmentResult(parsed.title, parsed.summary, keywords(parsed.keywords))
         return result, tokens, duration
+
+    def suggest_merges(
+        self,
+        provider: Provider,
+        model: str,
+        secret: str,
+        prompt: PromptPayload,
+        prompt_version: str,
+    ) -> tuple[SuggestResult, dict[str, int], int]:
+        """按词表批次给出疑似同指组；过滤与落库由服务层负责。"""
+
+        parsed, tokens, duration = self._complete(
+            provider,
+            model,
+            secret,
+            prompt,
+            TaskType.KEYWORD_MERGE_SUGGEST.value,
+            prompt_version,
+            KeywordSuggestionsResponse,
+        )
+        groups = tuple(
+            SuggestedGroup(members=tuple(item.terms), target=item.target, rationale=item.rationale)
+            for item in parsed.groups
+        )
+        return SuggestResult(groups=groups), tokens, duration
 
     def probe(
         self,

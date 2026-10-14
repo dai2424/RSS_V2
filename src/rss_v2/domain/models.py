@@ -33,6 +33,7 @@ class TaskType(StrEnum):
     COLLECT_SOURCE = "collect_source"
     TRANSLATE_MESSAGE = "translate_message"
     ENRICH_MESSAGE = "enrich_message"
+    KEYWORD_MERGE_SUGGEST = "keyword_merge_suggest"  # 只登记提示词规格，不进任务队列
 
 
 class LLMProtocol(StrEnum):
@@ -48,6 +49,10 @@ class LLMProtocol(StrEnum):
 
 #: 走 Provider×模型 调度、逐次审计并按冷却重试的任务类型。
 LLM_TASK_TYPES = frozenset({TaskType.TRANSLATE_MESSAGE, TaskType.ENRICH_MESSAGE})
+
+#: worker 能执行的任务类型：采集加两类模型任务。合并建议是请求内的同步调用，
+#: 只借提示词库登记规格，因此不在认领范围内。
+WORKER_TASK_TYPES = frozenset({TaskType.COLLECT_SOURCE, *LLM_TASK_TYPES})
 
 
 @dataclass(frozen=True, slots=True)

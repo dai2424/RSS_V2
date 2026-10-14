@@ -26,6 +26,7 @@ class TaskSpec:
     variables: tuple[str, ...]  # 模板可以使用的占位符
     required_variables: tuple[str, ...]  # 建议引用的输入占位符，缺失只警告
     output_fields: tuple[str, ...]  # 必须声明的结构化输出字段，缺失即编译错误
+    assignable: bool = True  # 能否分配给来源/分类；只用于提示词的类型标为 False
 
 
 #: 已实现的模型任务。新增任务类型时在这里加一条规格，并补齐执行与结果存储。
@@ -43,6 +44,15 @@ TASK_SPECS: dict[TaskType, TaskSpec] = {
         variables=("title", "summary", "content", "vocabulary"),
         required_variables=("title", "content"),
         output_fields=("title", "summary", "keywords"),
+    ),
+    TaskType.KEYWORD_MERGE_SUGGEST: TaskSpec(
+        kind=TaskType.KEYWORD_MERGE_SUGGEST,
+        label="合并建议",
+        variables=("vocabulary",),
+        required_variables=("vocabulary",),
+        output_fields=("groups",),
+        # 不是按来源、按消息跑的任务：由词表页按钮触发，因此不进任务分配界面。
+        assignable=False,
     ),
 }
 

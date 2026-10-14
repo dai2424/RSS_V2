@@ -19,6 +19,7 @@ from rss_v2.domain import (
     PromptUsage,
     Provider,
     ProviderKey,
+    SuggestResult,
     TaskType,
     TranslationResult,
 )
@@ -244,6 +245,10 @@ class PromptService:
             return self.provider.translate(provider, model_name, secret, payload, prompt_version)
         if task_kind == TaskType.ENRICH_MESSAGE.value:
             return self.provider.enrich(provider, model_name, secret, payload, prompt_version)
+        if task_kind == TaskType.KEYWORD_MERGE_SUGGEST.value:
+            return self.provider.suggest_merges(
+                provider, model_name, secret, payload, prompt_version
+            )
         raise DomainError("task_kind_unsupported", f"任务类型尚未支持试跑：{task_kind}")
 
 
@@ -268,4 +273,4 @@ def _compile_or_fail(
 def _output(result: object) -> dict[str, Any]:
     """结构化结果转成可展示字典；字段由任务类型的 schema 决定。"""
 
-    return asdict(cast(TranslationResult | EnrichmentResult, result))
+    return asdict(cast(TranslationResult | EnrichmentResult | SuggestResult, result))

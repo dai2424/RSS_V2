@@ -22,6 +22,13 @@ class KeywordKind(StrEnum):
     EVENT = "event"  # 用一句话概括的事件，一条消息最多一个
 
 
+#: 类型的中文名；注入词表与批次文本都用它，避免两处各写一套。
+KEYWORD_KIND_LABELS: dict[KeywordKind, str] = {
+    KeywordKind.ENTITY: "实体",
+    KeywordKind.TOPIC: "主题",
+    KeywordKind.EVENT: "事件",
+}
+
 #: 每条消息的关键词上限，与提示词里的"最多 6 个"保持一致。
 KEYWORD_LIMIT = 6
 
@@ -108,9 +115,9 @@ def render_vocabulary(vocabulary: PromptVocabulary) -> str:
     if vocabulary.empty:
         return EMPTY_VOCABULARY_TEXT
     groups = (
-        ("实体", vocabulary.entities),
-        ("主题", vocabulary.topics),
-        ("事件", vocabulary.events),
+        (KEYWORD_KIND_LABELS[KeywordKind.ENTITY], vocabulary.entities),
+        (KEYWORD_KIND_LABELS[KeywordKind.TOPIC], vocabulary.topics),
+        (KEYWORD_KIND_LABELS[KeywordKind.EVENT], vocabulary.events),
         ("近期新增", vocabulary.recent),
     )
     return "\n".join(
@@ -200,6 +207,50 @@ class KeywordEntry:
 
 
 @dataclass(frozen=True, slots=True)
+class SuggestedGroup:
+    """模型给出的一组疑似同指写法（服务端已按批次过滤前的原始结果）。"""
+
+    members: tuple[str, ...]  # 组内写法，模型输出原文
+    target: str  # 建议保留的写法
+    rationale: str  # 为什么认为是同指
+
+
+@dataclass(frozen=True, slots=True)
+class SuggestResult:
+    """一次合并建议调用的结构化结果。"""
+
+    groups: tuple[SuggestedGroup, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class MergeSuggestion:
+    """一条待人工确认的合并建议。"""
+
+    id: str  # 建议 UUID
+    members: tuple[Keyword, ...]  # 组内写法；text 展示、normalized 是规范词键
+    target_key: str  # 建议保留的规范词键，必是成员之一
+    target_text: str  # 目标词的展示写法
+    rationale: str  # 模型给出的理由
+    status: str  # pending / accepted / dismissed
+    batch_offset: int  # 生成时在词表里的起始偏移，用于追批次
+    created_at: int  # 创建时间，UTC 秒
+    resolved_at: int | None  # 处理时间，UTC 秒；待处理时为空
+    merge_id: str | None  # 采纳后关联的合并记录 UUID
+
+
+@dataclass(frozen=True, slots=True)
+class SuggestionBatch:
+    """一次生成的结果概要；已生成过的批次直接回放，不重复调用模型。"""
+
+    vocabulary_fingerprint: str  # 本批词表的指纹，词表变了就要重新开始
+    offset: int  # 本批在词表里的起始偏移
+    size: int  # 本批实际取的词数
+    total: int  # 词表总词数
+    groups: int  # 本批落库的建议组数
+    dropped: int  # 被丢弃的组数（越界写法、已建议过、已同指等）
+
+
+@dataclass(frozen=True, slots=True)
 class KeywordKindStat:
     """某一类型的关键词规模。"""
 
@@ -254,6 +305,7 @@ class KeywordOverview:
     reuse_rate: float | None  # 复用率 = reused / reuse_judged；没有判定数据时为空
     vocab_revision: int  # 当前词表版本；注入内容变化时递增，0 表示还没有加工过
     pinned: int  # 人工标记的常驻词数
+    suggestions_pending: int  # 待人工处置的合并建议数
     kinds: tuple[KeywordKindStat, ...]  # 类型构成
     long_tail: tuple[KeywordBucket, ...]  # 长尾分布
     trend: tuple[KeywordTrendPoint, ...]  # 按天的产出与新增词

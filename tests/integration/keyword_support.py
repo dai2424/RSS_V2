@@ -99,6 +99,7 @@ def stub_providers(client: TestClient, fake: KeywordProvider) -> None:
     container: Container = client.app.state.container
     container.translation_service.provider = fake
     container.enrichment_service.provider = fake
+    container.suggestion_service.provider = fake
 
 
 def drain_worker(client: TestClient) -> None:

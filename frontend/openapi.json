@@ -1455,6 +1455,207 @@
         }
       }
     },
+    "/api/keywords/suggestions": {
+      "post": {
+        "tags": [
+          "keywords"
+        ],
+        "summary": "Generate Suggestions",
+        "description": "把词表的一批交给模型找同指候选；同一批重复请求直接回放。",
+        "operationId": "generate_suggestions_api_keywords_suggestions_post",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KeywordSuggestionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KeywordSuggestionBatchResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "keywords"
+        ],
+        "summary": "List Suggestions",
+        "description": "建议列表；默认只看待处理的。",
+        "operationId": "list_suggestions_api_keywords_suggestions_get",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "pending / accepted / dismissed",
+              "default": "pending",
+              "title": "Status"
+            },
+            "description": "pending / accepted / dismissed"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KeywordSuggestionListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/keywords/suggestions/{suggestion_id}/dismiss": {
+      "post": {
+        "tags": [
+          "keywords"
+        ],
+        "summary": "Dismiss Suggestion",
+        "description": "忽略一条建议；忽略过的组不会再被建议。",
+        "operationId": "dismiss_suggestion_api_keywords_suggestions__suggestion_id__dismiss_post",
+        "parameters": [
+          {
+            "name": "suggestion_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Suggestion Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KeywordSuggestionPendingResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/keywords/suggestions/{suggestion_id}/accept": {
+      "post": {
+        "tags": [
+          "keywords"
+        ],
+        "summary": "Accept Suggestion",
+        "description": "标记建议已采纳；合并已在既有端点完成，这里只记下记录 id。",
+        "operationId": "accept_suggestion_api_keywords_suggestions__suggestion_id__accept_post",
+        "parameters": [
+          {
+            "name": "suggestion_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Suggestion Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KeywordSuggestionAcceptRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KeywordSuggestionPendingResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/tasks/{task_id}": {
       "get": {
         "tags": [
@@ -3713,6 +3914,10 @@
             "type": "integer",
             "title": "Pinned"
           },
+          "suggestions_pending": {
+            "type": "integer",
+            "title": "Suggestions Pending"
+          },
           "kinds": {
             "items": {
               "$ref": "#/components/schemas/KeywordKindStatResponse"
@@ -3774,6 +3979,7 @@
           "reuse_rate",
           "vocab_revision",
           "pinned",
+          "suggestions_pending",
           "kinds",
           "long_tail",
           "trend",
@@ -3906,6 +4112,217 @@
         ],
         "title": "KeywordSourceStatResponse",
         "description": "来源维度的关键词规模。"
+      },
+      "KeywordSuggestionAcceptRequest": {
+        "properties": {
+          "merge_id": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Merge Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "merge_id"
+        ],
+        "title": "KeywordSuggestionAcceptRequest",
+        "description": "采纳：带上已经完成的合并记录 id，仅用于标记与追溯。"
+      },
+      "KeywordSuggestionBatchResponse": {
+        "properties": {
+          "vocabulary_fingerprint": {
+            "type": "string",
+            "title": "Vocabulary Fingerprint"
+          },
+          "offset": {
+            "type": "integer",
+            "title": "Offset"
+          },
+          "size": {
+            "type": "integer",
+            "title": "Size"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "groups": {
+            "type": "integer",
+            "title": "Groups"
+          },
+          "dropped": {
+            "type": "integer",
+            "title": "Dropped"
+          },
+          "pending": {
+            "type": "integer",
+            "title": "Pending"
+          }
+        },
+        "type": "object",
+        "required": [
+          "vocabulary_fingerprint",
+          "offset",
+          "size",
+          "total",
+          "groups",
+          "dropped",
+          "pending"
+        ],
+        "title": "KeywordSuggestionBatchResponse",
+        "description": "一次生成的概要；重复请求同一批会回放这份数字，不重复调用模型。"
+      },
+      "KeywordSuggestionListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/KeywordSuggestionResponse"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "pending": {
+            "type": "integer",
+            "title": "Pending"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "pending"
+        ],
+        "title": "KeywordSuggestionListResponse",
+        "description": "建议列表与待处理总数。"
+      },
+      "KeywordSuggestionMemberResponse": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "text",
+          "kind"
+        ],
+        "title": "KeywordSuggestionMemberResponse",
+        "description": "建议组里的一个写法：key 用于合并，text 用于展示。"
+      },
+      "KeywordSuggestionPendingResponse": {
+        "properties": {
+          "pending": {
+            "type": "integer",
+            "title": "Pending"
+          }
+        },
+        "type": "object",
+        "required": [
+          "pending"
+        ],
+        "title": "KeywordSuggestionPendingResponse",
+        "description": "处置后的待处理数量，界面据此更新提示。"
+      },
+      "KeywordSuggestionRequest": {
+        "properties": {
+          "offset": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Offset",
+            "default": 0
+          },
+          "size": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 2.0,
+            "title": "Size",
+            "default": 60
+          }
+        },
+        "type": "object",
+        "title": "KeywordSuggestionRequest",
+        "description": "生成一批建议：offset 是词表里的起始位置，size 是这一批取多少词。"
+      },
+      "KeywordSuggestionResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "members": {
+            "items": {
+              "$ref": "#/components/schemas/KeywordSuggestionMemberResponse"
+            },
+            "type": "array",
+            "title": "Members"
+          },
+          "target_key": {
+            "type": "string",
+            "title": "Target Key"
+          },
+          "target_text": {
+            "type": "string",
+            "title": "Target Text"
+          },
+          "rationale": {
+            "type": "string",
+            "title": "Rationale"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "created_at": {
+            "type": "integer",
+            "title": "Created At"
+          },
+          "resolved_at": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolved At"
+          },
+          "merge_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Merge Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "members",
+          "target_key",
+          "target_text",
+          "rationale",
+          "status",
+          "created_at",
+          "resolved_at",
+          "merge_id"
+        ],
+        "title": "KeywordSuggestionResponse",
+        "description": "一条待确认的合并建议。"
       },
       "KeywordTrendPointResponse": {
         "properties": {

@@ -7,7 +7,14 @@ import time
 from dataclasses import dataclass
 
 from rss_v2.bootstrap import Container
-from rss_v2.domain import LLM_TASK_TYPES, DomainError, ExternalServiceError, Task, TaskType
+from rss_v2.domain import (
+    LLM_TASK_TYPES,
+    WORKER_TASK_TYPES,
+    DomainError,
+    ExternalServiceError,
+    Task,
+    TaskType,
+)
 from rss_v2.tasks.lease import keep_lease
 
 
@@ -23,7 +30,7 @@ class Worker:
         tasks = self.container.tasks
         tasks.reclaim_expired(int(time.time()))
         task = tasks.claim_next(
-            [task_type.value for task_type in TaskType],
+            sorted(task_type.value for task_type in WORKER_TASK_TYPES),
             int(time.time()),
             self.container.settings.worker_lease_seconds,
         )

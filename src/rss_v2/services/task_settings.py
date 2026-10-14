@@ -28,6 +28,8 @@ class TaskSettingService:
         stored = {item.task_kind: item for item in self.settings.list_for(scope, scope_id)}
         views: list[TaskSettingView] = []
         for spec in TASK_SPECS.values():
+            if not spec.assignable:
+                continue
             setting = stored.get(spec.kind.value)
             resolved = self.prompts.effective(scope, scope_id, spec.kind.value)
             views.append(

@@ -15,6 +15,9 @@ from rss_v2.api.schemas import (
     KeywordOverviewResponse,
     KeywordResponse,
     KeywordSourceStatResponse,
+    KeywordSuggestionBatchResponse,
+    KeywordSuggestionMemberResponse,
+    KeywordSuggestionResponse,
     KeywordTrendPointResponse,
     RelatedMessageResponse,
 )
@@ -23,7 +26,9 @@ from rss_v2.domain import (
     KeywordOverview,
     MergePreview,
     MergeRecord,
+    MergeSuggestion,
     RelatedMessage,
+    SuggestionBatch,
 )
 
 
@@ -57,6 +62,7 @@ def keyword_overview_response(item: KeywordOverview) -> KeywordOverviewResponse:
         reuse_rate=item.reuse_rate,
         vocab_revision=item.vocab_revision,
         pinned=item.pinned,
+        suggestions_pending=item.suggestions_pending,
         kinds=[
             KeywordKindStatResponse(kind=stat.kind.value, terms=stat.terms, mentions=stat.mentions)
             for stat in item.kinds
@@ -125,6 +131,39 @@ def merge_response(record: MergeRecord, preview: MergePreview) -> KeywordMergeRe
 
 def merge_preview_response(item: MergePreview) -> KeywordMergePreviewResponse:
     return _merge_preview_response(item)
+
+
+def merge_suggestion_response(item: MergeSuggestion) -> KeywordSuggestionResponse:
+    return KeywordSuggestionResponse(
+        id=item.id,
+        members=[
+            KeywordSuggestionMemberResponse(
+                key=keyword.normalized, text=keyword.text, kind=keyword.kind.value
+            )
+            for keyword in item.members
+        ],
+        target_key=item.target_key,
+        target_text=item.target_text,
+        rationale=item.rationale,
+        status=item.status,
+        created_at=item.created_at,
+        resolved_at=item.resolved_at,
+        merge_id=item.merge_id,
+    )
+
+
+def suggestion_batch_response(
+    item: SuggestionBatch, pending: int
+) -> KeywordSuggestionBatchResponse:
+    return KeywordSuggestionBatchResponse(
+        vocabulary_fingerprint=item.vocabulary_fingerprint,
+        offset=item.offset,
+        size=item.size,
+        total=item.total,
+        groups=item.groups,
+        dropped=item.dropped,
+        pending=pending,
+    )
 
 
 def related_message_response(item: RelatedMessage) -> RelatedMessageResponse:
