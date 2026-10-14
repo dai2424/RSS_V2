@@ -7,6 +7,7 @@ OpenAI 兼容 chat completions 与 Anthropic Messages 只在端点、认证头�
 
 from __future__ import annotations
 
+import logging
 import re
 import uuid
 from collections.abc import Sequence
@@ -26,6 +27,7 @@ from rss_v2.domain import (
     ExternalServiceError,
     Keyword,
     KeywordKind,
+    keyword_rejection_reason,
     normalize_keyword_list,
 )
 from rss_v2.llm import PromptPayload
@@ -192,18 +194,31 @@ def keywords(values: list[str | KeywordItem]) -> tuple[Keyword, ...]:
     """把模型输出折算成领域关键词：纯字符串与非法类型都按主题词处理。
 
     类型只认 entity/topic/event；模型给出别的取值时降级为主题词，而不是让整次调用失败——
-    这个词本身可能仍然有用，为它作废整轮输出不划算。
+    这个词本身可能仍然有用，为它作废整轮输出不划算。形态不合格的写法（句子式、只剩数值
+    与单位、超长）在这里直接丢掉并记日志：它们不会被人用来检索，留着只会污染词表。
     """
 
     items: list[Keyword] = []
+    rejected: list[tuple[str, str]] = []
     for value in values:
         raw = value if isinstance(value, str) else value.text
         kind_text = KeywordKind.TOPIC.value if isinstance(value, str) else value.kind
+        reason = keyword_rejection_reason(raw)
+        if reason is not None:
+            rejected.append((raw, reason))
+            continue
         try:
             kind = KeywordKind(kind_text.strip().casefold())
         except ValueError:
             kind = KeywordKind.TOPIC
         items.append(Keyword(text=raw, kind=kind))
+    if rejected:
+        # 剔除数量与原因写进日志：这是调整规则时的唯一依据，不进面向用户的指标。
+        logging.getLogger(__name__).info(
+            "keyword_rejected count=%d reasons=%s",
+            len(rejected),
+            "; ".join(f"{reason}:{text}" for text, reason in rejected),
+        )
     return normalize_keyword_list(items)
 
 

@@ -32,6 +32,16 @@ KEYWORD_KIND_LABELS: dict[KeywordKind, str] = {
 #: 每条消息的关键词上限，与提示词里的"最多 6 个"保持一致。
 KEYWORD_LIMIT = 6
 
+#: 句子式写法的标点：出现任意一个就说明这是"一句话"，不是检索词。
+#: 刻意不含 ASCII 句点与冒号——「GPT-6.1」「19.98万元」里的点不是句读。
+_SENTENCE_PUNCTUATION = re.compile(r"[，。！？；、,;!?]")
+
+#: 只为数字与单位存在的写法：剥离数字后剩下的语义字符不超过这个数就判为数值/价格。
+_MINIMUM_SEMANTIC_CHARS = 3
+
+#: 写法的长度上限（字符）：再长就不会有人用来检索，多半是模型把一句话塞了进来。
+MAXIMUM_KEYWORD_LENGTH = 24
+
 #: 归一化时剥离的首尾标点、符号与下划线；内部标点保留。
 _EDGE_PUNCTUATION = re.compile(r"^[\s\W_]+|[\s\W_]+$", re.UNICODE)
 
@@ -47,6 +57,29 @@ def normalize_keyword(text: str) -> str:
     folded = unicodedata.normalize("NFKC", text).casefold()
     compact = "".join(folded.split())
     return _EDGE_PUNCTUATION.sub("", compact)
+
+
+def keyword_rejection_reason(text: str) -> str | None:
+    """判断一个写法为什么不能作为检索词；可以收下时返回 None。
+
+    只判定**形态**：句子式（带句读标点）、只剩数字与单位（价格、指标）、超长写法，
+    这三类不可能被人用来检索。"这个词是否泛化"属于语义判断，不在这里做。
+    """
+
+    stripped = text.strip()
+    if _SENTENCE_PUNCTUATION.search(stripped):
+        return "句子式写法"
+    if len(stripped) > MAXIMUM_KEYWORD_LENGTH:
+        return "过长"
+    if any(char.isdigit() for char in stripped):
+        semantic = "".join(
+            char
+            for char in stripped
+            if not char.isdigit() and not _EDGE_PUNCTUATION.match(char) and not char.isspace()
+        )
+        if len(semantic) < _MINIMUM_SEMANTIC_CHARS:
+            return "只有数值与单位"
+    return None
 
 
 @dataclass(frozen=True, slots=True)

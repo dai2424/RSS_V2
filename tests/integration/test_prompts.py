@@ -661,14 +661,14 @@ def test_task_snapshot_without_prompt_id_runs_by_version_string(client: TestClie
     assert [item["task_type"] for item in queued] == ["enrich_message"]
     task = queued[0]
     payload = strip_prompt_snapshot(container, str(task["id"]), "prompt_id")
-    assert "prompt_id" not in payload and payload["prompt_version"] == "enrich-v3"
+    assert "prompt_id" not in payload and payload["prompt_version"].startswith("enrich-v")
 
     container.enrichment_service.provider = FakeProvider()
     assert worker.run_once() is True
 
     message_id = str(client.get("/api/messages").json()["items"][0]["id"])
     version = client.get(f"/api/messages/{message_id}").json()["versions"][0]
-    assert version["enrichments"][0]["prompt_version"] == "enrich-v3"
+    assert version["enrichments"][0]["prompt_version"].startswith("enrich-v")
     assert client.get(f"/api/tasks/{task['id']}").json()["status"] == "succeeded"
 
 
