@@ -2,7 +2,11 @@ import { test, expect, type APIRequestContext } from "@playwright/test";
 import { drainWorker, firstCategoryId } from "./support";
 
 /** 用接口造数据：一个来源、一次采集与加工，产出 fixture 关键词（计算平台、发布）。 */
-async function seed(request: APIRequestContext, suffix: string) {
+async function seed(
+  request: APIRequestContext,
+  suffix: string,
+  fixture = "feed.xml",
+) {
   const provider = await (
     await request.post("/api/llm/providers", {
       data: {
@@ -17,11 +21,12 @@ async function seed(request: APIRequestContext, suffix: string) {
   await request.post(`/api/llm/providers/${provider.id}/keys`, {
     data: { secret: "fixture-key" },
   });
+  const sourceName = "关键词来源" + suffix;
   const source = await (
     await request.post("/api/sources", {
       data: {
-        name: "关键词来源" + suffix,
-        url: "http://127.0.0.1:8877/fixtures/feed.xml?case=keywords" + suffix,
+        name: sourceName,
+        url: `http://127.0.0.1:8877/fixtures/${fixture}?case=keywords` + suffix,
         platform: "验收",
         language: "auto",
         category_id: await firstCategoryId(request),
@@ -38,6 +43,7 @@ async function seed(request: APIRequestContext, suffix: string) {
     await request.post(`/api/messages/${message.id}/enrich`);
   }
   await drainWorker(request);
+  return sourceName;
 }
 
 /** 把历史上遗留的合并撤销掉，保证用例可重复执行。 */
@@ -293,6 +299,52 @@ for (const width of [1280, 1920]) {
     await expect(
       page.getByText("已撤销这次合并，写法回到各自词条。"),
     ).toBeVisible();
+
+    await expect(page.locator("body")).toHaveJSProperty("scrollWidth", width);
+    expect(errors).toEqual([]);
+  });
+
+  test(`词表按关键词查看消息 ${width}px`, async ({
+    page,
+    request,
+  }, testInfo) => {
+    await page.setViewportSize({ width, height: 1000 });
+    const errors: string[] = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    const suffix = `jump-${width}-${Date.now()}`;
+    const sourceName = await seed(request, suffix, "two-items-feed.xml");
+
+    // 从词表进入：默认热词口径折叠了只出现一两次的词，先切到全量。
+    await page.goto("/settings/keywords");
+    await expect(
+      page.getByRole("heading", { name: "关键词", exact: true }),
+    ).toBeVisible({ timeout: 15000 });
+    await page.getByLabel("口径").selectOption("all");
+    await page.getByLabel("最小出现次数").selectOption("1");
+    await page.getByLabel("搜索关键词").fill("计算平台");
+    const row = page.getByRole("row").filter({ hasText: "计算平台" }).first();
+    await expect(row).toBeVisible();
+    await row.getByRole("link", { name: "查看消息" }).click();
+
+    // 消息页说清是按哪个关键词收窄的，并且用的是结构化关键词而不是全文搜索。
+    await expect(page).toHaveURL(/keyword=/);
+    await expect(page.getByText("关键词：计算平台")).toBeVisible();
+    await page.getByLabel("来源筛选").selectOption({ label: sourceName });
+    const second = page.getByRole("row").filter({ hasText: "第二平台更新" });
+    // 第二条消息的正文里出现"计算平台"，但它的结构化关键词是别的词：不该被命中。
+    await expect(second).toHaveCount(0);
+    await expect(
+      page.getByRole("row").filter({ hasText: "精简标题" }).first(),
+    ).toBeVisible();
+    await page.screenshot({
+      path: testInfo.outputPath(`messages-keyword-${width}.png`),
+      fullPage: true,
+    });
+
+    // 清除关键词条件后，被排除的那条消息重新出现。
+    await page.getByRole("button", { name: "清除关键词" }).click();
+    await expect(page.getByText("关键词：计算平台")).toBeHidden();
+    await expect(second).toHaveCount(1);
 
     await expect(page.locator("body")).toHaveJSProperty("scrollWidth", width);
     expect(errors).toEqual([]);

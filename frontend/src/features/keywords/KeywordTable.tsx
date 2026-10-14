@@ -80,7 +80,19 @@ export function KeywordTable({
                 </div>
               </td>
               <td>
-                <Link to={`/messages?q=${encodeURIComponent(item.text)}`}>
+                {/*
+                  走结构化关键词检索（keyword=），不是全文搜索：命中由服务端的规范词键与
+                  别名解析决定，正文里恰好出现这几个字的无关消息不会被带进来。
+                */}
+                <Link
+                  to={`/messages?keyword=${encodeURIComponent(item.text)}`}
+                  onClick={() =>
+                    sessionStorage.setItem(
+                      "messages-return",
+                      `/messages?keyword=${encodeURIComponent(item.text)}`,
+                    )
+                  }
+                >
                   查看消息
                 </Link>
               </td>

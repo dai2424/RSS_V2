@@ -3,6 +3,8 @@
 import json
 import re
 import sys
+from collections import Counter
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -29,6 +31,52 @@ def feed() -> Response:
     return Response(
         (ROOT / "tests/fixtures/sample_feed.xml").read_bytes(), media_type="application/xml"
     )
+
+
+#: 每个 case 被请求过几次：同一来源的第二次采集起换一版正文，用来造第二个版本。
+FEED_HITS: Counter[str] = Counter()
+
+
+@app.get("/fixtures/two-items-feed.xml")
+def two_items_feed(request: Request) -> Response:
+    """两个条目的 RSS，供"关键词跳转"与"历史版本"两条验收使用。
+
+    第一条消息第二次采集起改一处正文，于是它有了第二个版本；第二条消息的**正文**里
+    出现"计算平台"，而它的结构化关键词是另一个词——用来证明词表的"查看消息"走的是
+    关键词检索而不是全文搜索。发布时间按当前时间生成：搜索默认只看最近一周，写死
+    日期会随时间过期。
+    """
+
+    key = request.query_params.get("case", "")
+    FEED_HITS[key] += 1
+    first = (
+        "A new computing platform is available, now with more capacity."
+        if FEED_HITS[key] > 1
+        else "A new computing platform is available."
+    )
+    stamp = (datetime.now(tz=UTC) - timedelta(days=1)).strftime("%a, %d %b %Y %H:%M:%S GMT")
+    body = f"""<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0"><channel>
+<title>Two Items</title>
+<link>https://example.test/</link>
+<description>Two Items</description>
+<language>en-us</language>
+<item>
+  <guid>two-1</guid>
+  <title>New computing platform</title>
+  <link>https://example.test/two-1</link>
+  <description><![CDATA[<p>{first}</p>]]></description>
+  <pubDate>{stamp}</pubDate>
+</item>
+<item>
+  <guid>two-2</guid>
+  <title>Second platform update</title>
+  <link>https://example.test/two-2</link>
+  <description><![CDATA[<p>计算平台周边配件同步更新。</p>]]></description>
+  <pubDate>{stamp}</pubDate>
+</item>
+</channel></rss>"""
+    return Response(body.encode("utf-8"), media_type="application/xml")
 
 
 def _user_prompt(body: dict[str, Any]) -> str:
@@ -99,6 +147,14 @@ def _fixture_content(system_prompt: str, user_prompt: str) -> dict[str, object]:
     if "[task: keyword_merge_suggest" in system_prompt:
         return {"groups": _suggestion_groups(user_prompt)}
     if "[task: enrich_message" in system_prompt:
+        # 第二条 fixture 消息给一个与正文无关的关键词：正文里有"计算平台"，关键词里没有，
+        # 于是"按关键词查"与"按全文查"在界面上能区分开。
+        if "Second platform" in user_prompt:
+            return {
+                "title": "第二平台更新",
+                "summary": "第二平台已上线，配件同步更新。",
+                "keywords": [{"text": "量子芯片", "kind": "entity"}],
+            }
         return {
             "title": "精简标题",
             "summary": "计算平台已经发布，适合检索归档。",

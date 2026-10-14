@@ -47,9 +47,11 @@ function GeneratedAlert({
 function EnrichmentPanel({
   enrichment,
   retrying,
+  actionable,
 }: {
   enrichment?: Generated;
   retrying?: boolean;
+  actionable: boolean;
 }) {
   if (enrichment?.status !== "succeeded") {
     return enrichment ? (
@@ -61,7 +63,9 @@ function EnrichmentPanel({
       />
     ) : (
       <div className="alert">
-        此版本尚无内容摘要。超过长度阈值的消息会在采集后自动加工，也可以在顶部手动生成。
+        {actionable
+          ? "此版本尚无内容摘要。超过长度阈值的消息会在采集后自动加工，也可以在顶部手动生成。"
+          : "此版本尚无内容摘要（历史版本只用于查看）。"}
       </div>
     );
   }
@@ -103,7 +107,14 @@ function EnrichmentPanel({
   );
 }
 
-export function VersionCard({ version }: { version: Version }) {
+export function VersionCard({
+  version,
+  actionable,
+}: {
+  version: Version;
+  /** 是否是消息的最新版本：只有它能在顶部触发翻译与内容加工。 */
+  actionable: boolean;
+}) {
   const translation =
     version.translations.find((v) => v.status === "succeeded") ??
     version.translations[0];
@@ -193,6 +204,7 @@ export function VersionCard({ version }: { version: Version }) {
           <EnrichmentPanel
             enrichment={enrichment}
             retrying={isRetrying(version.enrichment_task?.status)}
+            actionable={actionable}
           />
         </TabsContent>
       </Tabs>

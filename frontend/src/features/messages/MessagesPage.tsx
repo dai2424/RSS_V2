@@ -66,6 +66,9 @@ export function MessagesPage() {
     usePaginationParams();
   const q = params.get("q") || "";
   const source = params.get("source") || "";
+  // 关键词来自词表页的"查看消息"：结构化检索，由服务端按规范词键与别名解析命中。
+  const keyword = params.get("keyword") || "";
+  const searching = Boolean(q || keyword);
   // 输入先落在本地状态，停顿 300ms 再写进 URL 触发请求：全文检索是全表扫文本。
   const [draft, setDraft] = useState(q);
   const pushQuery = useDebouncedCallback((value: string) => {
@@ -82,7 +85,7 @@ export function MessagesPage() {
       from: params.get("from"),
       to: params.get("to"),
     },
-    Boolean(q),
+    searching,
     Math.floor(Date.now() / 1000),
   );
   const range = timeRange.value;
@@ -92,6 +95,7 @@ export function MessagesPage() {
     queryKey: [
       "messages",
       q,
+      keyword,
       source,
       range,
       timeRange.since,
@@ -100,8 +104,8 @@ export function MessagesPage() {
       size,
       offset,
     ],
-    // 带搜索词时把轮询放到 30 秒：反复全表扫文本只为刷新一份基本不变的搜索结果不值得。
-    refetchInterval: q ? 30000 : 5000,
+    // 带搜索条件时把轮询放到 30 秒：反复扫文本只为刷新一份基本不变的搜索结果不值得。
+    refetchInterval: searching ? 30000 : 5000,
     // 翻页时保留上一页内容，避免表格整页闪烁；配合分页条禁用挡住连点。
     placeholderData: keepPreviousData,
     queryFn: async () => {
@@ -109,6 +113,7 @@ export function MessagesPage() {
         params: {
           query: {
             q: q || undefined,
+            keyword: keyword || undefined,
             source_id: source || undefined,
             since: timeRange.since,
             until: timeRange.until,
@@ -167,6 +172,24 @@ export function MessagesPage() {
             }}
             placeholder="搜索标题、摘要、正文、译文和关键词"
           />
+          {keyword && (
+            // 从词表页跳进来时，说清当前列表是按哪个关键词收窄的，并给出退出入口。
+            <span className="badge-row">
+              <Badge tone="neutral">关键词：{keyword}</Badge>
+              <Button
+                className="secondary"
+                onClick={() => {
+                  const next = new URLSearchParams(params);
+                  next.delete("keyword");
+                  next.delete("offset");
+                  setParams(next, { replace: true });
+                  setSelected(new Map());
+                }}
+              >
+                清除关键词
+              </Button>
+            </span>
+          )}
           <select
             aria-label="时间范围"
             value={range}
@@ -278,11 +301,11 @@ export function MessagesPage() {
         )}
         {total === 0 && (
           <EmptyState
-            title={q || source ? "没有匹配结果" : "还没有消息"}
+            title={searching || source ? "没有匹配结果" : "还没有消息"}
             description={
               timeRange.custom
                 ? `当前只搜 ${timeRange.custom.from} 至 ${timeRange.custom.to} 的消息。`
-                : q && range !== "all"
+                : searching && range !== "all"
                   ? `当前只搜${rangeLabel(range)}的消息，更早的内容不在范围内。`
                   : "在来源详情触发采集，worker 执行后消息会出现在这里。"
             }
@@ -301,7 +324,7 @@ export function MessagesPage() {
                 >
                   清除日期范围
                 </Button>
-              ) : q && range !== "all" ? (
+              ) : searching && range !== "all" ? (
                 <Button
                   className="secondary"
                   onClick={() => filter("range", "all")}

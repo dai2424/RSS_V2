@@ -1,4 +1,4 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api, requireResponse } from "../../api/client";
@@ -7,8 +7,14 @@ import { formatTime, statusLabels } from "../../lib/display";
 import { RelatedMessages } from "./RelatedMessages";
 import { VersionCard } from "./VersionCard";
 
+/** 排队或运行中：只有这两种状态要挡住重复入队，成功后按钮恢复可用。 */
+function busy(status?: string): boolean {
+  return status === "queued" || status === "running";
+}
+
 export function MessageDetailPage() {
   const { messageId = "" } = useParams();
+  const queryClient = useQueryClient();
   const [versionId, setVersionId] = useState("");
   const detail = useQuery({
     queryKey: ["message", messageId],
@@ -20,6 +26,10 @@ export function MessageDetailPage() {
       return requireResponse(r.response, r.data, r.error);
     },
   });
+  // 任务状态只认服务端：本页每 3 秒刷新一次详情，新建任务后立刻失效重取。
+  // 早先版本把 mutation 返回的任务快照当成状态来源，任务跑完之后界面会一直停在"已排队"。
+  const created = () =>
+    void queryClient.invalidateQueries({ queryKey: ["message", messageId] });
   const translate = useMutation({
     mutationFn: async () => {
       const r = await api.POST("/api/messages/{message_id}/translate", {
@@ -27,6 +37,7 @@ export function MessageDetailPage() {
       });
       return requireResponse(r.response, r.data, r.error);
     },
+    onSuccess: created,
   });
   const enrich = useMutation({
     mutationFn: async () => {
@@ -35,32 +46,16 @@ export function MessageDetailPage() {
       });
       return requireResponse(r.response, r.data, r.error);
     },
+    onSuccess: created,
   });
   const version =
     detail.data?.versions.find((v) => v.id === versionId) ??
     detail.data?.versions[0];
-  /** 刚创建的任务优先，其次是该版本最近一次任务，用于显示真实排队状态。 */
-  const pickup = <T extends { input_version_id: string | null; id: string }>(
-    created: T | undefined,
-    existing: { id: string; status: string } | null | undefined,
-  ) => (created?.input_version_id === version?.id ? created : existing);
-  const activeTask = pickup(translate.data, version?.translation_task);
-  const activeEnrichmentTask = pickup(enrich.data, version?.enrichment_task);
-  const task = useQuery({
-    queryKey: ["task", activeTask?.id],
-    enabled: Boolean(activeTask),
-    refetchInterval: 2000,
-    queryFn: async () => {
-      const r = await api.GET("/api/tasks/{task_id}", {
-        params: { path: { task_id: activeTask!.id } },
-      });
-      return requireResponse(r.response, r.data, r.error);
-    },
-  });
-  const taskStatus = task.data?.status ?? activeTask?.status;
-  const busy = (status: string | undefined) =>
-    status === "queued" || status === "running";
+  // 翻译与加工都以"消息的最新版本"为单位（接口与幂等键如此，列表筛选也按最新版本算），
+  // 因此历史版本只提供查看：按钮不再让用户以为加工的是眼前这一版。
   const isLatest = version?.id === detail.data?.versions[0]?.id;
+  const translationTask = version?.translation_task;
+  const enrichmentTask = version?.enrichment_task;
   if (detail.isLoading) return <div className="loading">正在加载消息…</div>;
   if (detail.isError || !detail.data)
     return (
@@ -98,41 +93,44 @@ export function MessageDetailPage() {
         </select>
         {version?.language === "en" && isLatest && (
           <Button
-            disabled={translate.isPending || busy(taskStatus)}
+            disabled={translate.isPending || busy(translationTask?.status)}
             onClick={() => translate.mutate()}
           >
             {translate.isPending ? "创建任务…" : "生成中文"}
           </Button>
         )}
-        {version && (
+        {isLatest && (
           <Button
             className="secondary"
-            disabled={enrich.isPending || busy(activeEnrichmentTask?.status)}
+            disabled={enrich.isPending || busy(enrichmentTask?.status)}
             onClick={() => enrich.mutate()}
           >
             {enrich.isPending ? "创建任务…" : "生成摘要"}
           </Button>
         )}
-        {activeTask && (
+        {!isLatest && (
+          <span className="muted">
+            历史版本只用于查看：翻译与内容加工在最新版本上进行。
+          </span>
+        )}
+        {isLatest && translationTask && (
           <Link to="/tasks" className="muted" role="status">
-            翻译任务：{statusLabels[taskStatus || "queued"]}，查看状态
+            翻译任务：
+            {statusLabels[translationTask.status] ?? translationTask.status}
+            ，查看状态
           </Link>
         )}
-        {activeEnrichmentTask && (
+        {isLatest && enrichmentTask && (
           <Link to="/tasks" className="muted" role="status">
-            加工任务：{statusLabels[activeEnrichmentTask.status]}，查看状态
+            加工任务：
+            {statusLabels[enrichmentTask.status] ?? enrichmentTask.status}
+            ，查看状态
           </Link>
         )}
       </div>
       {translate.isError && <ErrorState message={translate.error.message} />}
       {enrich.isError && <ErrorState message={enrich.error.message} />}
-      {task.isError && (
-        <ErrorState
-          message={task.error.message}
-          onRetry={() => void task.refetch()}
-        />
-      )}
-      {version && <VersionCard version={version} />}
+      {version && <VersionCard version={version} actionable={isLatest} />}
       <RelatedMessages messageId={messageId} />
     </div>
   );
