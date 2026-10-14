@@ -38,6 +38,8 @@ class KeywordService:
 
     keywords: KeywordRepository  # 关键词索引、检索与候选查询
     enqueue: Callable[[str], Task]  # 单条加工入队，复用提示词解析与幂等规则
+    hot_days: int = 7  # 热词窗口（天）
+    hot_min_mentions: int = 5  # 热词门槛（窗口内出现次数）
 
     def rebuild_index(self) -> int:
         """按已存的加工结果重建关键词索引；本地操作，不调用模型。"""
@@ -76,20 +78,53 @@ class KeywordService:
         self,
         query: str | None,
         kind: str | None,
-        min_count: int,
+        min_count: int | None,
         since: int | None,
         until: int | None,
         pinned_only: bool,
         limit: int,
         offset: int,
+        scope: str = "hot",
     ) -> tuple[list[KeywordEntry], int]:
-        """词表一页与总数；两者必须用同一套筛选条件，否则分页会对不上。"""
+        """词表一页与总数；两者必须用同一套筛选条件，否则分页会对不上。
 
-        items = self.keywords.vocabulary(
-            query, kind, min_count, since, until, pinned_only, limit, offset
+        默认口径是"热词"：近 hot_days 天、出现次数达到门槛。显式传 since/until/min_count
+        可以覆盖它；scope="all" 表示看全量存量（历史词也看得见，用于回看与合并）。
+        """
+
+        effective_since, effective_until, effective_min = self._scope(
+            scope, min_count, since, until
         )
-        total = self.keywords.count_vocabulary(query, kind, min_count, since, until, pinned_only)
+        items = self.keywords.vocabulary(
+            query,
+            kind,
+            effective_min,
+            effective_since,
+            effective_until,
+            pinned_only,
+            limit,
+            offset,
+        )
+        total = self.keywords.count_vocabulary(
+            query, kind, effective_min, effective_since, effective_until, pinned_only
+        )
         return items, total
+
+    def _scope(
+        self, scope: str, min_count: int | None, since: int | None, until: int | None
+    ) -> tuple[int | None, int | None, int]:
+        """把口径折算成实际筛选条件；显式参数优先于口径默认值。"""
+
+        if scope not in {"hot", "all"}:
+            raise DomainError("keyword_scope_invalid", "口径只能是 hot 或 all")
+        default_since = now() - self.hot_days * 86400 if scope == "hot" else None
+        # 全量口径沿用历史默认"折叠孤词"，热词口径用门槛值。
+        default_min = self.hot_min_mentions if scope == "hot" else 2
+        return (
+            since if since is not None else default_since,
+            until,
+            max(1, min_count if min_count is not None else default_min),
+        )
 
     def set_pin(self, key: str, pinned: bool) -> str:
         """标记或取消常驻词，返回规范化后的词键。
@@ -105,9 +140,9 @@ class KeywordService:
         return normalized
 
     def overview(self, days: int = 14, top_sources: int = 10) -> KeywordOverview:
-        """概览与分布；所有数字都从库里算出来。"""
+        """概览与分布；主指标按热词口径，存量另给两个全量数字。"""
 
-        return self.keywords.overview(days, top_sources)
+        return self.keywords.overview(days, top_sources, self.hot_days, self.hot_min_mentions)
 
     def merge_preview(self, keys: list[str], target: str) -> MergePreview:
         """合并影响面；输入统一归一化，界面传回的词表键与手工输入都能用。"""

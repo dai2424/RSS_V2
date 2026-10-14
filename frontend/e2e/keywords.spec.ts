@@ -64,7 +64,9 @@ async function clearSuggestions(request: APIRequestContext) {
 /** 取消历史上遗留的常驻标记；词表跨运行累积，否则"只看常驻"会带着旧行。 */
 async function clearPins(request: APIRequestContext) {
   const pinned = await (
-    await request.get("/api/keywords?pinned=true&min_count=1&limit=100")
+    await request.get(
+      "/api/keywords?pinned=true&scope=all&min_count=1&limit=100",
+    )
   ).json();
   for (const item of pinned.items) {
     await request.post("/api/keywords/pin", {
@@ -90,7 +92,7 @@ for (const width of [1280, 1920]) {
       page.getByRole("heading", { name: "关键词", exact: true }),
     ).toBeVisible({ timeout: 15000 });
     // 概览指标是真实数字：规范词数不少于 fixture 的两个词。
-    const terms = page.locator(".keyword-metric", { hasText: "规范词数" });
+    const terms = page.locator(".keyword-metric", { hasText: "存量词表" });
     await expect(terms).toBeVisible();
     await expect(terms.locator("dd")).not.toHaveText("0");
     await expect(
@@ -122,6 +124,7 @@ for (const width of [1280, 1920]) {
     ).toBeVisible();
 
     // 词表：默认折叠只出现一次的词，切到"含孤词"后用搜索定位 fixture 关键词。
+    await page.getByLabel("口径").selectOption("all");
     await page.getByLabel("最小出现次数").selectOption("1");
     await page.getByLabel("搜索关键词").fill("计算平台");
     const row = page.getByRole("row").filter({ hasText: "计算平台" }).first();
@@ -175,6 +178,7 @@ for (const width of [1280, 1920]) {
     await expect(
       page.getByRole("heading", { name: "关键词", exact: true }),
     ).toBeVisible({ timeout: 15000 });
+    await page.getByLabel("口径").selectOption("all");
     await page.getByLabel("最小出现次数").selectOption("1");
 
     // 标记常驻：开关反映服务端状态，附带的文字也不只靠颜色表达。

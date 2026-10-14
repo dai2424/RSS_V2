@@ -14,5 +14,9 @@ llm_enrich_text_threshold = 300
 llm_vocabulary_limit = 150
 llm_vocabulary_recent_days = 7
 
+# 热词口径：最近多少天、出现多少次才算热词（注入、词表页默认视图、常驻推荐）。
+keyword_hot_days = 7
+keyword_hot_min_mentions = 5
+
 # 合并建议每批的词数：受 Provider 超时与单次输出上限约束，不是输入上下文。
 llm_suggestion_batch_size = 20

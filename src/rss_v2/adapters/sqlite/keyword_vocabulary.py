@@ -22,7 +22,6 @@ from rss_v2.adapters.sqlite.keyword_sql import (
     KEY_AGGREGATE,
     LATEST_VERSION,
     MAX_TIME,
-    MIN_TIME,
     RESOLVED_KEY,
 )
 from rss_v2.domain import KeywordKind, PromptVocabulary
@@ -32,9 +31,9 @@ RECENT_LIMIT = 30
 
 
 def prompt_vocabulary(
-    database: SQLiteDatabase, limit: int, recent_days: int, timestamp: int
+    database: SQLiteDatabase, limit: int, recent_days: int, since: int, timestamp: int
 ) -> PromptVocabulary:
-    """取注入用词表；limit <= 0 表示调用方关闭了注入。"""
+    """取注入用词表：只取热词窗口内的写法；limit <= 0 表示调用方关闭了注入。"""
 
     if limit <= 0:
         return PromptVocabulary(entities=(), topics=(), events=(), recent=())
@@ -48,7 +47,7 @@ def prompt_vocabulary(
             ORDER BY mentions DESC, last_seen DESC, keyword_key
             LIMIT ?
             """,
-            (MIN_TIME, MAX_TIME, size),
+            (since, MAX_TIME, size),
         ).fetchall()
         top_keys = [str(row["keyword_key"]) for row in rows]
         # 常驻词必然出现：超出条数上限也补进它所属的类型分组。

@@ -34,17 +34,24 @@ def list_keywords(
     request: Request,
     q: str | None = None,
     kind: str | None = None,
-    min_count: int = Query(default=2, ge=1, le=100, description="最小出现次数，1 表示包含孤词"),
-    since: int | None = Query(default=None, description="最近出现时间下界，UTC 秒"),
-    until: int | None = Query(default=None, description="最近出现时间上界，UTC 秒"),
+    scope: str = Query(
+        default="hot",
+        pattern="^(hot|all)$",
+        description="口径：hot 只看热词（窗口内达标），all 看全量存量",
+    ),
+    min_count: int | None = Query(
+        default=None, ge=1, le=100, description="最小出现次数；省略时按口径取默认值"
+    ),
+    since: int | None = Query(default=None, description="出现时间下界，UTC 秒；省略时按口径取默认"),
+    until: int | None = Query(default=None, description="出现时间上界，UTC 秒"),
     pinned: bool = Query(default=False, description="只看人工标记的常驻词"),
     limit: int = Query(default=25, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
 ) -> KeywordListResponse:
-    """词表：按出现次数排序的规范词，默认折叠只出现一次的词。"""
+    """词表：默认只给热词（近 N 天、出现次数达标），scope=all 看全量。"""
 
     items, total = container(request).keyword_service.vocabulary(
-        q, kind, min_count, since, until, pinned, limit, offset
+        q, kind, min_count, since, until, pinned, limit, offset, scope
     )
     return KeywordListResponse(items=[keyword_entry_response(item) for item in items], total=total)
 

@@ -7,13 +7,22 @@ type Overview = components["schemas"]["KeywordOverviewResponse"];
 export function KeywordMetrics({ overview }: { overview: Overview }) {
   return (
     <dl className="keyword-metrics">
-      <Metric label="规范词数" value={overview.terms} />
-      <Metric label="词位总数" value={overview.mentions} />
       <Metric
-        label="只出现一次"
-        value={`${overview.singletons}（${percent(overview.singletons, overview.terms)}）`}
+        label="热词数"
+        value={overview.terms}
+        hint={`近 ${overview.hot_days} 天 · 出现 ≥${overview.hot_min_mentions} 次`}
       />
-      <Metric label="平均每条" value={`${overview.average_per_message} 个`} />
+      <Metric label="热词位次" value={overview.mentions} />
+      <Metric
+        label="存量词表"
+        value={overview.terms_all}
+        hint={`全量，其中孤词 ${overview.singletons_all}（${percent(overview.singletons_all, overview.terms_all)}）`}
+      />
+      <Metric
+        label="平均每条"
+        value={`${overview.average_per_message} 个`}
+        hint="窗口内的关键词密度"
+      />
       <Metric
         label="已加工消息"
         value={`${overview.enriched}/${overview.messages}`}

@@ -26,11 +26,23 @@ export function useKeywordVocabulary() {
     usePaginationParams();
   const q = params.get("q") || "";
   const kind = params.get("kind") || "";
-  const minCount = Number(params.get("min") || 2);
+  // 口径默认"热词"：窗口与门槛由服务端按配置折算，界面只负责切换与显示。
+  const scope = params.get("scope") === "all" ? "all" : "hot";
+  const minParam = params.get("min") || "";
+  const minCount = minParam ? Number(minParam) : null;
   const pinned = params.get("pinned") === "1";
 
   const list = useQuery({
-    queryKey: ["keyword-vocabulary", q, kind, minCount, pinned, size, offset],
+    queryKey: [
+      "keyword-vocabulary",
+      q,
+      kind,
+      scope,
+      minParam,
+      pinned,
+      size,
+      offset,
+    ],
     // 翻页时保留上一页内容，避免表格整页闪烁；配合分页条禁用挡住连点。
     placeholderData: keepPreviousData,
     queryFn: async () => {
@@ -39,7 +51,8 @@ export function useKeywordVocabulary() {
           query: {
             q: q || undefined,
             kind: kind || undefined,
-            min_count: minCount,
+            scope,
+            min_count: minCount ?? undefined,
             pinned: pinned || undefined,
             limit: size,
             offset,
@@ -63,6 +76,7 @@ export function useKeywordVocabulary() {
     params,
     q,
     kind,
+    scope,
     minCount,
     pinned,
     size,

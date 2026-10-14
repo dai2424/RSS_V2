@@ -216,9 +216,14 @@ class KeywordOverviewResponse(BaseModel):
     messages: int
     enriched: int
     pending: int
+    hot_days: int
+    hot_min_mentions: int
     terms: int
     mentions: int
     singletons: int
+    terms_all: int
+    mentions_all: int
+    singletons_all: int
     average_per_message: float
     aliases: int
     merges: int

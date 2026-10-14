@@ -83,8 +83,11 @@ export function KeywordsPage() {
         totalTerms={data.terms}
         q={vocabulary.q}
         kind={vocabulary.kind}
+        scope={vocabulary.scope}
         minCount={vocabulary.minCount}
         pinned={vocabulary.pinned}
+        hotDays={data.hot_days}
+        hotMinMentions={data.hot_min_mentions}
         offset={vocabulary.offset}
         size={vocabulary.size}
         loading={vocabulary.list.isLoading}

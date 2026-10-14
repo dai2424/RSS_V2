@@ -357,8 +357,10 @@ class KeywordRepository(Protocol):
         """与词表同一筛选条件的总数。"""
         ...
 
-    def overview(self, days: int, top_sources: int) -> KeywordOverview:
-        """概览：规模、类型构成、长尾、近 N 天趋势、来源分布与覆盖情况。"""
+    def overview(
+        self, days: int, top_sources: int, hot_days: int, hot_min_mentions: int
+    ) -> KeywordOverview:
+        """概览：热词口径的规模与分布、近 N 天趋势、来源分布与覆盖情况。"""
         ...
 
     def resolve_key(self, key: str) -> str:
@@ -381,10 +383,13 @@ class KeywordRepository(Protocol):
         """最近的合并记录，包含已撤销的那些。"""
         ...
 
-    def prompt_vocabulary(self, limit: int, recent_days: int, timestamp: int) -> PromptVocabulary:
-        """注入提示词的词表快照：按类型的 Top N 写法与近 N 天新增的写法。
+    def prompt_vocabulary(
+        self, limit: int, recent_days: int, since: int, timestamp: int
+    ) -> PromptVocabulary:
+        """注入提示词的词表快照：**窗口内**按类型的 Top N 写法与近 N 天新增的写法。
 
-        limit 为 0 表示不注入，返回空词表；timestamp 是当前 UTC 秒，用于算"近期新增"的窗口。
+        limit 为 0 表示不注入，返回空词表；since 是热词窗口起点，timestamp 用于算"近期新增"。
+        窗口只决定选哪些词，注入文本里仍然只给写法、不给计数。
         """
         ...
 

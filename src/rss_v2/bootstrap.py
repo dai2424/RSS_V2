@@ -135,6 +135,7 @@ def build_container(settings: Settings | None = None, migrate: bool = True) -> C
         keywords,
         actual_settings.llm_vocabulary_limit,
         actual_settings.llm_vocabulary_recent_days,
+        actual_settings.keyword_hot_days,
     )
     category_service = CategoryService(categories)
     source_service = SourceService(
@@ -185,7 +186,12 @@ def build_container(settings: Settings | None = None, migrate: bool = True) -> C
     )
     task_setting_service = TaskSettingService(task_settings, resolver)
     message_service = MessageService(messages, translations, enrichments)
-    keyword_service = KeywordService(keywords, enrichment_service.create_task)
+    keyword_service = KeywordService(
+        keywords,
+        enrichment_service.create_task,
+        actual_settings.keyword_hot_days,
+        actual_settings.keyword_hot_min_mentions,
+    )
     suggestion_service = KeywordSuggestionService(
         keywords,
         suggestions,

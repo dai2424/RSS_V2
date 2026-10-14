@@ -14,8 +14,11 @@ export function KeywordVocabulary({
   totalTerms,
   q,
   kind,
+  scope,
   minCount,
   pinned,
+  hotDays,
+  hotMinMentions,
   offset,
   size,
   loading,
@@ -34,8 +37,11 @@ export function KeywordVocabulary({
   totalTerms: number;
   q: string;
   kind: string;
-  minCount: number;
+  scope: string;
+  minCount: number | null;
   pinned: boolean;
+  hotDays: number;
+  hotMinMentions: number;
   offset: number;
   size: number;
   loading: boolean;
@@ -50,14 +56,19 @@ export function KeywordVocabulary({
   onToggle: (item: Entry) => void;
 }) {
   const pin = useSetKeywordPin();
-  const filtered = Boolean(q || kind || minCount !== 2 || pinned);
+  const filtered = Boolean(
+    q || kind || scope !== "hot" || minCount !== null || pinned,
+  );
   return (
     <Card className="card-pad">
       <KeywordFilters
         q={q}
         kind={kind}
+        scope={scope}
         minCount={minCount}
         pinned={pinned}
+        hotDays={hotDays}
+        hotMinMentions={hotMinMentions}
         filtered={filtered}
         onFilter={onFilter}
         onClear={onClear}
@@ -72,7 +83,7 @@ export function KeywordVocabulary({
           description={
             total > 0
               ? `当前共 ${total} 个词，这个偏移已经越过末尾。`
-              : emptyHint(filtered, totalTerms)
+              : emptyHint(filtered, scope)
           }
           action={
             total > 0 ? (
@@ -113,16 +124,16 @@ export function KeywordVocabulary({
   );
 }
 
-/** 空态要区分"没有词"和"词都被折叠了"，否则用户会以为数据没进来。 */
+/** 空态要区分"没有词""热词还没达标""筛选无结果"，否则用户会以为数据没进来。 */
 function emptyTitle(filtered: boolean, totalTerms: number): string {
   if (filtered) return "没有匹配的关键词";
-  if (totalTerms > 0) return "词表里只有出现一次的写法";
+  if (totalTerms > 0) return "这一周还没有达标的热词";
   return "还没有关键词";
 }
 
-function emptyHint(filtered: boolean, totalTerms: number): string {
+function emptyHint(filtered: boolean, scope: string): string {
   if (filtered) return "换一个写法或放宽筛选条件试试。";
-  if (totalTerms > 0)
-    return `共有 ${totalTerms} 个词只出现过一次，默认不展开；把最小出现次数改成包含孤词即可查看。`;
+  if (scope === "hot")
+    return "热词要求窗口内出现次数达到门槛；切到「全量」可以看历史词与孤词，或把最小出现次数调低。";
   return "关键词由内容加工产出，可以在页面右上角回填存量消息。";
 }

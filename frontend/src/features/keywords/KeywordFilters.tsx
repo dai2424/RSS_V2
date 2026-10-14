@@ -2,22 +2,41 @@
 export function KeywordFilters({
   q,
   kind,
+  scope,
   minCount,
   pinned,
+  hotDays,
+  hotMinMentions,
   filtered,
   onFilter,
   onClear,
 }: {
   q: string;
   kind: string;
-  minCount: number;
+  scope: string;
+  minCount: number | null;
   pinned: boolean;
+  hotDays: number;
+  hotMinMentions: number;
   filtered: boolean;
   onFilter: (key: string, value: string) => void;
   onClear: () => void;
 }) {
   return (
     <div className="toolbar">
+      <label htmlFor="keyword-scope">口径</label>
+      <select
+        id="keyword-scope"
+        value={scope}
+        onChange={(event) =>
+          onFilter("scope", event.target.value === "all" ? "all" : "")
+        }
+      >
+        <option value="">
+          热词（近 {hotDays} 天 · ≥{hotMinMentions} 次）
+        </option>
+        <option value="all">全量（含历史与孤词）</option>
+      </select>
       <label htmlFor="keyword-search">搜索关键词</label>
       <input
         id="keyword-search"
@@ -40,13 +59,12 @@ export function KeywordFilters({
       <label htmlFor="keyword-min">最小出现次数</label>
       <select
         id="keyword-min"
-        value={String(minCount)}
-        onChange={(event) =>
-          onFilter("min", event.target.value === "2" ? "" : event.target.value)
-        }
+        value={minCount === null ? "" : String(minCount)}
+        onChange={(event) => onFilter("min", event.target.value)}
       >
-        <option value="2">2 次以上（折叠孤词）</option>
+        <option value="">按口径默认</option>
         <option value="1">1 次以上（含孤词）</option>
+        <option value="2">2 次以上</option>
         <option value="3">3 次以上</option>
         <option value="5">5 次以上</option>
       </select>

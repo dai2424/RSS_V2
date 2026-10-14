@@ -301,10 +301,14 @@ class SQLiteKeywordRepository:
             self.database, query, kind, min_count, since, until, pinned_only
         )
 
-    def overview(self, days: int, top_sources: int) -> KeywordOverview:
+    def overview(
+        self, days: int, top_sources: int, hot_days: int, hot_min_mentions: int
+    ) -> KeywordOverview:
         """概览、类型构成、长尾、趋势、来源分布与覆盖。"""
 
-        return keyword_overview.overview(self.database, days, top_sources)
+        return keyword_overview.overview(
+            self.database, days, top_sources, hot_days, hot_min_mentions
+        )
 
     def resolve_key(self, key: str) -> str:
         """把输入键解析到规范词；不是别名时原样返回。"""
@@ -331,10 +335,14 @@ class SQLiteKeywordRepository:
 
         return history(self.database, limit)
 
-    def prompt_vocabulary(self, limit: int, recent_days: int, timestamp: int) -> PromptVocabulary:
+    def prompt_vocabulary(
+        self, limit: int, recent_days: int, since: int, timestamp: int
+    ) -> PromptVocabulary:
         """注入提示词的词表快照；口径见 keyword_vocabulary。"""
 
-        return keyword_vocabulary.prompt_vocabulary(self.database, limit, recent_days, timestamp)
+        return keyword_vocabulary.prompt_vocabulary(
+            self.database, limit, recent_days, since, timestamp
+        )
 
     def set_pin(self, key: str, pinned: bool, timestamp: int) -> None:
         """标记或取消常驻词。"""

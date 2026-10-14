@@ -37,6 +37,10 @@ class Settings(BaseSettings):
     llm_vocabulary_limit: int = Field(default=150, ge=0, le=1000)
     # "近期新增"一段的时间窗：列出最近这些天首次出现、且没进 Top N 的写法。
     llm_vocabulary_recent_days: int = Field(default=7, ge=0, le=90)
+    # 热词口径：只有落在最近这些天内、且出现次数达到门槛的词才算"热词"，用于注入、
+    # 词表页默认视图与常驻推荐；常驻词不受这两个限制。合并建议仍按全量滚动扫描。
+    keyword_hot_days: int = Field(default=7, ge=1, le=90)
+    keyword_hot_min_mentions: int = Field(default=5, ge=1, le=100)
     # 合并建议每批交给模型的词数。实测每词约 1.4 秒、250 输出 token（含模型思考），
     # 因此批量受"Provider 超时"与"单次输出上限"约束，而不是输入上下文：默认 20 适配
     # 默认的 60 秒超时；把 Provider 超时调大后可以加大到 60。改这个值会让已生成的批次

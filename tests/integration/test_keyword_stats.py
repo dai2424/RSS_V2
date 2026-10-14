@@ -1,6 +1,7 @@
 """词表、概览与分布的集成测试：数字必须与造出来的数据一一对上。"""
 
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
 import respx
 from fastapi.testclient import TestClient
@@ -16,7 +17,9 @@ from keyword_support import (
     stub_providers,
 )
 
+from rss_v2.api.app import create_app
 from rss_v2.domain import Keyword, KeywordKind
+from rss_v2.settings import Settings
 
 
 def rfc2822(days_ago: int) -> str:
@@ -108,7 +111,10 @@ def test_overview_and_vocabulary_match_seeded_data(client: TestClient) -> None:
     seed_two_sources(client)
     data = overview(client)
     assert (data["messages"], data["enriched"], data["pending"]) == (4, 4, 0)
-    assert (data["terms"], data["mentions"], data["singletons"]) == (5, 7, 3)
+    # 主指标是热词口径（这批夹具没有达到门槛的词），全量存量另给两个数字。
+    assert (data["terms"], data["mentions"], data["singletons"]) == (0, 0, 0)
+    assert (data["terms_all"], data["singletons_all"]) == (5, 3)
+    assert (data["hot_days"], data["hot_min_mentions"]) == (7, 5)
     assert data["average_per_message"] == 1.75
     assert (data["aliases"], data["merges"]) == (0, 0)
     assert data["tasks_succeeded"] == 4 and data["tasks_queued"] == 0
@@ -138,25 +144,25 @@ def test_overview_and_vocabulary_match_seeded_data(client: TestClient) -> None:
     assert len(data["trend"]) == 14
 
     # 词表默认折叠只出现一次的词；总数与筛选条件同一口径。
-    page = vocabulary(client)
+    page = vocabulary(client, scope="all")
     assert (page["total"], terms(page)) == (2, ["AWS", "云服务"])
     assert [item["mentions"] for item in page["items"]] == [2, 2]
 
-    everything = vocabulary(client, min_count="1")
+    everything = vocabulary(client, scope="all", min_count="1")
     assert everything["total"] == 5
     # 同分按最近出现时间排序，再按词键的字节序：今天出现的交付在前。
     assert terms(everything) == ["AWS", "云服务", "交付", "独家词", "谷歌云"]
 
-    assert terms(vocabulary(client, min_count="1", kind="entity")) == [
+    assert terms(vocabulary(client, scope="all", min_count="1", kind="entity")) == [
         "AWS",
         "独家词",
         "谷歌云",
     ]
-    assert terms(vocabulary(client, min_count="1", q="云")) == ["云服务", "谷歌云"]
+    assert terms(vocabulary(client, scope="all", min_count="1", q="云")) == ["云服务", "谷歌云"]
 
-    page_one = vocabulary(client, min_count="1", limit="2")
+    page_one = vocabulary(client, scope="all", min_count="1", limit="2")
     assert page_one["total"] == 5 and len(page_one["items"]) == 2
-    page_two = vocabulary(client, min_count="1", limit="2", offset="2")
+    page_two = vocabulary(client, scope="all", min_count="1", limit="2", offset="2")
     assert len(page_two["items"]) == 2
     assert set(terms(page_one)) & set(terms(page_two)) == set()
 
@@ -192,6 +198,29 @@ def test_pending_messages_match_backfill_candidates(client: TestClient) -> None:
 
 
 @respx.mock
+def test_hot_scope_uses_window_and_threshold(tmp_path: Path) -> None:
+    """热词口径：只看窗口内、且出现次数达到门槛的词；窗口外的词不进热词表。"""
+
+    settings = Settings(
+        runtime_dir=tmp_path / "runtime",
+        database_path=tmp_path / "runtime" / "db.sqlite",
+        migrations_dir=Path("migrations"),
+        keyword_hot_days=7,
+        keyword_hot_min_mentions=2,
+    )
+    with TestClient(create_app(settings)) as scoped:
+        seed_two_sources(scoped)
+        hot = vocabulary(scoped)
+        # 门槛 2：出现两次以上的词留下；孤词（含窗口外的历史词）不进热词表。
+        assert (hot["total"], terms(hot)) == (2, ["AWS", "云服务"])
+        assert scoped.get("/api/keywords/overview").json()["terms"] == 2
+
+        # 切到全量：孤词与历史词都回来。
+        everything = vocabulary(scoped, scope="all", min_count="1")
+        assert everything["total"] == 5
+
+
+@respx.mock
 def test_merge_shrinks_vocabulary_and_keeps_mentions(client: TestClient) -> None:
     """合并后规范词减少、词位数不变，别名与合并计数随之出现；撤销后复原。"""
 
@@ -201,9 +230,10 @@ def test_merge_shrinks_vocabulary_and_keeps_mentions(client: TestClient) -> None
     ]
 
     data = overview(client)
-    assert (data["terms"], data["mentions"]) == (4, 7)
+    assert (data["terms_all"], data["mentions_all"]) == (4, 7)
     assert (data["aliases"], data["merges"]) == (1, 1)
-    merged = vocabulary(client)
+    # 这些断言看的是词表统计本身，因此显式走全量口径（热词口径另有用例）。
+    merged = vocabulary(client, scope="all")
     assert terms(merged) == ["AWS", "云服务"]
     assert merged["items"][0]["mentions"] == 3
     assert merged["items"][0]["aliases"] == ["谷歌云"]
@@ -212,7 +242,7 @@ def test_merge_shrinks_vocabulary_and_keeps_mentions(client: TestClient) -> None
 
     assert client.post(f"/api/keywords/merges/{record['id']}/undo").status_code == 200
     restored = overview(client)
-    assert (restored["terms"], restored["mentions"]) == (5, 7)
+    assert (restored["terms_all"], restored["mentions_all"]) == (5, 7)
     assert (restored["aliases"], restored["merges"]) == (0, 0)
     # 默认折叠孤词，所以撤销后谷歌云不再出现在默认视图里。
-    assert terms(vocabulary(client)) == ["AWS", "云服务"]
+    assert terms(vocabulary(client, scope="all")) == ["AWS", "云服务"]

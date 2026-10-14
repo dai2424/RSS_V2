@@ -1009,7 +1009,7 @@
           "keywords"
         ],
         "summary": "List Keywords",
-        "description": "词表：按出现次数排序的规范词，默认折叠只出现一次的词。",
+        "description": "词表：默认只给热词（近 N 天、出现次数达标），scope=all 看全量。",
         "operationId": "list_keywords_api_keywords_get",
         "parameters": [
           {
@@ -1045,18 +1045,37 @@
             }
           },
           {
+            "name": "scope",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(hot|all)$",
+              "description": "口径：hot 只看热词（窗口内达标），all 看全量存量",
+              "default": "hot",
+              "title": "Scope"
+            },
+            "description": "口径：hot 只看热词（窗口内达标），all 看全量存量"
+          },
+          {
             "name": "min_count",
             "in": "query",
             "required": false,
             "schema": {
-              "type": "integer",
-              "maximum": 100,
-              "minimum": 1,
-              "description": "最小出现次数，1 表示包含孤词",
-              "default": 2,
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 100,
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "最小出现次数；省略时按口径取默认值",
               "title": "Min Count"
             },
-            "description": "最小出现次数，1 表示包含孤词"
+            "description": "最小出现次数；省略时按口径取默认值"
           },
           {
             "name": "since",
@@ -1071,10 +1090,10 @@
                   "type": "null"
                 }
               ],
-              "description": "最近出现时间下界，UTC 秒",
+              "description": "出现时间下界，UTC 秒；省略时按口径取默认",
               "title": "Since"
             },
-            "description": "最近出现时间下界，UTC 秒"
+            "description": "出现时间下界，UTC 秒；省略时按口径取默认"
           },
           {
             "name": "until",
@@ -1089,10 +1108,10 @@
                   "type": "null"
                 }
               ],
-              "description": "最近出现时间上界，UTC 秒",
+              "description": "出现时间上界，UTC 秒",
               "title": "Until"
             },
-            "description": "最近出现时间上界，UTC 秒"
+            "description": "出现时间上界，UTC 秒"
           },
           {
             "name": "pinned",
@@ -3863,6 +3882,14 @@
             "type": "integer",
             "title": "Pending"
           },
+          "hot_days": {
+            "type": "integer",
+            "title": "Hot Days"
+          },
+          "hot_min_mentions": {
+            "type": "integer",
+            "title": "Hot Min Mentions"
+          },
           "terms": {
             "type": "integer",
             "title": "Terms"
@@ -3874,6 +3901,18 @@
           "singletons": {
             "type": "integer",
             "title": "Singletons"
+          },
+          "terms_all": {
+            "type": "integer",
+            "title": "Terms All"
+          },
+          "mentions_all": {
+            "type": "integer",
+            "title": "Mentions All"
+          },
+          "singletons_all": {
+            "type": "integer",
+            "title": "Singletons All"
           },
           "average_per_message": {
             "type": "number",
@@ -3968,9 +4007,14 @@
           "messages",
           "enriched",
           "pending",
+          "hot_days",
+          "hot_min_mentions",
           "terms",
           "mentions",
           "singletons",
+          "terms_all",
+          "mentions_all",
+          "singletons_all",
           "average_per_message",
           "aliases",
           "merges",

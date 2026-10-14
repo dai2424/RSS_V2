@@ -274,7 +274,7 @@ export interface paths {
     };
     /**
      * List Keywords
-     * @description 词表：按出现次数排序的规范词，默认折叠只出现一次的词。
+     * @description 词表：默认只给热词（近 N 天、出现次数达标），scope=all 看全量。
      */
     get: operations["list_keywords_api_keywords_get"];
     put?: never;
@@ -1245,12 +1245,22 @@ export interface components {
       enriched: number;
       /** Pending */
       pending: number;
+      /** Hot Days */
+      hot_days: number;
+      /** Hot Min Mentions */
+      hot_min_mentions: number;
       /** Terms */
       terms: number;
       /** Mentions */
       mentions: number;
       /** Singletons */
       singletons: number;
+      /** Terms All */
+      terms_all: number;
+      /** Mentions All */
+      mentions_all: number;
+      /** Singletons All */
+      singletons_all: number;
       /** Average Per Message */
       average_per_message: number;
       /** Aliases */
@@ -2907,11 +2917,13 @@ export interface operations {
       query?: {
         q?: string | null;
         kind?: string | null;
-        /** @description 最小出现次数，1 表示包含孤词 */
-        min_count?: number;
-        /** @description 最近出现时间下界，UTC 秒 */
+        /** @description 口径：hot 只看热词（窗口内达标），all 看全量存量 */
+        scope?: string;
+        /** @description 最小出现次数；省略时按口径取默认值 */
+        min_count?: number | null;
+        /** @description 出现时间下界，UTC 秒；省略时按口径取默认 */
         since?: number | null;
-        /** @description 最近出现时间上界，UTC 秒 */
+        /** @description 出现时间上界，UTC 秒 */
         until?: number | null;
         /** @description 只看人工标记的常驻词 */
         pinned?: boolean;

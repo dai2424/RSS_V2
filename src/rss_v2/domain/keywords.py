@@ -314,10 +314,15 @@ class KeywordOverview:
     messages: int  # 有最新版本的消息数
     enriched: int  # 其中有生效加工结果的
     pending: int  # 还没有加工结果、可回填的
-    terms: int  # 规范词数
-    mentions: int  # 词位总数
-    singletons: int  # 只出现一次的规范词数
-    average_per_message: float  # 平均每条已加工消息的词位数
+    hot_days: int  # 热词窗口（天）
+    hot_min_mentions: int  # 热词门槛（窗口内出现次数）
+    terms: int  # 热词窗口内的规范词数
+    mentions: int  # 热词窗口内的词位数
+    singletons: int  # 窗口内只出现一次的规范词数
+    terms_all: int  # 全量规范词数（存量参考）
+    mentions_all: int  # 全量词位数（存量参考）
+    singletons_all: int  # 全量只出现一次的规范词数
+    average_per_message: float  # 窗口内平均每条已加工消息的词位数（不套门槛）
     aliases: int  # 已经并入别处的写法数
     merges: int  # 生效中的合并数
     reused: int  # 判定为复用了注入词表的词位数
