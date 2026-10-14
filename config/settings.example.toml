@@ -13,3 +13,6 @@ llm_enrich_text_threshold = 300
 # 加工前注入词表：条数上限（0 关闭注入）与"近期新增"的时间窗（天）。
 llm_vocabulary_limit = 150
 llm_vocabulary_recent_days = 7
+
+# 合并建议每批的词数：受 Provider 超时与单次输出上限约束，不是输入上下文。
+llm_suggestion_batch_size = 20

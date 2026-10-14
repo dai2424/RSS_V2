@@ -37,6 +37,11 @@ class Settings(BaseSettings):
     llm_vocabulary_limit: int = Field(default=150, ge=0, le=1000)
     # "近期新增"一段的时间窗：列出最近这些天首次出现、且没进 Top N 的写法。
     llm_vocabulary_recent_days: int = Field(default=7, ge=0, le=90)
+    # 合并建议每批交给模型的词数。实测每词约 1.4 秒、250 输出 token（含模型思考），
+    # 因此批量受"Provider 超时"与"单次输出上限"约束，而不是输入上下文：默认 20 适配
+    # 默认的 60 秒超时；把 Provider 超时调大后可以加大到 60。改这个值会让已生成的批次
+    # 与词表偏移对不上，需要从头再走一遍（已建议过的组仍按组指纹去重）。
+    llm_suggestion_batch_size: int = Field(default=20, ge=2, le=100)
 
     @classmethod
     def settings_customise_sources(

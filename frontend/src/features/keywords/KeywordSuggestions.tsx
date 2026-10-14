@@ -24,8 +24,8 @@ export function KeywordSuggestions() {
       <div className="toolbar">
         <h2>合并建议</h2>
         <span className="muted">
-          待确认 {pending} 组；每批 20
-          个词、约需半分钟，模型只给候选，合并仍由你确认
+          待确认 {pending}{" "}
+          组；每批交给模型判断一次（约需几十秒），模型只给候选， 合并仍由你确认
         </span>
         <Button
           className="secondary"

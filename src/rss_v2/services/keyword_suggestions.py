@@ -45,9 +45,9 @@ MAX_BATCH = 100
 #: 标注是我们自己渲染上去的，不属于写法，回查前先剥掉。
 _BATCH_LABEL = re.compile(r"^(.+?)\s*（(?:实体|主题|事件)）$")
 
-#: 默认批次大小：界面不带参数时用它，批次台账的切分也按它走。
-#: 20 是实测值：模型的思考长度随批次增长，60 个词会同时逼近输出上限与 Provider 超时
-#: （默认 60 秒）；20 个词实测约 40 秒，留出余量。这个任务不吃批量，吃判断质量。
+#: 默认批次大小：配置项 `llm_suggestion_batch_size` 覆盖它，批次台账的切分也按它走。
+#: 实测每词约 1.4 秒、250 输出 token（含思考）：20 词约 40 秒，适配默认的 60 秒 Provider
+#: 超时；60 词约 86 秒，需要把 Provider 超时调到 180 秒以上。
 DEFAULT_BATCH_SIZE = 20
 
 
@@ -61,6 +61,7 @@ class KeywordSuggestionService:
     provider: LLMProvider  # 唯一模型调用协议
     failover: LLMFailover  # 候选回退、Key 冷却与调用审计
     cooldown_seconds: int  # 临时错误冷却秒数
+    batch_size: int = DEFAULT_BATCH_SIZE  # 每批词数；界面显式传 size 时以传入值为准
 
     def generate(self, offset: int | None = None, size: int | None = None) -> SuggestionBatch:
         """生成一批建议；同一批已经生成过就直接回放，不再调用模型。
@@ -71,7 +72,7 @@ class KeywordSuggestionService:
         prompt = self.prompts.active(TaskType.KEYWORD_MERGE_SUGGEST.value)
         if prompt is None:
             raise DomainError("prompt_not_configured", "没有可用的合并建议提示词")
-        batch_size = max(2, min(size or DEFAULT_BATCH_SIZE, MAX_BATCH))
+        batch_size = max(2, min(size or self.batch_size, MAX_BATCH))
         start = self._next_offset(batch_size) if offset is None else max(0, offset)
         entries = self.keywords.vocabulary(None, None, 1, None, None, False, batch_size, start)
         total = self.keywords.count_vocabulary(None, None, 1, None, None, False)

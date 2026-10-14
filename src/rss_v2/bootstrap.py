@@ -193,6 +193,7 @@ def build_container(settings: Settings | None = None, migrate: bool = True) -> C
         llm_provider,
         failover,
         actual_settings.llm_retry_cooldown_seconds,
+        actual_settings.llm_suggestion_batch_size,
     )
     task_service = TaskService(tasks, messages, sources)
     provider_service = ProviderService(llm_config)

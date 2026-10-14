@@ -1,5 +1,6 @@
 """合并建议：批次幂等、越界写入被丢弃、忽略后不再出现、采纳只做标记。"""
 
+from pathlib import Path
 from typing import Any
 
 import respx
@@ -17,8 +18,10 @@ from keyword_support import (
     stub_providers,
 )
 
+from rss_v2.api.app import create_app
 from rss_v2.domain import Keyword, KeywordKind, SuggestedGroup, SuggestResult
 from rss_v2.llm import PromptPayload
+from rss_v2.settings import Settings
 
 FEED = [
     ("platform", "计算平台发布", "Sat, 10 Oct 2026 00:00:00 GMT"),
@@ -116,6 +119,24 @@ def test_batch_is_idempotent_and_marks_out_of_batch_groups(client: TestClient) -
     assert [item["key"] for item in items[0]["members"]] == ["aws", "云服务"]
     assert items[0]["rationale"] == "同一事物"
     assert client.get("/api/keywords/overview").json()["suggestions_pending"] == 1
+
+
+@respx.mock
+def test_configured_batch_size_is_used_when_size_is_omitted(tmp_path: Path) -> None:
+    """不带 size 时按配置切批：调大配置才能少点几次，因此这条必须真的生效。"""
+
+    settings = Settings(
+        runtime_dir=tmp_path / "runtime",
+        database_path=tmp_path / "runtime" / "db.sqlite",
+        migrations_dir=Path("migrations"),
+        llm_suggestion_batch_size=2,
+    )
+    with TestClient(create_app(settings)) as custom:
+        fake = SuggestProvider([("AWS", "云服务")])
+        seeded(custom, fake, "https://suggest-config.test/feed")
+        # 这批夹具正好两个词：配置为 2 时一批覆盖全部，说明配置真的生效。
+        batch = generate(custom)
+        assert batch["size"] == 2 and batch["total"] == 2
 
 
 @respx.mock
