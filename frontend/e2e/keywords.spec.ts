@@ -350,3 +350,26 @@ for (const width of [1280, 1920]) {
     expect(errors).toEqual([]);
   });
 }
+
+test("关键词页在 2560px 下保持宽度上限且不横向溢出", async ({ page }) => {
+  await page.setViewportSize({ width: 2560, height: 1400 });
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await page.goto("/settings/keywords");
+  await expect(
+    page.getByRole("heading", { name: "关键词", exact: true }),
+  ).toBeVisible({ timeout: 15000 });
+  await expect(page.getByLabel("口径")).toBeVisible();
+  await expect(page.getByLabel("搜索关键词")).toBeVisible();
+  await expect(page.locator(".page-wide")).toBeVisible();
+  await expect(page.locator("body")).toHaveJSProperty("scrollWidth", 2560);
+  // 宽屏下内容有上限（1600px）而不是按比例铺满，留白是刻意的扫描边界。
+  const width = Number(
+    await page.evaluate(
+      "document.querySelector('.page-wide').getBoundingClientRect().width",
+    ),
+  );
+  expect(width).toBeGreaterThan(1200);
+  expect(width).toBeLessThanOrEqual(1600);
+  expect(errors).toEqual([]);
+});
