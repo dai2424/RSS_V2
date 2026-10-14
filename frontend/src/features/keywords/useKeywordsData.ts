@@ -218,3 +218,71 @@ export function useKeywordSuggestions() {
     accept,
   };
 }
+
+/** 常驻建议：候选由服务端按跨周出现算出，模型只挑选，采纳后才常驻。 */
+export function usePinSuggestions() {
+  const queryClient = useQueryClient();
+  const list = useQuery({
+    queryKey: ["keyword-pin-suggestions"],
+    queryFn: async () => {
+      const r = await api.GET("/api/keywords/pin-suggestions", {
+        params: { query: { status: "pending", limit: 50 } },
+      });
+      return requireResponse(r.response, r.data, r.error);
+    },
+  });
+  const refresh = async () => {
+    await queryClient.invalidateQueries({
+      queryKey: ["keyword-pin-suggestions"],
+    });
+    await queryClient.invalidateQueries({ queryKey: ["keyword-vocabulary"] });
+    await queryClient.invalidateQueries({ queryKey: ["keyword-overview"] });
+  };
+  const suggest = useMutation({
+    mutationFn: async () => {
+      const r = await api.POST("/api/keywords/pin-suggestions", { body: { dry_run: false } });
+      const data = requireResponse(r.response, r.data, r.error);
+      await refresh();
+      return data;
+    },
+    onSuccess: (data) => {
+      showToast({
+        type: data.picks > 0 ? "success" : "info",
+        content:
+          data.candidates === 0
+            ? "样本还不够：候选要求最近四周里至少三周出现。"
+            : data.picks > 0
+              ? `从 ${data.candidates} 个跨周候选里挑出 ${data.picks} 个，确认后才会常驻。`
+              : `看了 ${data.candidates} 个跨周候选，没有值得常驻的新词。`,
+      });
+    },
+    onError: (error: Error) => {
+      showToast({ type: "error", content: error.message });
+    },
+  });
+  const resolve = useMutation({
+    mutationFn: async (input: { key: string; accepted: boolean }) => {
+      const r = input.accepted
+        ? await api.POST("/api/keywords/pin-suggestions/{key}/accept", {
+            params: { path: { key: input.key } },
+          })
+        : await api.POST("/api/keywords/pin-suggestions/{key}/dismiss", {
+            params: { path: { key: input.key } },
+          });
+      return requireResponse(r.response, r.data, r.error);
+    },
+    onSuccess: async (_data, input) => {
+      await refresh();
+      showToast({
+        type: "success",
+        content: input.accepted
+          ? "已常驻，注入提示词时必然出现。"
+          : "已忽略这条常驻建议。",
+      });
+    },
+    onError: (error: Error) => {
+      showToast({ type: "error", content: error.message });
+    },
+  });
+  return { list, suggest, resolve, pending: list.data?.pending ?? 0 };
+}

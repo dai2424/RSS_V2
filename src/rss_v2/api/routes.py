@@ -2,6 +2,7 @@
 
 from .routers.categories import categories_router
 from .routers.collection import collection_router
+from .routers.keyword_pin_suggestions import pin_suggestions_router
 from .routers.keyword_suggestions import suggestions_router
 from .routers.keywords import keywords_router
 from .routers.messages import messages_router
@@ -16,6 +17,7 @@ __all__ = [
     "collection_router",
     "keywords_router",
     "suggestions_router",
+    "pin_suggestions_router",
     "messages_router",
     "tasks_router",
     "prompts_router",

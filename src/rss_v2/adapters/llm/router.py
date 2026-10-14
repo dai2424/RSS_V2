@@ -7,6 +7,7 @@ from collections.abc import Mapping
 from rss_v2.domain import (
     EnrichmentResult,
     ExternalServiceError,
+    PinSuggestResult,
     Provider,
     SuggestResult,
     TranslationResult,
@@ -53,6 +54,16 @@ class ProtocolRouter:
         prompt_version: str,
     ) -> tuple[SuggestResult, dict[str, int], int]:
         return self._for(provider).suggest_merges(provider, model, secret, prompt, prompt_version)
+
+    def suggest_pins(
+        self,
+        provider: Provider,
+        model: str,
+        secret: str,
+        prompt: PromptPayload,
+        prompt_version: str,
+    ) -> tuple[PinSuggestResult, dict[str, int], int]:
+        return self._for(provider).suggest_pins(provider, model, secret, prompt, prompt_version)
 
     def probe(
         self,

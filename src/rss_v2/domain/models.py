@@ -34,6 +34,7 @@ class TaskType(StrEnum):
     TRANSLATE_MESSAGE = "translate_message"
     ENRICH_MESSAGE = "enrich_message"
     KEYWORD_MERGE_SUGGEST = "keyword_merge_suggest"  # 合并建议：一批词表一个任务
+    KEYWORD_PIN_SUGGEST = "keyword_pin_suggest"  # 常驻建议：只登记提示词规格，同步调用
 
 
 class LLMProtocol(StrEnum):

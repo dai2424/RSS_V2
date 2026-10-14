@@ -272,6 +272,52 @@ class MergeSuggestion:
 
 
 @dataclass(frozen=True, slots=True)
+class SuggestedPin:
+    """模型从跨周候选里挑出的一个常驻建议。"""
+
+    term: str  # 候选里的写法，模型输出原文
+    rationale: str  # 为什么值得常驻
+
+
+@dataclass(frozen=True, slots=True)
+class PinSuggestResult:
+    """一次常驻建议调用返回的结构化结果。"""
+
+    picks: tuple[SuggestedPin, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class PinCandidate:
+    """跨周反复出现的候选词：常驻建议的输入。"""
+
+    key: str  # 规范词键
+    text: str  # 展示写法
+    weeks: int  # 最近 4 周里出现过几周
+
+
+@dataclass(frozen=True, slots=True)
+class PinSuggestion:
+    """一条待人工确认的常驻建议。"""
+
+    key: str  # 规范词键
+    text: str  # 展示写法
+    rationale: str  # 模型给出的理由
+    weeks: int  # 候选依据：跨了几周
+    status: str  # pending / accepted / dismissed
+    created_at: int  # 创建时间，UTC 秒
+    resolved_at: int | None  # 处理时间，UTC 秒；待处理为空
+
+
+@dataclass(frozen=True, slots=True)
+class PinSuggestionBatch:
+    """一次生成常驻建议的结果概要。"""
+
+    candidates: int  # 跨周候选数（模型实际看到的）
+    picks: int  # 落库的建议数
+    dropped: int  # 被丢弃的条数（越界写法、已常驻、已建议过）
+
+
+@dataclass(frozen=True, slots=True)
 class SuggestionEnqueue:
     """一次入队的结果：新排了几个批次、命中几个已存在的任务。"""
 

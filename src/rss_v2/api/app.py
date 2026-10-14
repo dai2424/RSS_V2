@@ -18,6 +18,7 @@ from rss_v2.api.routes import (
     collection_router,
     keywords_router,
     messages_router,
+    pin_suggestions_router,
     prompts_router,
     providers_router,
     sources_router,
@@ -52,6 +53,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(messages_router)
     app.include_router(keywords_router)
     app.include_router(suggestions_router)
+    app.include_router(pin_suggestions_router)
     app.include_router(tasks_router)
     app.include_router(providers_router)
     app.include_router(prompts_router)

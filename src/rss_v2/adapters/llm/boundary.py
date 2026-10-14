@@ -80,6 +80,45 @@ class KeywordSuggestionsResponse(BaseModel):
         return value
 
 
+class PinItem(BaseModel):
+    """模型挑出的一个常驻候选；字段名做常见变体容错。"""
+
+    model_config = ConfigDict(extra="ignore", populate_by_name=True)
+
+    term: str = Field(validation_alias=AliasChoices("term", "text", "keyword", "word", "name"))
+    rationale: str = Field(
+        default="", validation_alias=AliasChoices("rationale", "reason", "why", "note")
+    )
+
+    @field_validator("term", mode="before")
+    @classmethod
+    def _unwrap_term(cls, value: object) -> object:
+        """模型偶尔把写法包在单元素数组里。"""
+
+        unwrapped = _single_item(value)
+        return value if unwrapped is None else unwrapped
+
+
+class KeywordPinSuggestionsResponse(BaseModel):
+    """常驻建议应答：只认 picks，缺字段按"没有建议"处理。"""
+
+    model_config = ConfigDict(extra="ignore", populate_by_name=True)
+
+    picks: list[PinItem] = Field(
+        default_factory=list[PinItem],
+        validation_alias=AliasChoices("picks", "items", "keywords", "terms"),
+    )
+
+    @field_validator("picks", mode="before")
+    @classmethod
+    def _wrap_single_pick(cls, value: object) -> object:
+        """模型只挑一个时可能不套外层数组。"""
+
+        if isinstance(value, dict):
+            return [cast(dict[str, object], value)]
+        return value
+
+
 class TranslationResponse(BaseModel):
     """模型返回的结构化翻译结果。"""
 

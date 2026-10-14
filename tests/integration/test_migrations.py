@@ -30,7 +30,7 @@ def test_fresh_database_and_checksum(tmp_path: Path) -> None:
     shutil.copytree("migrations", migrations)
     database = SQLiteDatabase(tmp_path / "rss.db")
     runner = MigrationRunner(database, migrations)
-    assert len(runner.run()) == 21
+    assert len(runner.run()) == 22
     assert runner.run() == []
     path = migrations / "0001_initial.sql"
     path.write_text(path.read_text(encoding="utf-8") + "\n-- mutation\n", encoding="utf-8")
@@ -81,6 +81,16 @@ def test_keyword_tables_and_structured_prompt_seed(tmp_path: Path) -> None:
             "SELECT sql FROM sqlite_master WHERE name='tasks'"
         ).fetchone()[0]
         assert "keyword_merge_suggest" in str(tasks_ddl)
+        # 常驻建议：一条建议就是一个词，与合并建议形状不同，因此单独一张表。
+        assert {
+            row["name"] for row in connection.execute("PRAGMA table_info(keyword_pin_suggestions)")
+        } == {"key", "text", "rationale", "status", "weeks", "created_at", "resolved_at"}
+        pin_prompt = connection.execute(
+            "SELECT version, status, user_template FROM llm_prompts"
+            " WHERE task_kind='keyword_pin_suggest'"
+        ).fetchall()
+        assert len(pin_prompt) == 1 and pin_prompt[0]["status"] == "active"
+        assert "{{vocabulary}}" in pin_prompt[0]["user_template"]
         suggest = connection.execute(
             "SELECT version, user_template FROM llm_prompts"
             " WHERE task_kind='keyword_merge_suggest' AND status='active'"
@@ -146,7 +156,7 @@ def test_two_processes_do_not_apply_migration_twice(tmp_path: Path) -> None:
         results = list(
             pool.map(lambda _: MigrationRunner(database, Path("migrations")).run(), range(2))
         )
-    assert sum(len(result) for result in results) == 21
+    assert sum(len(result) for result in results) == 22
 
 
 def test_upgrade_preserves_versions_and_translations(tmp_path: Path) -> None:

@@ -37,6 +37,8 @@ from rss_v2.domain import (
     KeywordOverview,
     MergePreview,
     MergeRecord,
+    PinCandidate,
+    PinSuggestion,
     PromptVocabulary,
     RelatedMessage,
 )
@@ -353,6 +355,35 @@ class SQLiteKeywordRepository:
         """全部常驻词键。"""
 
         return keyword_pins.pins(self.database)
+
+    def pin_candidates(
+        self, timestamp: int, since: int, weeks: int, minimum_weeks: int
+    ) -> list[PinCandidate]:
+        """跨周候选；口径见 keyword_pins。"""
+
+        return keyword_pins.candidates(self.database, timestamp, since, weeks, minimum_weeks)
+
+    def save_pin_suggestions(
+        self, items: list[PinSuggestion], timestamp: int
+    ) -> list[PinSuggestion]:
+        """写入待确认的常驻建议。"""
+
+        return keyword_pins.save_pin_suggestions(self.database, items, timestamp)
+
+    def pin_suggestions(self, status: str | None, limit: int) -> list[PinSuggestion]:
+        """常驻建议列表。"""
+
+        return keyword_pins.pin_suggestions(self.database, status, limit)
+
+    def pending_pin_suggestions(self) -> int:
+        """待处理的常驻建议数。"""
+
+        return keyword_pins.pending_pin_count(self.database)
+
+    def resolve_pin_suggestion(self, key: str, status: str, timestamp: int) -> str:
+        """处置一条常驻建议。"""
+
+        return keyword_pins.resolve_pin_suggestion(self.database, key, status, timestamp)
 
     def note_vocabulary(self, fingerprint: str, timestamp: int) -> int:
         """记录注入词表的指纹并返回当前词表版本；内容没变不推进。"""

@@ -20,6 +20,7 @@ from rss_v2.adapters.llm.boundary import (
     PROBE_VERSION,
     USER_AGENT,
     EnrichmentResponse,
+    KeywordPinSuggestionsResponse,
     KeywordSuggestionsResponse,
     SchemaT,
     TranslationResponse,
@@ -37,8 +38,10 @@ from rss_v2.adapters.llm.boundary import (
 from rss_v2.domain import (
     EnrichmentResult,
     ExternalServiceError,
+    PinSuggestResult,
     Provider,
     SuggestedGroup,
+    SuggestedPin,
     SuggestResult,
     TaskType,
     TranslationResult,
@@ -177,6 +180,30 @@ class AnthropicMessagesProvider:
             for item in parsed.groups
         )
         return SuggestResult(groups=groups), tokens, duration
+
+    def suggest_pins(
+        self,
+        provider: Provider,
+        model: str,
+        secret: str,
+        prompt: PromptPayload,
+        prompt_version: str,
+    ) -> tuple[PinSuggestResult, dict[str, int], int]:
+        """从跨周候选里挑出适合常驻的词；过滤与落库由服务层负责。"""
+
+        parsed, tokens, duration = self._complete(
+            provider,
+            model,
+            secret,
+            prompt,
+            TaskType.KEYWORD_PIN_SUGGEST.value,
+            prompt_version,
+            KeywordPinSuggestionsResponse,
+        )
+        picks = tuple(
+            SuggestedPin(term=item.term, rationale=item.rationale) for item in parsed.picks
+        )
+        return PinSuggestResult(picks=picks), tokens, duration
 
     def probe(
         self,

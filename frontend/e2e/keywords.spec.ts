@@ -259,6 +259,12 @@ for (const width of [1280, 1920]) {
     await expect(page.getByText("已合并，可在合并记录里撤销。")).toBeVisible();
     await expect(block.getByText("没有待确认的建议")).toBeVisible();
 
+    // 常驻建议：夹具没有跨周历史，因此候选为空——界面必须明说样本不够，而不是硬凑。
+    const pinBlock = page.locator(".card", { hasText: "常驻建议" });
+    await expect(pinBlock.getByText("没有待确认的常驻建议")).toBeVisible();
+    await pinBlock.getByRole("button", { name: "推荐常驻词" }).click();
+    await expect(page.getByText(/样本还不够/)).toBeVisible();
+
     // 任务列表里能看到这次批次：类型、目标（词表区间）与提示词版本。
     await page.getByRole("link", { name: "任务", exact: true }).first().click();
     const taskRow = page

@@ -45,6 +45,15 @@ TASK_SPECS: dict[TaskType, TaskSpec] = {
         required_variables=("title", "content"),
         output_fields=("title", "summary", "keywords"),
     ),
+    TaskType.KEYWORD_PIN_SUGGEST: TaskSpec(
+        kind=TaskType.KEYWORD_PIN_SUGGEST,
+        label="常驻建议",
+        variables=("vocabulary",),
+        required_variables=("vocabulary",),
+        output_fields=("picks",),
+        # 候选由系统按跨周出现算出、一次同步调用即可，因此不分配给来源也不进队列。
+        assignable=False,
+    ),
     TaskType.KEYWORD_MERGE_SUGGEST: TaskSpec(
         kind=TaskType.KEYWORD_MERGE_SUGGEST,
         label="合并建议",

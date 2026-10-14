@@ -23,6 +23,10 @@ from rss_v2.domain import (
     KeywordEntry,
     KeywordKind,
     MergeSuggestion,
+    PinCandidate,
+    PinSuggestion,
+    PinSuggestionBatch,
+    PinSuggestResult,
     Prompt,
     Provider,
     ProviderKey,
@@ -57,6 +61,10 @@ _BATCH_LABEL = re.compile(r"^(.+?)\s*（(?:实体|主题|事件)）$")
 #: 超时；60 词约 86 秒，需要把 Provider 超时调到 180 秒以上。
 DEFAULT_BATCH_SIZE = 20
 
+#: 常驻候选的周数与跨周门槛：把最近这些周按 7 天切段，一个词至少跨这几段才算周期话题。
+PIN_CANDIDATE_WEEKS = 4
+PIN_CANDIDATE_MINIMUM_WEEKS = 3
+
 #: 一次最多排多少批：给一个上限防止误点把队列灌满。
 MAX_ENQUEUE = 50
 
@@ -76,6 +84,7 @@ class KeywordSuggestionService:
     failover: LLMFailover  # 候选回退、Key 冷却与调用审计
     cooldown_seconds: int  # 临时错误冷却秒数
     batch_size: int = DEFAULT_BATCH_SIZE  # 每批词数；界面显式传 size 时以传入值为准
+    hot_days: int = 7  # 热词窗口（天）：常驻候选要求本周仍在窗口内
 
     def enqueue(self, count: int = 1, size: int | None = None) -> SuggestionEnqueue:
         """把还没看过的词排成任务；看过的词不再计入，因此换序也不会重扫。
@@ -266,6 +275,106 @@ class KeywordSuggestionService:
                 batches.append((start, fingerprint, batch))
         return batches
 
+    def suggest_pins(self, dry_run: bool = False) -> PinSuggestionBatch:
+        """从跨周候选里挑出适合常驻的词；同步调用一次，人工确认后才写 pin。
+
+        候选由系统按"最近 4 周里至少 3 周出现、且本周仍在窗口内"算出（可复算、可解释），
+        模型只做挑选。候选为空时直接返回——常见于样本还不够的冷启动。
+        """
+
+        timestamp = now()
+        since = timestamp - self.hot_days * 86400
+        candidates = self.keywords.pin_candidates(
+            timestamp, since, PIN_CANDIDATE_WEEKS, PIN_CANDIDATE_MINIMUM_WEEKS
+        )
+        if dry_run or not candidates:
+            return PinSuggestionBatch(candidates=len(candidates), picks=0, dropped=0)
+        prompt = self.prompts.active(TaskType.KEYWORD_PIN_SUGGEST.value)
+        if prompt is None:
+            raise DomainError("prompt_not_configured", "没有可用的常驻建议提示词")
+        values = {"vocabulary": _candidate_text(candidates)}
+        payload = PromptPayload(
+            system=render(prompt.system_template, values),
+            user=render(prompt.user_template, values),
+        )
+        prompt_version = prompt.version_string
+
+        def invoke(
+            provider: Provider, model_name: str, secret: str
+        ) -> tuple[PinSuggestResult, dict[str, int], int]:
+            return self.provider.suggest_pins(provider, model_name, secret, payload, prompt_version)
+
+        def persist(
+            provider: Provider,
+            model_name: str,
+            key: ProviderKey,
+            result: PinSuggestResult,
+            tokens: dict[str, int],
+            duration_ms: int,
+        ) -> PinSuggestionBatch:
+            return self._store_pins(candidates, result)
+
+        return self.failover.execute(
+            None,
+            input_hash(payload.system, payload.user),
+            prompt_version,
+            self.cooldown_seconds,
+            invoke,
+            persist,
+        )
+
+    def pin_suggestions(
+        self, status: str | None = "pending", limit: int = 50
+    ) -> list[PinSuggestion]:
+        """常驻建议列表；默认只看待处理的。"""
+
+        return self.keywords.pin_suggestions(status, limit)
+
+    def resolve_pin(self, key: str, accepted: bool) -> str:
+        """采纳（写入常驻表）或忽略一条常驻建议。"""
+
+        return self.keywords.resolve_pin_suggestion(
+            key, "accepted" if accepted else "dismissed", now()
+        )
+
+    def _store_pins(
+        self, candidates: list[PinCandidate], result: PinSuggestResult
+    ) -> PinSuggestionBatch:
+        """把模型挑出的写法折算成建议：不在候选里、已建议过的都丢弃。"""
+
+        known = {item.key: item for item in candidates}
+        items: list[PinSuggestion] = []
+        seen: set[str] = set()
+        dropped = 0
+        for pick in result.picks:
+            normalized = normalize_keyword(_strip_label(pick.term))
+            key = self.keywords.resolve_key(normalized) if normalized else ""
+            candidate = known.get(key)
+            if candidate is None or key in seen:
+                dropped += 1
+                logger.info("pin_suggestion_dropped term=%s", pick.term)
+                continue
+            seen.add(key)
+            items.append(
+                PinSuggestion(
+                    key=key,
+                    text=candidate.text,
+                    rationale=pick.rationale.strip(),
+                    weeks=candidate.weeks,
+                    status="pending",
+                    created_at=now(),
+                    resolved_at=None,
+                )
+            )
+        stored = self.keywords.save_pin_suggestions(items, now())
+        logger.info(
+            "pin_suggestion_batch candidates=%d picks=%d dropped=%d",
+            len(candidates),
+            len(stored),
+            dropped,
+        )
+        return PinSuggestionBatch(candidates=len(candidates), picks=len(stored), dropped=dropped)
+
     def list(self, status: str | None = "pending", limit: int = 50) -> list[MergeSuggestion]:
         """建议列表；默认只看待处理的。"""
 
@@ -420,6 +529,12 @@ def _interleave(fresh: list[KeywordEntry], old: list[KeywordEntry]) -> list[Keyw
         if index < len(old):
             queue.append(old[index])
     return queue
+
+
+def _candidate_text(candidates: list[PinCandidate]) -> str:
+    """候选的提示词文本：每行一个写法，括号里是它在最近几周里跨了几周。"""
+
+    return "\n".join(f"- {item.text}（跨 {item.weeks} 周）" for item in candidates)
 
 
 def _strip_label(term: str) -> str:

@@ -19,6 +19,9 @@ from rss_v2.api.schemas import (
     KeywordSuggestionResponse,
     KeywordSuggestionStatusResponse,
     KeywordTrendPointResponse,
+    PinSuggestionBatchResponse,
+    PinSuggestionListResponse,
+    PinSuggestionResponse,
     RelatedMessageResponse,
 )
 from rss_v2.domain import (
@@ -27,6 +30,8 @@ from rss_v2.domain import (
     MergePreview,
     MergeRecord,
     MergeSuggestion,
+    PinSuggestion,
+    PinSuggestionBatch,
     RelatedMessage,
     SuggestionEnqueue,
     SuggestionStatus,
@@ -173,6 +178,37 @@ def suggestion_status_response(
         total=item.total,
         scanned=item.scanned,
         last_scanned_at=item.last_scanned_at,
+    )
+
+
+def pin_suggestion_response(item: PinSuggestion) -> PinSuggestionResponse:
+    return PinSuggestionResponse(
+        key=item.key,
+        text=item.text,
+        rationale=item.rationale,
+        weeks=item.weeks,
+        status=item.status,
+        created_at=item.created_at,
+        resolved_at=item.resolved_at,
+    )
+
+
+def pin_suggestion_list_response(
+    items: list[PinSuggestion], pending: int
+) -> PinSuggestionListResponse:
+    return PinSuggestionListResponse(
+        items=[pin_suggestion_response(item) for item in items], pending=pending
+    )
+
+
+def pin_suggestion_batch_response(
+    batch: PinSuggestionBatch, pending: int
+) -> PinSuggestionBatchResponse:
+    return PinSuggestionBatchResponse(
+        candidates=batch.candidates,
+        picks=batch.picks,
+        dropped=batch.dropped,
+        pending=pending,
     )
 
 

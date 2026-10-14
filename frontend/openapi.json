@@ -1675,6 +1675,197 @@
         }
       }
     },
+    "/api/keywords/pin-suggestions": {
+      "post": {
+        "tags": [
+          "keywords"
+        ],
+        "summary": "Suggest Pins",
+        "description": "从跨周候选里挑出值得常驻的词；候选为空（样本不够）时不调用模型。",
+        "operationId": "suggest_pins_api_keywords_pin_suggestions_post",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PinSuggestionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PinSuggestionBatchResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "keywords"
+        ],
+        "summary": "List Pin Suggestions",
+        "description": "常驻建议列表；默认只看待处理的。",
+        "operationId": "list_pin_suggestions_api_keywords_pin_suggestions_get",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "pending / accepted / dismissed",
+              "default": "pending",
+              "title": "Status"
+            },
+            "description": "pending / accepted / dismissed"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PinSuggestionListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/keywords/pin-suggestions/{key}/accept": {
+      "post": {
+        "tags": [
+          "keywords"
+        ],
+        "summary": "Accept Pin Suggestion",
+        "description": "采纳常驻建议：写入常驻表，该词从此在注入时必然出现。",
+        "operationId": "accept_pin_suggestion_api_keywords_pin_suggestions__key__accept_post",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KeywordSuggestionPendingResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/keywords/pin-suggestions/{key}/dismiss": {
+      "post": {
+        "tags": [
+          "keywords"
+        ],
+        "summary": "Dismiss Pin Suggestion",
+        "description": "忽略常驻建议；忽略过的词不会再被建议。",
+        "operationId": "dismiss_pin_suggestion_api_keywords_pin_suggestions__key__dismiss_post",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KeywordSuggestionPendingResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/tasks/{task_id}": {
       "get": {
         "tags": [
@@ -4735,6 +4926,120 @@
         ],
         "title": "MessageVersionResponse",
         "description": "消息版本响应。"
+      },
+      "PinSuggestionBatchResponse": {
+        "properties": {
+          "candidates": {
+            "type": "integer",
+            "title": "Candidates"
+          },
+          "picks": {
+            "type": "integer",
+            "title": "Picks"
+          },
+          "dropped": {
+            "type": "integer",
+            "title": "Dropped"
+          },
+          "pending": {
+            "type": "integer",
+            "title": "Pending"
+          }
+        },
+        "type": "object",
+        "required": [
+          "candidates",
+          "picks",
+          "dropped",
+          "pending"
+        ],
+        "title": "PinSuggestionBatchResponse",
+        "description": "一次生成常驻建议的结果：候选数、落库条数与被丢弃条数。"
+      },
+      "PinSuggestionListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PinSuggestionResponse"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "pending": {
+            "type": "integer",
+            "title": "Pending"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "pending"
+        ],
+        "title": "PinSuggestionListResponse",
+        "description": "常驻建议列表与待处理总数。"
+      },
+      "PinSuggestionRequest": {
+        "properties": {
+          "dry_run": {
+            "type": "boolean",
+            "title": "Dry Run",
+            "default": false
+          }
+        },
+        "type": "object",
+        "title": "PinSuggestionRequest",
+        "description": "生成常驻建议；dry_run 只看候选数，不调用模型。"
+      },
+      "PinSuggestionResponse": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "rationale": {
+            "type": "string",
+            "title": "Rationale"
+          },
+          "weeks": {
+            "type": "integer",
+            "title": "Weeks"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "created_at": {
+            "type": "integer",
+            "title": "Created At"
+          },
+          "resolved_at": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolved At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "text",
+          "rationale",
+          "weeks",
+          "status",
+          "created_at",
+          "resolved_at"
+        ],
+        "title": "PinSuggestionResponse",
+        "description": "一条常驻建议：候选词、跨了几周与模型给的理由。"
       },
       "PromptCompileIssue": {
         "properties": {

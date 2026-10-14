@@ -201,6 +201,7 @@ def build_container(settings: Settings | None = None, migrate: bool = True) -> C
         failover,
         actual_settings.llm_retry_cooldown_seconds,
         actual_settings.llm_suggestion_batch_size,
+        actual_settings.keyword_hot_days,
     )
     task_service = TaskService(tasks, messages, sources)
     provider_service = ProviderService(llm_config)

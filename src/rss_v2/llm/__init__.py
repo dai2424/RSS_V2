@@ -3,7 +3,13 @@
 from dataclasses import dataclass
 from typing import Protocol
 
-from rss_v2.domain import EnrichmentResult, Provider, SuggestResult, TranslationResult
+from rss_v2.domain import (
+    EnrichmentResult,
+    PinSuggestResult,
+    Provider,
+    SuggestResult,
+    TranslationResult,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -48,6 +54,17 @@ class LLMProvider(Protocol):
         prompt_version: str,
     ) -> tuple[SuggestResult, dict[str, int], int]:
         """按词表批次给出疑似同指组；与消息版本无关，调用方负责落入建议表。"""
+        ...
+
+    def suggest_pins(
+        self,
+        provider: Provider,
+        model: str,
+        secret: str,
+        prompt: PromptPayload,
+        prompt_version: str,
+    ) -> tuple[PinSuggestResult, dict[str, int], int]:
+        """从跨周候选里挑出适合常驻的词；调用方负责过滤与落库。"""
         ...
 
     def probe(

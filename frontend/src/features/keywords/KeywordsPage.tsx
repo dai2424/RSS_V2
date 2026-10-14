@@ -9,6 +9,7 @@ import { KeywordCharts } from "./KeywordCharts";
 import { KeywordMaintenance } from "./KeywordMaintenance";
 import { KeywordMetrics } from "./KeywordMetrics";
 import { KeywordSuggestions } from "./KeywordSuggestions";
+import { PinSuggestions } from "./PinSuggestions";
 import { MergeDialog, MergeHistory } from "./KeywordMerges";
 import { KeywordVocabulary } from "./KeywordVocabulary";
 import { useKeywordOverview, useKeywordVocabulary } from "./useKeywordsData";
@@ -116,6 +117,7 @@ export function KeywordsPage() {
         }}
       />
       <KeywordSuggestions />
+      <PinSuggestions />
       <MergeHistory />
     </div>
   );

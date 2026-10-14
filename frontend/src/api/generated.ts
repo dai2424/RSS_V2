@@ -491,6 +491,70 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/keywords/pin-suggestions": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * List Pin Suggestions
+     * @description 常驻建议列表；默认只看待处理的。
+     */
+    get: operations["list_pin_suggestions_api_keywords_pin_suggestions_get"];
+    put?: never;
+    /**
+     * Suggest Pins
+     * @description 从跨周候选里挑出值得常驻的词；候选为空（样本不够）时不调用模型。
+     */
+    post: operations["suggest_pins_api_keywords_pin_suggestions_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/keywords/pin-suggestions/{key}/accept": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Accept Pin Suggestion
+     * @description 采纳常驻建议：写入常驻表，该词从此在注入时必然出现。
+     */
+    post: operations["accept_pin_suggestion_api_keywords_pin_suggestions__key__accept_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/keywords/pin-suggestions/{key}/dismiss": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Dismiss Pin Suggestion
+     * @description 忽略常驻建议；忽略过的词不会再被建议。
+     */
+    post: operations["dismiss_pin_suggestion_api_keywords_pin_suggestions__key__dismiss_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/tasks/{task_id}": {
     parameters: {
       query?: never;
@@ -1593,6 +1657,61 @@ export interface components {
       enrichments: components["schemas"]["EnrichmentResponse"][];
       translation_task?: components["schemas"]["TaskResponse"] | null;
       enrichment_task?: components["schemas"]["TaskResponse"] | null;
+    };
+    /**
+     * PinSuggestionBatchResponse
+     * @description 一次生成常驻建议的结果：候选数、落库条数与被丢弃条数。
+     */
+    PinSuggestionBatchResponse: {
+      /** Candidates */
+      candidates: number;
+      /** Picks */
+      picks: number;
+      /** Dropped */
+      dropped: number;
+      /** Pending */
+      pending: number;
+    };
+    /**
+     * PinSuggestionListResponse
+     * @description 常驻建议列表与待处理总数。
+     */
+    PinSuggestionListResponse: {
+      /** Items */
+      items: components["schemas"]["PinSuggestionResponse"][];
+      /** Pending */
+      pending: number;
+    };
+    /**
+     * PinSuggestionRequest
+     * @description 生成常驻建议；dry_run 只看候选数，不调用模型。
+     */
+    PinSuggestionRequest: {
+      /**
+       * Dry Run
+       * @default false
+       */
+      dry_run: boolean;
+    };
+    /**
+     * PinSuggestionResponse
+     * @description 一条常驻建议：候选词、跨了几周与模型给的理由。
+     */
+    PinSuggestionResponse: {
+      /** Key */
+      key: string;
+      /** Text */
+      text: string;
+      /** Rationale */
+      rationale: string;
+      /** Weeks */
+      weeks: number;
+      /** Status */
+      status: string;
+      /** Created At */
+      created_at: number;
+      /** Resolved At */
+      resolved_at: number | null;
     };
     /**
      * PromptCompileIssue
@@ -3281,6 +3400,134 @@ export interface operations {
         "application/json": components["schemas"]["KeywordSuggestionAcceptRequest"];
       };
     };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["KeywordSuggestionPendingResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  list_pin_suggestions_api_keywords_pin_suggestions_get: {
+    parameters: {
+      query?: {
+        /** @description pending / accepted / dismissed */
+        status?: string | null;
+        limit?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PinSuggestionListResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  suggest_pins_api_keywords_pin_suggestions_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["PinSuggestionRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PinSuggestionBatchResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  accept_pin_suggestion_api_keywords_pin_suggestions__key__accept_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        key: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["KeywordSuggestionPendingResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  dismiss_pin_suggestion_api_keywords_pin_suggestions__key__dismiss_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        key: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
     responses: {
       /** @description Successful Response */
       200: {

@@ -41,6 +41,10 @@ from .keywords import (
     KeywordSuggestionStatusResponse,
     KeywordTrendPointResponse,
     KeywordUndoResponse,
+    PinSuggestionBatchResponse,
+    PinSuggestionListResponse,
+    PinSuggestionRequest,
+    PinSuggestionResponse,
 )
 from .llm import (
     ConnectionTestRequest,
@@ -111,6 +115,10 @@ __all__ = [
     "KeywordSuggestionPendingResponse",
     "KeywordSuggestionRequest",
     "KeywordSuggestionResponse",
+    "PinSuggestionBatchResponse",
+    "PinSuggestionListResponse",
+    "PinSuggestionRequest",
+    "PinSuggestionResponse",
     "KeywordSourceStatResponse",
     "KeywordTrendPointResponse",
     "KeywordMergePreviewResponse",

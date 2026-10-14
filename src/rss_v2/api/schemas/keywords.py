@@ -171,6 +171,40 @@ class KeywordSuggestionAcceptRequest(BaseModel):
     merge_id: str = Field(min_length=1, max_length=64)
 
 
+class PinSuggestionRequest(BaseModel):
+    """生成常驻建议；dry_run 只看候选数，不调用模型。"""
+
+    dry_run: bool = False
+
+
+class PinSuggestionResponse(BaseModel):
+    """一条常驻建议：候选词、跨了几周与模型给的理由。"""
+
+    key: str
+    text: str
+    rationale: str
+    weeks: int
+    status: str
+    created_at: int
+    resolved_at: int | None
+
+
+class PinSuggestionListResponse(BaseModel):
+    """常驻建议列表与待处理总数。"""
+
+    items: list[PinSuggestionResponse]
+    pending: int
+
+
+class PinSuggestionBatchResponse(BaseModel):
+    """一次生成常驻建议的结果：候选数、落库条数与被丢弃条数。"""
+
+    candidates: int
+    picks: int
+    dropped: int
+    pending: int
+
+
 class KeywordSuggestionPendingResponse(BaseModel):
     """处置后的待处理数量，界面据此更新提示。"""
 

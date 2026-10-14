@@ -18,6 +18,8 @@ from rss_v2.domain import (
     Message,
     MessageDeletion,
     MessageVersion,
+    PinCandidate,
+    PinSuggestion,
     Prompt,
     PromptUsage,
     PromptVocabulary,
@@ -399,6 +401,30 @@ class KeywordRepository(Protocol):
 
     def pins(self) -> tuple[str, ...]:
         """全部常驻词键，按标记时间从早到晚。"""
+        ...
+
+    def pin_candidates(
+        self, timestamp: int, since: int, weeks: int, minimum_weeks: int
+    ) -> list[PinCandidate]:
+        """跨周反复出现、且本周仍在窗口内的候选词（已常驻的除外）。"""
+        ...
+
+    def save_pin_suggestions(
+        self, items: list[PinSuggestion], timestamp: int
+    ) -> list[PinSuggestion]:
+        """写入待确认的常驻建议；已有键（含已忽略的）不覆盖。"""
+        ...
+
+    def pin_suggestions(self, status: str | None, limit: int) -> list[PinSuggestion]:
+        """常驻建议列表；status 为空表示不过滤。"""
+        ...
+
+    def pending_pin_suggestions(self) -> int:
+        """待处理的常驻建议数。"""
+        ...
+
+    def resolve_pin_suggestion(self, key: str, status: str, timestamp: int) -> str:
+        """处置一条常驻建议（采纳时写入常驻表），返回展示写法。"""
         ...
 
     def note_vocabulary(self, fingerprint: str, timestamp: int) -> int:
