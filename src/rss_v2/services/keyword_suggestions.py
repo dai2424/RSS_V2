@@ -157,7 +157,11 @@ class KeywordSuggestionService:
             str(task.payload.get("prompt_id", "")), str(task.payload.get("prompt_version", ""))
         )
         total = self._total()
-        fingerprint = _batch_fingerprint([item.key for item in entries])
+        # 指纹必须与入队时一致：入队是"这批词 + 它们上次被看的时间"，执行时若只对词重算，
+        # 台账就认不出这批（实测：第二批命不中缓存、第三批起干脆不再入队）。
+        fingerprint = str(task.payload.get("fingerprint", "")) or _batch_fingerprint(
+            [item.key for item in entries]
+        )
         stored = self.suggestions.batch_result(fingerprint, batch_offset)
         if stored is not None:
             self.tasks.complete(task.id, lease_token=task.lease_token)
@@ -436,6 +440,7 @@ class KeywordSuggestionService:
             items.append(
                 MergeSuggestion(
                     id=new_id(),
+                    fingerprint=group_fingerprint,
                     members=tuple(members),
                     target_key=target_key,
                     target_text=next(

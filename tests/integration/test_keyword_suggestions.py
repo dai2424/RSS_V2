@@ -1,5 +1,6 @@
 """合并建议：批次幂等、越界写入被丢弃、忽略后不再出现、采纳只做标记。"""
 
+import time
 from typing import Any
 
 import respx
@@ -298,3 +299,62 @@ def test_accept_records_the_merge_record(client: TestClient) -> None:
         f"/api/keywords/suggestions/{suggestion['id']}/accept", json={"merge_id": "nope"}
     )
     assert missing.status_code == 400
+
+
+@respx.mock
+def test_each_round_enqueues_a_new_batch(client: TestClient) -> None:
+    """连续三轮都要排到新批次。
+
+    扫描时间不刷新时，队列顺序永远不变、每轮算出同样的指纹，于是第二轮被当成"已排过"、
+    第三轮起干脆排不出批次——这条用例盯的就是那个回归。
+    """
+
+    fake = SuggestProvider([("AWS", "云服务")])
+    seeded(client, fake, "https://rounds.test/feed")
+    # 再加一个来源把词表撑到四词，好让每批 2 个词能排出多轮。
+    respx.get("https://rounds-2.test/feed").mock(
+        return_value=Response(
+            200,
+            content=feed(
+                [
+                    ("c1", "存储芯片涨价", "Sat, 10 Oct 2026 00:00:00 GMT"),
+                    ("c2", "电池技术进展", "Fri, 09 Oct 2026 00:00:00 GMT"),
+                ]
+            ),
+        )
+    )
+    second = create_source(client, "https://rounds-2.test/feed")
+    collect(client, second)
+    drain_worker(client)
+
+    for round_no in range(1, 4):
+        # 指纹里带"上次看过的时间"（秒级）：间隔不到一秒的两轮本来就算同一轮，
+        # 这里等一下，模拟"隔一段时间再扫一轮"。
+        if round_no > 1:
+            time.sleep(1.1)
+        receipt = enqueue(client, count=1, size=2)
+        assert receipt["enqueued"] == 1, f"第 {round_no} 轮没有排到批次"
+        drain_worker(client)
+        assert fake.suggestion_calls == round_no, f"第 {round_no} 轮没有真正调用模型"
+
+
+@respx.mock
+def test_same_group_is_not_suggested_twice(client: TestClient) -> None:
+    """同一组写法只建议一次；忽略过的组再扫到也不会回来（成员指纹去重）。"""
+
+    fake = SuggestProvider([("AWS", "云服务")])
+    seeded(client, fake, "https://dedupe.test/feed")
+    enqueue(client)
+    drain_worker(client)
+    item = suggestions(client)[0]
+
+    dismissed = client.post(f"/api/keywords/suggestions/{item['id']}/dismiss")
+    assert dismissed.status_code == 200, dismissed.text
+
+    # 再扫一轮：模型仍返回同一组，但成员指纹已存在，不再落库。
+    receipt = enqueue(client)
+    assert receipt["enqueued"] == 1
+    drain_worker(client)
+    assert suggestions(client) == []
+    listed = client.get("/api/keywords/suggestions", params={"status": "dismissed"}).json()["items"]
+    assert [row["id"] for row in listed] == [item["id"]]

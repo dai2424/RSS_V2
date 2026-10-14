@@ -147,10 +147,11 @@ def save_batch(
             """,
             (fingerprint, offset, len(suggestions), dropped, timestamp),
         )
-        # 看过就记账：下次只扫没看过的词，词表换序也不会让这批重扫。
+        # 看过就记账并刷新时间：队列按"最久没看过"排序，时间不刷新的话顺序永远不变，
+        # 下一批会算出同样的指纹、被当成已排过的批次（实测：第三轮起不再入队）。
         connection.executemany(
             "INSERT INTO keyword_suggestion_scanned(normalized,scanned_at) VALUES(?,?)"
-            " ON CONFLICT(normalized) DO NOTHING",
+            " ON CONFLICT(normalized) DO UPDATE SET scanned_at=excluded.scanned_at",
             [(key, timestamp) for key in words],
         )
         for item in suggestions:
@@ -178,7 +179,7 @@ def save_batch(
                     item.rationale,
                     offset,
                     fingerprint,
-                    item.id,
+                    item.fingerprint,
                     timestamp,
                 ),
             )
@@ -273,6 +274,7 @@ def _suggestion(row: sqlite3.Row) -> MergeSuggestion:
         members.append(Keyword(text=text, kind=KeywordKind(str(entry.get("kind") or "topic"))))
     return MergeSuggestion(
         id=str(row["id"]),
+        fingerprint=str(row["fingerprint"]),
         members=tuple(members),
         target_key=str(row["target_key"]),
         target_text=str(row["target_text"]),

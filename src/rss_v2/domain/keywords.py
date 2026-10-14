@@ -260,6 +260,7 @@ class MergeSuggestion:
     """一条待人工确认的合并建议。"""
 
     id: str  # 建议 UUID
+    fingerprint: str  # 成员集合指纹：同一组不再重复建议，忽略过的也不会回来
     members: tuple[Keyword, ...]  # 组内写法；text 展示、normalized 是规范词键
     target_key: str  # 建议保留的规范词键，必是成员之一
     target_text: str  # 目标词的展示写法
