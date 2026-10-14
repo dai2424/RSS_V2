@@ -1297,6 +1297,48 @@
         }
       }
     },
+    "/api/keywords/purge-state": {
+      "post": {
+        "tags": [
+          "keywords"
+        ],
+        "summary": "Purge Keyword State",
+        "description": "清理词表级的过期状态：写法已不在词表里的扫描记账与待处理建议。\n\n只动词表状态，不动消息级关键词——后者是消息的元数据，删了会被重建索引恢复。",
+        "operationId": "purge_keyword_state_api_keywords_purge_state_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KeywordPurgeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KeywordPurgeResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/keywords/merges": {
       "get": {
         "tags": [
@@ -4266,6 +4308,42 @@
         ],
         "title": "KeywordPinResponse",
         "description": "标记结果；key 是归一化后的规范词键，界面据此更新对应行。"
+      },
+      "KeywordPurgeRequest": {
+        "properties": {
+          "dry_run": {
+            "type": "boolean",
+            "title": "Dry Run",
+            "default": false
+          }
+        },
+        "type": "object",
+        "title": "KeywordPurgeRequest",
+        "description": "清理词表状态；dry_run 只数条数。"
+      },
+      "KeywordPurgeResponse": {
+        "properties": {
+          "scanned": {
+            "type": "integer",
+            "title": "Scanned"
+          },
+          "merge_suggestions": {
+            "type": "integer",
+            "title": "Merge Suggestions"
+          },
+          "pin_suggestions": {
+            "type": "integer",
+            "title": "Pin Suggestions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "scanned",
+          "merge_suggestions",
+          "pin_suggestions"
+        ],
+        "title": "KeywordPurgeResponse",
+        "description": "清理结果：扫描记账、合并建议、常驻建议各处理了多少条。"
       },
       "KeywordRebuildResponse": {
         "properties": {

@@ -171,6 +171,20 @@ class KeywordSuggestionAcceptRequest(BaseModel):
     merge_id: str = Field(min_length=1, max_length=64)
 
 
+class KeywordPurgeRequest(BaseModel):
+    """清理词表状态；dry_run 只数条数。"""
+
+    dry_run: bool = False
+
+
+class KeywordPurgeResponse(BaseModel):
+    """清理结果：扫描记账、合并建议、常驻建议各处理了多少条。"""
+
+    scanned: int
+    merge_suggestions: int
+    pin_suggestions: int
+
+
 class PinSuggestionRequest(BaseModel):
     """生成常驻建议；dry_run 只看候选数，不调用模型。"""
 

@@ -474,6 +474,13 @@ class SuggestionRepository(Protocol):
         """待处理建议数。"""
         ...
 
+    def purge_state(self, timestamp: int, dry_run: bool) -> tuple[int, int, int]:
+        """清理词表级的过期状态，返回 (扫描记账, 合并建议, 常驻建议) 的条数。
+
+        只清写法/目标已不在词表里的行；消息级关键词不动。
+        """
+        ...
+
     def dismiss(self, suggestion_id: str, timestamp: int) -> None:
         """忽略一条建议。"""
         ...

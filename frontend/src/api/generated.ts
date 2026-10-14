@@ -345,6 +345,28 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/keywords/purge-state": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Purge Keyword State
+     * @description 清理词表级的过期状态：写法已不在词表里的扫描记账与待处理建议。
+     *
+     *     只动词表状态，不动消息级关键词——后者是消息的元数据，删了会被重建索引恢复。
+     */
+    post: operations["purge_keyword_state_api_keywords_purge_state_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/keywords/merges": {
     parameters: {
       query?: never;
@@ -1379,6 +1401,29 @@ export interface components {
       key: string;
       /** Pinned */
       pinned: boolean;
+    };
+    /**
+     * KeywordPurgeRequest
+     * @description 清理词表状态；dry_run 只数条数。
+     */
+    KeywordPurgeRequest: {
+      /**
+       * Dry Run
+       * @default false
+       */
+      dry_run: boolean;
+    };
+    /**
+     * KeywordPurgeResponse
+     * @description 清理结果：扫描记账、合并建议、常驻建议各处理了多少条。
+     */
+    KeywordPurgeResponse: {
+      /** Scanned */
+      scanned: number;
+      /** Merge Suggestions */
+      merge_suggestions: number;
+      /** Pin Suggestions */
+      pin_suggestions: number;
     };
     /**
      * KeywordRebuildResponse
@@ -3148,6 +3193,39 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["KeywordBackfillResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  purge_keyword_state_api_keywords_purge_state_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["KeywordPurgeRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["KeywordPurgeResponse"];
         };
       };
       /** @description Validation Error */

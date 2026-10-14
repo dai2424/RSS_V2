@@ -22,6 +22,8 @@ from rss_v2.api.schemas import (
     KeywordOverviewResponse,
     KeywordPinRequest,
     KeywordPinResponse,
+    KeywordPurgeRequest,
+    KeywordPurgeResponse,
     KeywordRebuildResponse,
     KeywordUndoResponse,
 )
@@ -87,6 +89,17 @@ def backfill_keywords(request: Request, payload: KeywordBackfillRequest) -> Keyw
         skipped=result.skipped,
         reasons=list(result.reasons),
     )
+
+
+@keywords_router.post("/purge-state", response_model=KeywordPurgeResponse)
+def purge_keyword_state(request: Request, payload: KeywordPurgeRequest) -> KeywordPurgeResponse:
+    """清理词表级的过期状态：写法已不在词表里的扫描记账与待处理建议。
+
+    只动词表状态，不动消息级关键词——后者是消息的元数据，删了会被重建索引恢复。
+    """
+
+    scanned, merges, pins = container(request).suggestion_service.purge(payload.dry_run)
+    return KeywordPurgeResponse(scanned=scanned, merge_suggestions=merges, pin_suggestions=pins)
 
 
 @keywords_router.get("/merges", response_model=list[KeywordMergeRecordResponse])

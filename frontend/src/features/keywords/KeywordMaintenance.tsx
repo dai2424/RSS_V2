@@ -51,6 +51,43 @@ export function KeywordMaintenance({ pending }: { pending: number }) {
     },
   });
 
+  const purge = useMutation({
+    mutationFn: async (dryRun: boolean) => {
+      const r = await api.POST("/api/keywords/purge-state", {
+        body: { dry_run: dryRun },
+      });
+      return requireResponse(r.response, r.data, r.error);
+    },
+  });
+  const [purgeCounts, setPurgeCounts] = useState<{
+    scanned: number;
+    merge_suggestions: number;
+    pin_suggestions: number;
+  } | null>(null);
+
+  const openPurgePreview = () => {
+    purge.mutate(true, {
+      onSuccess: (data) => {
+        setPurgeCounts({
+          scanned: data.scanned,
+          merge_suggestions: data.merge_suggestions,
+          pin_suggestions: data.pin_suggestions,
+        });
+      },
+    });
+  };
+  const runPurge = () =>
+    purge.mutate(false, {
+      onSuccess: async (data) => {
+        setPurgeCounts(null);
+        await refresh();
+        showToast({
+          type: "success",
+          content: `已清理扫描记账 ${data.scanned} 条、过期建议 ${data.merge_suggestions + data.pin_suggestions} 条。`,
+        });
+      },
+    });
+
   const openPreview = () => {
     backfill.mutate(true, {
       onSuccess: (data) => {
@@ -89,6 +126,14 @@ export function KeywordMaintenance({ pending }: { pending: number }) {
           {rebuild.isPending ? "重建中…" : "重建索引"}
         </Button>
         <Button
+          className="secondary"
+          disabled={purge.isPending}
+          onClick={openPurgePreview}
+          title="清掉写法已经不在词表里的扫描记账与过期建议；不动消息关键词"
+        >
+          {purge.isPending ? "清理中…" : "清理词表状态"}
+        </Button>
+        <Button
           disabled={backfill.isPending}
           onClick={openPreview}
           title={
@@ -106,6 +151,41 @@ export function KeywordMaintenance({ pending }: { pending: number }) {
       {backfill.isError && (
         <div className="alert-error">{backfill.error.message}</div>
       )}
+      <Dialog
+        open={purgeCounts !== null}
+        onOpenChange={(next) => (next ? undefined : setPurgeCounts(null))}
+      >
+        <DialogContent>
+          <DialogTitle>清理词表状态</DialogTitle>
+          <DialogDescription>
+            清掉写法已经不在词表里的扫描记账，以及目标词已经消失的待处理建议。
+            消息级关键词不动——它是消息的元数据，删了会被「重建索引」恢复。
+          </DialogDescription>
+          <p>
+            预览：扫描记账 <strong>{purgeCounts?.scanned ?? 0}</strong>{" "}
+            条、合并建议 <strong>{purgeCounts?.merge_suggestions ?? 0}</strong>{" "}
+            条、常驻建议 <strong>{purgeCounts?.pin_suggestions ?? 0}</strong>{" "}
+            条。
+          </p>
+          <div className="row-actions">
+            <Button
+              onClick={runPurge}
+              disabled={
+                !purgeCounts ||
+                purgeCounts.scanned +
+                  purgeCounts.merge_suggestions +
+                  purgeCounts.pin_suggestions ===
+                  0
+              }
+            >
+              确认清理
+            </Button>
+            <Button className="secondary" onClick={() => setPurgeCounts(null)}>
+              取消
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
       <Dialog
         open={stage === "preview"}
         onOpenChange={(next) => (next ? undefined : setStage("closed"))}

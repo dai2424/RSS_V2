@@ -12,6 +12,11 @@ import sqlite3
 from typing import Any, cast
 
 from rss_v2.adapters.sqlite.connection import SQLiteDatabase
+from rss_v2.adapters.sqlite.keyword_sql import (
+    KEY_AGGREGATE,
+    MAX_TIME,
+    MIN_TIME,
+)
 from rss_v2.domain import DomainError, Keyword, KeywordKind, MergeSuggestion
 
 
@@ -60,6 +65,11 @@ class SQLiteSuggestionRepository:
         """待处理建议数。"""
 
         return pending_count(self.database)
+
+    def purge_state(self, timestamp: int, dry_run: bool) -> tuple[int, int, int]:
+        """清理词表级的过期状态。"""
+
+        return purge_state(self.database, timestamp, dry_run)
 
     def dismiss(self, suggestion_id: str, timestamp: int) -> None:
         """忽略一条建议。"""
@@ -273,3 +283,63 @@ def _suggestion(row: sqlite3.Row) -> MergeSuggestion:
         resolved_at=row["resolved_at"],
         merge_id=row["merge_id"],
     )
+
+
+def purge_state(database: SQLiteDatabase, timestamp: int, dry_run: bool) -> tuple[int, int, int]:
+    """清理词表级的过期状态，返回 (扫描记账, 合并建议, 常驻建议) 的条数。
+
+    只清"挂在那里已经没有意义"的行：写法已经不在词表里的扫描记账（消息删了、写法被合并掉），
+    以及目标词/候选词已经不在词表里的待处理建议。**消息级关键词一行都不动**——它是消息的
+    元数据，删了会被 rebuild 从快照恢复，还会让老消息失去关键词检索。
+    """
+
+    connection = database.connect()
+    try:
+        missing = f"""
+            SELECT keyword_key FROM ({KEY_AGGREGATE})
+        """
+        args = (MIN_TIME, MAX_TIME)
+        scanned = int(
+            connection.execute(
+                f"SELECT COUNT(*) FROM keyword_suggestion_scanned"
+                f" WHERE normalized NOT IN ({missing})",
+                args,
+            ).fetchone()[0]
+        )
+        merges = int(
+            connection.execute(
+                f"SELECT COUNT(*) FROM keyword_suggestions"
+                f" WHERE status='pending' AND target_key NOT IN ({missing})",
+                args,
+            ).fetchone()[0]
+        )
+        pins = int(
+            connection.execute(
+                f"SELECT COUNT(*) FROM keyword_pin_suggestions"
+                f" WHERE status='pending' AND key NOT IN ({missing})",
+                args,
+            ).fetchone()[0]
+        )
+    finally:
+        connection.close()
+    if dry_run or scanned + merges + pins == 0:
+        return scanned, merges, pins
+    with database.transaction() as connection:
+        connection.execute(
+            f"DELETE FROM keyword_suggestion_scanned WHERE normalized NOT IN ({missing})", args
+        )
+        connection.execute(
+            f"""
+            UPDATE keyword_suggestions SET status='dismissed', resolved_at=?
+            WHERE status='pending' AND target_key NOT IN ({missing})
+            """,
+            (timestamp, *args),
+        )
+        connection.execute(
+            f"""
+            UPDATE keyword_pin_suggestions SET status='dismissed', resolved_at=?
+            WHERE status='pending' AND key NOT IN ({missing})
+            """,
+            (timestamp, *args),
+        )
+    return scanned, merges, pins

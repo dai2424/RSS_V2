@@ -150,3 +150,46 @@ def test_dismissed_candidate_is_not_suggested_again(client: TestClient) -> None:
     again = suggest(client)
     assert again["picks"] == 0
     assert len(pin_suggestions(client, status="dismissed")) == 1
+
+
+@respx.mock
+def test_purge_clears_stale_state_but_keeps_message_keywords(client: TestClient) -> None:
+    """清理只动词表状态：写法和目标已不在词表里的行被清掉，消息级关键词一行不少。"""
+
+    fake = PinProvider(picks=["AWS"])
+    seeded(client, fake, "https://pin-purge.test/feed")
+    suggest(client)
+    connection = client.app.state.container.database.connect()
+    try:
+        # 造一条"写法已经不在词表里"的扫描记账与一条过期建议，模拟消息被删/写法被合并掉。
+        connection.execute(
+            "INSERT INTO keyword_suggestion_scanned(normalized,scanned_at) VALUES('已消失的词',1)"
+        )
+        connection.execute(
+            """
+            INSERT INTO keyword_pin_suggestions(
+                key,text,rationale,status,weeks,created_at,resolved_at
+            )
+            VALUES('已消失的词','已消失的词','','pending',3,1,NULL)
+            """
+        )
+    finally:
+        connection.close()
+
+    preview = client.post("/api/keywords/purge-state", json={"dry_run": True}).json()
+    assert (preview["scanned"], preview["pin_suggestions"]) == (1, 1)
+
+    purged = client.post("/api/keywords/purge-state", json={"dry_run": False}).json()
+    assert (purged["scanned"], purged["pin_suggestions"]) == (1, 1)
+    # 幂等：再清一次没有可清的。
+    assert client.post("/api/keywords/purge-state", json={}).json() == {
+        "scanned": 0,
+        "merge_suggestions": 0,
+        "pin_suggestions": 0,
+    }
+    # 消息级关键词一行未动（清理只碰词表状态）。
+    connection = client.app.state.container.database.connect()
+    try:
+        assert connection.execute("SELECT COUNT(*) FROM enrichment_keywords").fetchone()[0] > 0
+    finally:
+        connection.close()

@@ -213,6 +213,14 @@ for (const width of [1280, 1920]) {
       page.getByRole("row").filter({ hasText: "计算平台" }),
     ).toHaveCount(0);
 
+    // 清理词表状态：入口在页面右上角的维护区，先预览再执行。
+    await page.getByRole("button", { name: "清理词表状态" }).click();
+    const purgeDialog = page.getByRole("dialog", { name: "清理词表状态" });
+    await expect(purgeDialog).toBeVisible();
+    await expect(purgeDialog.getByText(/^预览：扫描记账/)).toBeVisible();
+    await purgeDialog.getByRole("button", { name: "取消" }).click();
+    await expect(purgeDialog).toBeHidden();
+
     await expect(page.locator("body")).toHaveJSProperty("scrollWidth", width);
     expect(errors).toEqual([]);
   });

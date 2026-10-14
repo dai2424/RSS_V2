@@ -93,6 +93,8 @@ class KeywordSuggestionService:
         否则两次执行之间词表变了，模型看到的和记账的就不是同一批词。
         """
 
+        # 入队时顺手清一次过期状态：扫描队列与建议列表不该挂着已经不在词表里的词。
+        self.purge()
         prompt = self._active_prompt()
         batch_size = self._batch_size(size)
         batches = self._scan_batches(max(1, min(count, MAX_ENQUEUE)), batch_size)
@@ -209,6 +211,16 @@ class KeywordSuggestionService:
         )
         self.tasks.complete(task.id, lease_token=task.lease_token)
         return batch
+
+    def purge(self, dry_run: bool = False) -> tuple[int, int, int]:
+        """清理过期状态：写法已不在词表里的扫描记账与待处理建议。"""
+
+        dirty = self.suggestions.purge_state(now(), dry_run)
+        if not dry_run and sum(dirty) > 0:
+            logger.info(
+                "keyword_state_purged scanned=%d merges=%d pins=%d", dirty[0], dirty[1], dirty[2]
+            )
+        return dirty
 
     def status(self) -> SuggestionStatus:
         """任务进度与待确认数量；界面据此显示进度并决定是否轮询。"""
