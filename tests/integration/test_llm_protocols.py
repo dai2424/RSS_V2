@@ -211,6 +211,38 @@ def test_anthropic_messages_enrichment_and_error_mapping(client: TestClient) -> 
     assert keys[0]["cooldown_until"] is not None
 
 
+@respx.mock
+def test_anthropic_messages_reports_truncated_output_separately(client: TestClient) -> None:
+    """输出被 max_tokens 截断时给专门的错误码：这是"批次太大/上限太小"，不是格式不合规。"""
+
+    def reply(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        if "[task: keyword_merge_suggest" in str(body.get("system", "")):
+            # 真实故障现场：JSON 写到一半就到了输出上限。
+            return httpx.Response(
+                200,
+                json={
+                    "content": [{"type": "text", "text": '{"groups":[{"terms":["AWS",'}],
+                    "stop_reason": "max_tokens",
+                    "usage": {"input_tokens": 11, "output_tokens": 7},
+                },
+            )
+        return messages_reply({"title": "中文标题", "summary": "中文摘要", "content": "中文正文"})
+
+    respx.post("https://llm.test/v1/messages").mock(side_effect=reply)
+    container: Container = client.app.state.container
+    provider_id = api_provider(client)
+    provider = container.llm_config.get_provider(provider_id)
+    assert provider is not None
+    adapter = AnthropicMessagesProvider()
+    with pytest.raises(ExternalServiceError) as captured:
+        adapter.suggest_merges(
+            provider, "test-model", "secret-main", PromptPayload("系统", "用户"), "merge-suggest-v1"
+        )
+    assert captured.value.code == "llm_output_truncated"
+    assert "截断" in captured.value.message
+
+
 def test_protocol_router_dispatches_and_rejects_unknown() -> None:
     """按 Provider 的协议取值分发；未注册协议明确报错，不回退默认实现。"""
 

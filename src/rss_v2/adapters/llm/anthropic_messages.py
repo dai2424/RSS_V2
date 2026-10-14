@@ -52,8 +52,18 @@ ANTHROPIC_VERSION = "2023-06-01"
 #: 8192 是各代 Claude 模型都支持的上限，译文与摘要都用不到更多。
 MAX_OUTPUT_TOKENS = 8192
 
-#: 协议里"正常结束"的取值；其余（如 max_tokens）说明输出被截断，需要写进错误信息。
+#: 合并建议的输出上限：这个任务要在一批词表里判断同指，带上思考后 8192 实测不够
+#: （2026-10-14 真实调用连续两次在 48 秒处被截断）。上限被上游拒绝时回退到默认值。
+#:
+#: 试过给这个任务发 `thinking: {"type": "disabled"}`：快 15 倍、省 25 倍 token，
+#: 但模型退化成按前缀配对（把「Dots」和「Dots 获得重大升级」当同指），因此保留思考。
+SUGGESTION_MAX_TOKENS = 32768
+
+#: 协议里"正常结束"的取值；其余取值说明输出被截断，需要写进错误信息。
 NORMAL_STOP = "end_turn"
+
+#: 输出达到 max_tokens 而停下的标记；此时 JSON 往往是不完整的。
+TRUNCATED_STOP = "max_tokens"
 
 #: 探测请求的输出上限：只要一句话，开小一点更快也更省。
 PROBE_MAX_TOKENS = 64
@@ -160,6 +170,7 @@ class AnthropicMessagesProvider:
             TaskType.KEYWORD_MERGE_SUGGEST.value,
             prompt_version,
             KeywordSuggestionsResponse,
+            max_tokens=SUGGESTION_MAX_TOKENS,
         )
         groups = tuple(
             SuggestedGroup(members=tuple(item.terms), target=item.target, rationale=item.rationale)
@@ -222,14 +233,15 @@ class AnthropicMessagesProvider:
         task_kind: str,
         prompt_version: str,
         schema: type[SchemaT],
+        max_tokens: int = MAX_OUTPUT_TOKENS,
     ) -> tuple[SchemaT, dict[str, int], int]:
-        """发送一次结构化请求并校验响应；翻译与加工共用同一协议边界。"""
+        """发送一次结构化请求并校验响应；翻译、加工与建议共用同一协议边界。"""
 
         endpoint = provider.base_url.rstrip("/") + "/messages"
         headers = self._headers(provider, secret)
         payload: dict[str, Any] = {
             "model": model,
-            "max_tokens": MAX_OUTPUT_TOKENS,
+            "max_tokens": max_tokens,
             "system": system_message(prompt, task_kind, prompt_version),
             "messages": [{"role": "user", "content": prompt.user}],
             "temperature": 0.2,
@@ -237,14 +249,16 @@ class AnthropicMessagesProvider:
         started = time.perf_counter()
         response = post_json(endpoint, headers, payload, provider.timeout_seconds)
         if response.status_code == 400:
-            # 兼容网关常拒绝可选参数（temperature / max_tokens 上限）；去掉可选参数重试一次，
-            # 结构化输出仍由 Pydantic 校验和有限重试兜底。
+            # 兼容网关常拒绝可选参数（temperature、超过模型上限的 max_tokens）；
+            # 去掉可选参数并把输出上限退回默认值重试一次，结构化输出仍由校验与有限重试兜底。
             logging.getLogger(__name__).info(
                 "llm_optional_params_rejected protocol=anthropic_messages model=%s detail=%s",
                 model,
                 error_detail(response, secret),
             )
             retry_payload = {key: value for key, value in payload.items() if key != "temperature"}
+            # 输出上限退回默认值：超限的取值本身可能就是这次 400 的原因。
+            retry_payload["max_tokens"] = min(max_tokens, MAX_OUTPUT_TOKENS)
             response = post_json(endpoint, headers, retry_payload, provider.timeout_seconds)
         duration_ms = int((time.perf_counter() - started) * 1000)
         raise_for_status(response, secret)
@@ -269,6 +283,12 @@ class AnthropicMessagesProvider:
             detail = validation_detail(
                 exc, raw_content or response.text, secret, _truncation(stop_reason)
             )
+            if stop_reason == TRUNCATED_STOP:
+                # 截断与"格式不合规"是两回事：前者要缩小批次或提高上限，后者要改提示词。
+                raise ExternalServiceError(
+                    "llm_output_truncated",
+                    f"模型回答被输出长度上限截断，内容不完整：{detail}",
+                ) from exc
             raise ExternalServiceError(
                 "llm_invalid_output", f"模型返回的结构无法校验：{detail}"
             ) from exc

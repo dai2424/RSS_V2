@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import re
 from dataclasses import dataclass
 
 from rss_v2.domain import (
@@ -40,8 +41,14 @@ logger = logging.getLogger(__name__)
 #: 单批最大词数：再大就会让一次调用的输出难以核对，也容易超出上下文。
 MAX_BATCH = 100
 
+#: 批次文本每行是「- 写法（类型）」；模型常把类型标注一起抄回来。
+#: 标注是我们自己渲染上去的，不属于写法，回查前先剥掉。
+_BATCH_LABEL = re.compile(r"^(.+?)\s*（(?:实体|主题|事件)）$")
+
 #: 默认批次大小：界面不带参数时用它，批次台账的切分也按它走。
-DEFAULT_BATCH_SIZE = 60
+#: 20 是实测值：模型的思考长度随批次增长，60 个词会同时逼近输出上限与 Provider 超时
+#: （默认 60 秒）；20 个词实测约 40 秒，留出余量。这个任务不吃批量，吃判断质量。
+DEFAULT_BATCH_SIZE = 20
 
 
 @dataclass(slots=True)
@@ -216,7 +223,7 @@ class KeywordSuggestionService:
 
         resolved: dict[str, Keyword] = {}
         for term in group.members:
-            normalized = normalize_keyword(term)
+            normalized = normalize_keyword(_strip_label(term))
             if not normalized:
                 continue
             key = self.keywords.resolve_key(normalized)
@@ -235,6 +242,13 @@ class KeywordSuggestionService:
             if any(item.normalized == key for item in members):
                 return key
         return members[0].normalized
+
+
+def _strip_label(term: str) -> str:
+    """去掉模型抄回来的类型标注；没有标注时原样返回。"""
+
+    match = _BATCH_LABEL.match(term.strip())
+    return match.group(1) if match else term
 
 
 def _batch_text(entries: list[KeywordEntry]) -> str:
