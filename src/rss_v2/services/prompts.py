@@ -16,6 +16,7 @@ from rss_v2.domain import (
     DiscoveryDigest,
     DomainError,
     EnrichmentResult,
+    MaterialDigest,
     Prompt,
     PromptSample,
     PromptTest,
@@ -251,6 +252,17 @@ class PromptService:
         if task_kind == TaskType.KEYWORD_MERGE_SUGGEST.value:
             return self.provider.suggest_merges(
                 provider, model_name, secret, payload, prompt_version
+            )
+        if task_kind == TaskType.DIGEST_MATERIALS.value:
+            # 试跑只验证模板能否产出通过 schema 的事实清单；真实输入由整理任务渲染。
+            return self.provider.structured(
+                provider,
+                model_name,
+                secret,
+                payload,
+                prompt_version,
+                TaskType.DIGEST_MATERIALS.value,
+                MaterialDigest,
             )
         if task_kind == TaskType.DISCOVER_EVENTS.value:
             # 试跑只验证"这份模板能不能让模型给出通过 schema 的候选"；

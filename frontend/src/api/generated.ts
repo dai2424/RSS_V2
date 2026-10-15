@@ -817,6 +817,70 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/projects/{project_id}/facts": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Digest Detail
+     * @description 事实、证据、分歧与缺口；默认返回最新版本。
+     */
+    get: operations["digest_detail_api_projects__project_id__facts_get"];
+    put?: never;
+    /**
+     * Create Digest
+     * @description 发起资料整理：把已读资料整理成事实、分歧与缺口。
+     */
+    post: operations["create_digest_api_projects__project_id__facts_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/projects/{project_id}/digest-runs": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Digest History
+     * @description 历史资料包版本（新到旧），用于查看旧依据。
+     */
+    get: operations["digest_history_api_projects__project_id__digest_runs_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/projects/{project_id}/notes/{note_id}/resolve": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Resolve Note
+     * @description 标记缺口/分歧已处理；重复调用幂等。
+     */
+    post: operations["resolve_note_api_projects__project_id__notes__note_id__resolve_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/tasks/{task_id}": {
     parameters: {
       query?: never;
@@ -1349,6 +1413,49 @@ export interface components {
       reply: string;
     };
     /**
+     * DigestHistoryResponse
+     * @description 历史整理版本列表（新到旧）。
+     */
+    DigestHistoryResponse: {
+      /** Items */
+      items: components["schemas"]["DigestRunResponse"][];
+    };
+    /**
+     * DigestResponse
+     * @description 一次整理的完整视图。
+     */
+    DigestResponse: {
+      run: components["schemas"]["DigestRunResponse"];
+      /** Facts */
+      facts: components["schemas"]["FactResponse"][];
+      /** Notes */
+      notes: components["schemas"]["NoteResponse"][];
+      /** Has Blocking */
+      has_blocking: boolean;
+      /** Task Status */
+      task_status: string | null;
+    };
+    /**
+     * DigestRunResponse
+     * @description 资料包版本：输入指纹与各类计数。
+     */
+    DigestRunResponse: {
+      /** Id */
+      id: string;
+      /** Materials Hash */
+      materials_hash: string;
+      /** Task Id */
+      task_id: string | null;
+      /** Counts */
+      counts: {
+        [key: string]: number;
+      };
+      /** Notes */
+      notes: string[];
+      /** Created At */
+      created_at: number;
+    };
+    /**
      * DiscoveryBatchDetailResponse
      * @description 批次详情：批次本体 + 候选列表。
      */
@@ -1550,6 +1657,40 @@ export interface components {
       created_at: number;
       /** Updated At */
       updated_at: number;
+    };
+    /**
+     * EvidenceResponse
+     * @description 一条支持证据：引文 + 它来自哪份资料。
+     */
+    EvidenceResponse: {
+      /** Id */
+      id: string;
+      /** Material Id */
+      material_id: string;
+      /** Quote */
+      quote: string;
+      /** Locator */
+      locator: number;
+      /** Quote Hash */
+      quote_hash: string;
+    };
+    /**
+     * FactResponse
+     * @description 一条事实/分析/推测，带状态与支持证据。
+     */
+    FactResponse: {
+      /** Id */
+      id: string;
+      /** Kind */
+      kind: string;
+      /** Statement */
+      statement: string;
+      /** Status */
+      status: string;
+      /** Conflict Note */
+      conflict_note: string;
+      /** Evidence */
+      evidence: components["schemas"]["EvidenceResponse"][];
     };
     /** HTTPValidationError */
     HTTPValidationError: {
@@ -2377,6 +2518,31 @@ export interface components {
       enrichments: components["schemas"]["EnrichmentResponse"][];
       translation_task?: components["schemas"]["TaskResponse"] | null;
       enrichment_task?: components["schemas"]["TaskResponse"] | null;
+    };
+    /**
+     * NoteResolutionResponse
+     * @description 待办处理结果。
+     */
+    NoteResolutionResponse: {
+      note: components["schemas"]["NoteResponse"];
+    };
+    /**
+     * NoteResponse
+     * @description 缺口/分歧待办；blocking 表示未处理前不该进提纲。
+     */
+    NoteResponse: {
+      /** Id */
+      id: string;
+      /** Kind */
+      kind: string;
+      /** Text */
+      text: string;
+      /** Fact Id */
+      fact_id: string | null;
+      /** Blocking */
+      blocking: boolean;
+      /** Resolved At */
+      resolved_at: number | null;
     };
     /**
      * PinSuggestionBatchResponse
@@ -4805,7 +4971,10 @@ export interface operations {
   };
   create_materials_api_projects__project_id__materials_post: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description 重新获取资料（不做同输入去重） */
+        force?: boolean;
+      };
       header?: never;
       path: {
         project_id: string;
@@ -4853,6 +5022,139 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["MaterialDetailResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  digest_detail_api_projects__project_id__facts_get: {
+    parameters: {
+      query?: {
+        /** @description 指定资料包版本；默认最新 */
+        run_id?: string | null;
+      };
+      header?: never;
+      path: {
+        project_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["DigestResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  create_digest_api_projects__project_id__facts_post: {
+    parameters: {
+      query?: {
+        /** @description 重新整理（同一资料包也新起版本） */
+        force?: boolean;
+      };
+      header?: never;
+      path: {
+        project_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["TaskResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  digest_history_api_projects__project_id__digest_runs_get: {
+    parameters: {
+      query?: {
+        limit?: number;
+      };
+      header?: never;
+      path: {
+        project_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["DigestHistoryResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  resolve_note_api_projects__project_id__notes__note_id__resolve_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: string;
+        note_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["NoteResolutionResponse"];
         };
       };
       /** @description Validation Error */
@@ -4932,7 +5234,7 @@ export interface operations {
     parameters: {
       query?: {
         status?: string | null;
-        /** @description 任务类型：采集、翻译、内容加工、合并建议、选题发现或资料准备 */
+        /** @description 任务类型：采集、翻译、内容加工、合并建议、选题发现、资料准备或资料整理 */
         task_type?: string | null;
         /** @description 来源：采集任务看任务快照，消息任务看所属来源 */
         source_id?: string | null;

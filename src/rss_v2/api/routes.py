@@ -3,6 +3,7 @@
 from .routers.categories import categories_router
 from .routers.collection import collection_router
 from .routers.discovery import discovery_router, projects_router
+from .routers.facts import facts_router
 from .routers.keyword_pin_suggestions import pin_suggestions_router
 from .routers.keyword_suggestions import suggestions_router
 from .routers.keywords import keywords_router
@@ -17,6 +18,7 @@ from .routers.tasks import tasks_router
 __all__ = [
     "categories_router",
     "discovery_router",
+    "facts_router",
     "materials_router",
     "projects_router",
     "sources_router",

@@ -121,6 +121,7 @@ def _project(row: sqlite3.Row) -> WritingProject:
         title=str(row["title"]),
         status=str(row["status"]),
         materials_summary_json=str(row["materials_summary_json"] or "{}"),
+        digest_summary_json=str(row["digest_summary_json"] or "{}"),
         created_at=int(row["created_at"]),
         updated_at=int(row["updated_at"]),
     )
@@ -526,6 +527,23 @@ class SQLiteWritingProjectRepository:
             cursor = connection.execute(
                 "UPDATE writing_projects SET status=?, updated_at=? WHERE id=?",
                 (status, timestamp, project_id),
+            )
+            return cursor.rowcount if cursor.rowcount > 0 else 0
+
+    def set_digest_summary(
+        self,
+        project_id: str,
+        status: str,
+        summary_json: str,
+        timestamp: int,
+        lease: TaskLease | None = None,
+    ) -> int:
+        with self.database.transaction() as connection:
+            ensure_lease(connection, lease)
+            cursor = connection.execute(
+                "UPDATE writing_projects SET status=?, digest_summary_json=?, updated_at=?"
+                " WHERE id=?",
+                (status, summary_json, timestamp, project_id),
             )
             return cursor.rowcount if cursor.rowcount > 0 else 0
 

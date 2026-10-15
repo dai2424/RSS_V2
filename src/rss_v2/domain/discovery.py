@@ -154,6 +154,7 @@ class WritingProject:
     title: str  # 项目标题
     status: str  # 取值见 ProjectStatus
     materials_summary_json: str = "{}"  # 资料准备的结果摘要（检索式、计数、缺口）
+    digest_summary_json: str = "{}"  # 资料整理的摘要（版本、计数、未处理阻塞数）
     created_at: int = 0  # 创建时间，UTC 秒
     updated_at: int = 0  # 最近更新时间，UTC 秒
 

@@ -69,9 +69,13 @@ _META_CHARSET = re.compile(rb"""<meta[^>]+charset=["']?([\w-]+)""", re.IGNORECAS
 class HTTPXArticleReader:
     """抓取网页并抽取正文；失败以 `ArticleRead.status` 返回，不抛异常。"""
 
-    def __init__(self, timeout_seconds: float, max_bytes: int) -> None:
+    def __init__(
+        self, timeout_seconds: float, max_bytes: int, allow_private_hosts: bool = False
+    ) -> None:
         self.timeout_seconds = timeout_seconds
         self.max_bytes = max_bytes
+        # 默认拒绝本机/内网地址；夹具或内网资料源可以显式打开（配置项）。
+        self.allow_private_hosts = allow_private_hosts
 
     def read(self, url: str) -> ArticleRead:
         started = time.perf_counter()
@@ -165,8 +169,7 @@ class HTTPXArticleReader:
                 raise _ReadFailure(ARTICLE_HTTP_ERROR, "网络请求失败") from exc
         raise _ReadFailure(ARTICLE_HTTP_ERROR, f"重定向超过 {MAX_REDIRECTS} 跳")
 
-    @staticmethod
-    def _ensure_allowed(url: str) -> None:
+    def _ensure_allowed(self, url: str) -> None:
         """协议与地址白名单：非 http/https、解析到私网或回环一律拒绝。"""
 
         parts = urlsplit(url)
@@ -176,6 +179,8 @@ class HTTPXArticleReader:
             addresses = _resolve(parts.hostname)
         except OSError as exc:
             raise _ReadFailure(ARTICLE_HTTP_ERROR, "域名解析失败") from exc
+        if self.allow_private_hosts:
+            return
         for address in addresses:
             if _is_internal(ipaddress.ip_address(address)):
                 raise _ReadFailure(SSRF_BLOCKED, "地址指向本机或内网，已拒绝读取")

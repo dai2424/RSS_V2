@@ -12,6 +12,9 @@ export function runWorkerOnce() {
       env: {
         ...process.env,
         RSS_RUNTIME_DIR: resolve("../runtime/e2e"),
+        // 夹具：worker 子进程自己构造配置，也要指向夹具检索端点、允许读本机原文页。
+        RSS_SEARCH_BASE_URL: "http://127.0.0.1:8877/fixtures",
+        RSS_ARTICLE_ALLOW_PRIVATE_HOSTS: "true",
       },
       stdio: "pipe",
     },

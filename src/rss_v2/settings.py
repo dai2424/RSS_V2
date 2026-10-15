@@ -70,6 +70,15 @@ class Settings(BaseSettings):
     article_max_bytes: int = Field(default=2_000_000, ge=50_000, le=10_000_000)
     materials_max_queries: int = Field(default=3, ge=1, le=10)
     materials_max_reads: int = Field(default=12, ge=1, le=50)
+    # 资料整理（阶段 4 P3b）：输入长度与事实条数上限。正文按单份截断后再拼接，
+    # 总长度受 materials_digest_max_input_chars 约束；超限不静默丢资料（截断处可追溯）。
+    materials_digest_max_input_chars: int = Field(default=80000, ge=10000, le=400000)
+    digest_material_chars: int = Field(default=4000, ge=500, le=20000)
+    digest_max_facts: int = Field(default=40, ge=1, le=200)
+    digest_max_evidence_per_fact: int = Field(default=4, ge=1, le=10)
+    # 允许读取私网/本机地址：仅本机夹具（preview）或内网资料源使用；默认关闭，
+    # 生产环境必须保持拒绝，避免检索结果把应用当成内网代理。
+    article_allow_private_hosts: bool = False
 
     @classmethod
     def settings_customise_sources(

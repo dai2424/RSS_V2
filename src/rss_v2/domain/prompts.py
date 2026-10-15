@@ -89,6 +89,15 @@ TASK_SPECS: dict[TaskType, TaskSpec] = {
         # 输入是某个选题，按来源分配没有意义：直接用当前生效版本。
         assignable=False,
     ),
+    TaskType.DIGEST_MATERIALS: TaskSpec(
+        kind=TaskType.DIGEST_MATERIALS,
+        label="资料整理",
+        variables=("title", "summary", "materials"),
+        required_variables=("title", "materials"),
+        output_fields=("facts", "conflicts", "gaps"),
+        # 输入是某个选题的资料包，按来源分配没有意义：直接用当前生效版本。
+        assignable=False,
+    ),
 }
 
 #: 编译预览使用的样例取值；没有真实消息时也能看到渲染结果。
@@ -108,6 +117,8 @@ SAMPLE_VALUES: dict[str, str] = {
     "message_count": "1",
     # 资料准备的编译预览：真实取值由服务层按项目成员渲染。
     "members": "1. 尊界 V800 制动测试引争议（来源：风向旗参考快讯，2026-10-08 10:41 上海）",
+    # 资料整理的编译预览：真实取值由服务层按已读资料渲染。
+    "materials": "[材料 material-1] 懂车帝实测报道（量子位）\n正文：示例正文。",
 }
 
 

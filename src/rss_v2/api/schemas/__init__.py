@@ -29,6 +29,15 @@ from .discovery import (
     ProjectListResponse,
     ProjectResponse,
 )
+from .facts import (
+    DigestHistoryResponse,
+    DigestResponse,
+    DigestRunResponse,
+    EvidenceResponse,
+    FactResponse,
+    NoteResolutionResponse,
+    NoteResponse,
+)
 from .keywords import (
     KeywordBackfillRequest,
     KeywordBackfillResponse,
@@ -123,6 +132,13 @@ from .messages import (
 from .pagination import Page
 
 __all__ = [
+    "DigestHistoryResponse",
+    "DigestResponse",
+    "DigestRunResponse",
+    "EvidenceResponse",
+    "FactResponse",
+    "NoteResolutionResponse",
+    "NoteResponse",
     "MaterialDetailResponse",
     "MaterialListResponse",
     "MaterialQueryResponse",

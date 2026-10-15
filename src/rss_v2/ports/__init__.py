@@ -4,6 +4,7 @@ from rss_v2.llm import LLMProvider
 
 from .discovery import DiscoveryRepository, MessageScopeReader, WritingProjectRepository
 from .external import FeedClient
+from .facts import FactRepository
 from .materials import MaterialRepository
 from .repositories import (
     CategoryRepository,
@@ -35,6 +36,7 @@ __all__ = [
     "KeywordRepository",
     "LeadRepository",
     "ArticleReader",
+    "FactRepository",
     "MaterialRepository",
     "MessageScopeReader",
     "SearchClient",

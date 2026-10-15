@@ -1,7 +1,10 @@
+import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { Badge, Card, PageHeader } from "../../components/ui";
 import { formatTime } from "../../lib/display";
+import { FactsPanel } from "./FactsPanel";
 import { useProjectDetail } from "./hooks";
+import { MaterialsPanel } from "./MaterialsPanel";
 
 /** 写作项目状态的中文说明；后续阶段会在同一状态机上继续推进。 */
 const STATUS_LABELS: Record<string, string> = {
@@ -14,13 +17,14 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 /**
- * 写作项目：已选定的事件与成员，以及后续步骤的说明。
+ * 写作项目工作台：分区展示资料、事实与核对。
  *
- * 资料准备、提纲与全文生成属于阶段 4 的后续任务（P3a 起）；在它们实现之前，
- * 这里只展示已有的真实数据，不放置不可用的按钮。
+ * 提纲与全文属于后续任务（P4/P5）；在它们实现之前这里只展示已有的真实数据，
+ * 不放置不可用的按钮。所有状态来自服务端，失败保留原因与重试入口。
  */
 export function ProjectPage() {
   const { projectId = "" } = useParams();
+  const [section, setSection] = useState<"materials" | "facts">("materials");
   const detail = useProjectDetail(projectId);
 
   if (detail.isLoading) return <div className="loading">正在加载写作项目…</div>;
@@ -39,7 +43,7 @@ export function ProjectPage() {
   }
   const { project, members } = detail.data;
   return (
-    <div className="page page-reading">
+    <div className="page page-wide">
       <PageHeader
         title={project.title}
         description={`状态：${STATUS_LABELS[project.status] ?? project.status} · 事件成员 ${members.length} 篇`}
@@ -50,10 +54,6 @@ export function ProjectPage() {
         }
       />
       <Card className="card-pad">
-        <div className="alert">
-          资料准备、提纲确认与全文生成在后续任务中实现；当前只记录选题与事件成员，
-          这些内容不会因为消息更新而改变（成员锁定在选题时的版本）。
-        </div>
         <h2>事件成员（{members.length}）</h2>
         <ol className="related-list">
           {members.map((member) => (
@@ -74,6 +74,39 @@ export function ProjectPage() {
             </li>
           ))}
         </ol>
+        <p className="muted">
+          成员锁定在选题时的版本：消息后来更新不影响这里的材料与依据。
+        </p>
+      </Card>
+      <div className="toolbar" role="tablist" aria-label="工作台分区">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={section === "materials"}
+          className={section === "materials" ? "button" : "button secondary"}
+          onClick={() => setSection("materials")}
+        >
+          资料
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={section === "facts"}
+          className={section === "facts" ? "button" : "button secondary"}
+          onClick={() => setSection("facts")}
+        >
+          事实与核对
+        </button>
+      </div>
+      {section === "materials" ? (
+        <MaterialsPanel projectId={projectId} />
+      ) : (
+        <FactsPanel projectId={projectId} />
+      )}
+      <Card className="card-pad">
+        <p className="muted">
+          提纲确认与全文生成属于后续任务，当前不在这个页面提供入口；先把资料与事实核对清楚。
+        </p>
       </Card>
     </div>
   );

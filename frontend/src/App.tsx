@@ -48,7 +48,7 @@ const DiscoverDetail = lazy(() =>
   })),
 );
 const Project = lazy(() =>
-  import("./features/discovery/ProjectPage").then((m) => ({
+  import("./features/projects/ProjectPage").then((m) => ({
     default: m.ProjectPage,
   })),
 );

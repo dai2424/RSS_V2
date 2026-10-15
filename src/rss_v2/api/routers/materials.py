@@ -6,7 +6,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Request, status
+from fastapi import APIRouter, Query, Request, status
 
 from rss_v2.api.material_presenters import (
     material_detail_response,
@@ -30,10 +30,14 @@ def _service(request: Request):
 @materials_router.post(
     "/{project_id}/materials", response_model=TaskResponse, status_code=status.HTTP_202_ACCEPTED
 )
-def create_materials(project_id: str, request: Request) -> TaskResponse:
+def create_materials(
+    project_id: str,
+    request: Request,
+    force: bool = Query(default=False, description="重新获取资料（不做同输入去重）"),
+) -> TaskResponse:
     """发起资料准备：检索式生成 → 读原文 → 联网补充 → 去重落库。"""
 
-    task, _reused = _service(request).create(project_id)
+    task, _reused = _service(request).create(project_id, force)
     return task_response(task)
 
 

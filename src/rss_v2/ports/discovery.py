@@ -119,6 +119,17 @@ class WritingProjectRepository(Protocol):
         """推进项目状态，返回更新行数（只允许向前推进由用例层保证）。"""
         ...
 
+    def set_digest_summary(
+        self,
+        project_id: str,
+        status: str,
+        summary_json: str,
+        timestamp: int,
+        lease: TaskLease | None = None,
+    ) -> int:
+        """写入资料整理的摘要并推进状态（与资料准备同一套写法）。"""
+        ...
+
     def set_materials_summary(
         self,
         project_id: str,

@@ -143,7 +143,7 @@ for (const width of [1280, 1920]) {
       page.getByText(/状态：待准备资料 · 事件成员 1 篇/),
     ).toBeVisible();
     await expect(
-      page.getByText(/资料准备、提纲确认与全文生成在后续任务中实现/),
+      page.getByText(/提纲确认与全文生成属于后续任务/),
     ).toBeVisible();
     const projectUrl = page.url();
     await page.reload();

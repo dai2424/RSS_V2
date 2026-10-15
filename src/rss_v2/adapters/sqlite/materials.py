@@ -113,6 +113,18 @@ class SQLiteMaterialRepository:
         finally:
             connection.close()
 
+    def list_with_content(self, project_id: str) -> list[Material]:
+        connection = self.database.connect()
+        try:
+            rows = connection.execute(
+                "SELECT * FROM project_materials WHERE project_id=?"
+                " ORDER BY fetched_at, created_at, rowid",
+                (project_id,),
+            ).fetchall()
+            return [_material(row) for row in rows]
+        finally:
+            connection.close()
+
     def get(self, material_id: str) -> Material | None:
         connection = self.database.connect()
         try:

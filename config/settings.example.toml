@@ -47,3 +47,14 @@ article_max_bytes = 2000000
 # 每个项目的检索式条数与网络读取条数上限；超限的候选会落成"未读取"并在摘要里说明。
 materials_max_queries = 3
 materials_max_reads = 12
+
+# 资料整理（阶段 4 P3b）：把已读资料整理成事实/分歧/缺口。
+# 单份资料放进提示词的正文长度、输入总长度与事实条数上限；引文必须能在资料里定位，
+# 找不到的引文会丢弃并计数（不会当成"有依据"）。
+materials_digest_max_input_chars = 80000
+digest_material_chars = 4000
+digest_max_facts = 40
+digest_max_evidence_per_fact = 4
+# 允许读取本机/内网地址：仅本机夹具（tests/preview.py）或内网资料源使用；
+# 默认 false，生产环境必须保持 false，避免检索结果把应用当成内网代理。
+article_allow_private_hosts = false

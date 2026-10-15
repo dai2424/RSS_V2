@@ -54,3 +54,40 @@ class MaterialQueries(BaseModel):
     """资料准备的检索式列表（数量上限由服务层按预算截断）。"""
 
     queries: list[MaterialQuerySchema]
+
+
+class FactSupportSchema(BaseModel):
+    """一条引文候选：模型必须原样摘录资料正文里的片段。"""
+
+    material_id: str
+    quote: str
+
+
+class FactSchema(BaseModel):
+    """一条关键事实/分析/推测及其引文。"""
+
+    statement: str
+    kind: str = "fact"  # fact / analysis / speculation；服务层归一化
+    supports: list[FactSupportSchema] = []
+
+
+class ConflictSchema(BaseModel):
+    """资料之间的分歧：涉及第几条 facts（从 0 开始）。"""
+
+    text: str
+    statement_indexes: list[int] = []
+
+
+class GapSchema(BaseModel):
+    """关键信息缺口；blocking=true 表示不解决就不该动笔写主线。"""
+
+    text: str
+    blocking: bool = False
+
+
+class MaterialDigest(BaseModel):
+    """一次资料整理的完整输出。"""
+
+    facts: list[FactSchema]
+    conflicts: list[ConflictSchema] = []
+    gaps: list[GapSchema] = []

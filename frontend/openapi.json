@@ -2592,6 +2592,18 @@
               "type": "string",
               "title": "Project Id"
             }
+          },
+          {
+            "name": "force",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "重新获取资料（不做同输入去重）",
+              "default": false,
+              "title": "Force"
+            },
+            "description": "重新获取资料（不做同输入去重）"
           }
         ],
         "responses": {
@@ -2694,6 +2706,227 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/MaterialDetailResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{project_id}/facts": {
+      "post": {
+        "tags": [
+          "facts"
+        ],
+        "summary": "Create Digest",
+        "description": "发起资料整理：把已读资料整理成事实、分歧与缺口。",
+        "operationId": "create_digest_api_projects__project_id__facts_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "force",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "重新整理（同一资料包也新起版本）",
+              "default": false,
+              "title": "Force"
+            },
+            "description": "重新整理（同一资料包也新起版本）"
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "facts"
+        ],
+        "summary": "Digest Detail",
+        "description": "事实、证据、分歧与缺口；默认返回最新版本。",
+        "operationId": "digest_detail_api_projects__project_id__facts_get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "run_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "指定资料包版本；默认最新",
+              "title": "Run Id"
+            },
+            "description": "指定资料包版本；默认最新"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DigestResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{project_id}/digest-runs": {
+      "get": {
+        "tags": [
+          "facts"
+        ],
+        "summary": "Digest History",
+        "description": "历史资料包版本（新到旧），用于查看旧依据。",
+        "operationId": "digest_history_api_projects__project_id__digest_runs_get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 50,
+              "minimum": 1,
+              "default": 10,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DigestHistoryResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{project_id}/notes/{note_id}/resolve": {
+      "post": {
+        "tags": [
+          "facts"
+        ],
+        "summary": "Resolve Note",
+        "description": "标记缺口/分歧已处理；重复调用幂等。",
+        "operationId": "resolve_note_api_projects__project_id__notes__note_id__resolve_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "note_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Note Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoteResolutionResponse"
                 }
               }
             }
@@ -2828,16 +3061,16 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "pattern": "^(collect_source|translate_message|enrich_message|keyword_merge_suggest|discover_events|prepare_materials)$"
+                  "pattern": "^(collect_source|translate_message|enrich_message|keyword_merge_suggest|discover_events|prepare_materials|digest_materials)$"
                 },
                 {
                   "type": "null"
                 }
               ],
-              "description": "任务类型：采集、翻译、内容加工、合并建议、选题发现或资料准备",
+              "description": "任务类型：采集、翻译、内容加工、合并建议、选题发现、资料准备或资料整理",
               "title": "Task Type"
             },
-            "description": "任务类型：采集、翻译、内容加工、合并建议、选题发现或资料准备"
+            "description": "任务类型：采集、翻译、内容加工、合并建议、选题发现、资料准备或资料整理"
           },
           {
             "name": "source_id",
@@ -4334,6 +4567,121 @@
         "title": "ConnectionTestResponse",
         "description": "连接测试响应；只返回密钥掩码与模型回复片段，不返回密钥值。"
       },
+      "DigestHistoryResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DigestRunResponse"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "DigestHistoryResponse",
+        "description": "历史整理版本列表（新到旧）。"
+      },
+      "DigestResponse": {
+        "properties": {
+          "run": {
+            "$ref": "#/components/schemas/DigestRunResponse"
+          },
+          "facts": {
+            "items": {
+              "$ref": "#/components/schemas/FactResponse"
+            },
+            "type": "array",
+            "title": "Facts"
+          },
+          "notes": {
+            "items": {
+              "$ref": "#/components/schemas/NoteResponse"
+            },
+            "type": "array",
+            "title": "Notes"
+          },
+          "has_blocking": {
+            "type": "boolean",
+            "title": "Has Blocking"
+          },
+          "task_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Task Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "run",
+          "facts",
+          "notes",
+          "has_blocking",
+          "task_status"
+        ],
+        "title": "DigestResponse",
+        "description": "一次整理的完整视图。"
+      },
+      "DigestRunResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "materials_hash": {
+            "type": "string",
+            "title": "Materials Hash"
+          },
+          "task_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Task Id"
+          },
+          "counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Counts"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Notes"
+          },
+          "created_at": {
+            "type": "integer",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "materials_hash",
+          "task_id",
+          "counts",
+          "notes",
+          "created_at"
+        ],
+        "title": "DigestRunResponse",
+        "description": "资料包版本：输入指纹与各类计数。"
+      },
       "DiscoveryBatchDetailResponse": {
         "properties": {
           "batch": {
@@ -4932,6 +5280,82 @@
         ],
         "title": "EnrichmentResponse",
         "description": "内容加工结果响应。"
+      },
+      "EvidenceResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "material_id": {
+            "type": "string",
+            "title": "Material Id"
+          },
+          "quote": {
+            "type": "string",
+            "title": "Quote"
+          },
+          "locator": {
+            "type": "integer",
+            "title": "Locator"
+          },
+          "quote_hash": {
+            "type": "string",
+            "title": "Quote Hash"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "material_id",
+          "quote",
+          "locator",
+          "quote_hash"
+        ],
+        "title": "EvidenceResponse",
+        "description": "一条支持证据：引文 + 它来自哪份资料。"
+      },
+      "FactResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "statement": {
+            "type": "string",
+            "title": "Statement"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "conflict_note": {
+            "type": "string",
+            "title": "Conflict Note"
+          },
+          "evidence": {
+            "items": {
+              "$ref": "#/components/schemas/EvidenceResponse"
+            },
+            "type": "array",
+            "title": "Evidence"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "statement",
+          "status",
+          "conflict_note",
+          "evidence"
+        ],
+        "title": "FactResponse",
+        "description": "一条事实/分析/推测，带状态与支持证据。"
       },
       "HTTPValidationError": {
         "properties": {
@@ -6930,6 +7354,72 @@
         ],
         "title": "MessageVersionResponse",
         "description": "消息版本响应。"
+      },
+      "NoteResolutionResponse": {
+        "properties": {
+          "note": {
+            "$ref": "#/components/schemas/NoteResponse"
+          }
+        },
+        "type": "object",
+        "required": [
+          "note"
+        ],
+        "title": "NoteResolutionResponse",
+        "description": "待办处理结果。"
+      },
+      "NoteResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "fact_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fact Id"
+          },
+          "blocking": {
+            "type": "boolean",
+            "title": "Blocking"
+          },
+          "resolved_at": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolved At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "text",
+          "fact_id",
+          "blocking",
+          "resolved_at"
+        ],
+        "title": "NoteResponse",
+        "description": "缺口/分歧待办；blocking 表示未处理前不该进提纲。"
       },
       "PinSuggestionBatchResponse": {
         "properties": {

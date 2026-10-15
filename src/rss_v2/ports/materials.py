@@ -22,6 +22,13 @@ class MaterialRepository(Protocol):
         """项目的资料列表，按获取时间与创建顺序排列。"""
         ...
 
+    def list_with_content(self, project_id: str) -> list[Material]:
+        """带正文的资料列表：资料整理要用正文渲染提示词并校验引文。
+
+        普通列表刻意不带正文（界面按需展开），两者分开避免把整库正文塞进列表响应。
+        """
+        ...
+
     def get(self, material_id: str) -> Material | None:
         """按 id 取资料；不存在返回 None。"""
         ...

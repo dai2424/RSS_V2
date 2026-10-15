@@ -92,7 +92,10 @@ class TaskService:
             return TaskView(task, "vocabulary", "", self._batch_label(task))
         if task.task_type == TaskType.DISCOVER_EVENTS.value:
             return self._discovery_view(task)
-        if task.task_type == TaskType.PREPARE_MATERIALS.value:
+        if task.task_type in (
+            TaskType.PREPARE_MATERIALS.value,
+            TaskType.DIGEST_MATERIALS.value,
+        ):
             return self._project_view(task)
         kind, target_id = self._target(task)
         if not target_id:

@@ -21,7 +21,13 @@ from rss_v2.api.app import create_app  # noqa: E402  必须在 sys.path 调整�
 from rss_v2.api.static import FrontendFiles  # noqa: E402
 from rss_v2.settings import Settings  # noqa: E402
 
-settings = Settings(runtime_dir=ROOT / "runtime/e2e", frontend_dist=ROOT / "runtime/no-dist")
+settings = Settings(
+    runtime_dir=ROOT / "runtime/e2e",
+    frontend_dist=ROOT / "runtime/no-dist",
+    # 仅夹具：资料准备要读取本机 /fixtures/article 页面；正式环境保持拒绝内网。
+    article_allow_private_hosts=True,
+    search_base_url="http://127.0.0.1:8877/fixtures",
+)
 app = create_app(settings)
 
 
@@ -205,9 +211,43 @@ def _discovery_candidates(user_prompt: str) -> dict[str, object]:
     return {"candidates": candidates}
 
 
+#: 资料整理的输入行：[材料 <id>] 标题（来源），正文在下一行。
+_DIGEST_MATERIAL = re.compile(r"^\[材料 ([0-9a-f-]{36})\] ", re.MULTILINE)
+
+
+def _digest_result(user_prompt: str) -> dict[str, object]:
+    """按提示词里的材料与正文生成事实：引文从正文原样截取，服务端一定定位得到。"""
+
+    materials = _DIGEST_MATERIAL.findall(user_prompt)
+    if not materials:
+        return {"facts": [], "conflicts": [], "gaps": []}
+    facts: list[dict[str, object]] = []
+    for material_id in materials[:2]:
+        marker = f"[材料 {material_id}]"
+        after = user_prompt.split(marker, 1)[1]
+        body = after.split("正文：", 1)[1].strip()
+        quote = body[:60].strip()
+        facts.append(
+            {
+                "statement": f"验收事实：{quote[:24]}",
+                "kind": "fact",
+                "supports": [{"material_id": material_id, "quote": quote}],
+            }
+        )
+    return {
+        "facts": facts,
+        "conflicts": [{"text": "验收分歧：厂商声明与测试结论不一致", "statement_indexes": [0]}],
+        "gaps": [{"text": "验收缺口：缺少监管部门的一手通报", "blocking": True}],
+    }
+
+
 def _fixture_content(system_prompt: str, user_prompt: str) -> dict[str, object]:
     """按任务类型标记返回对应结构；两种协议的假端点共用它。"""
 
+    if "[task: prepare_materials" in system_prompt:
+        return {"queries": [{"text": "验收检索式", "purpose": "夹具：中文检索"}]}
+    if "[task: digest_materials" in system_prompt:
+        return _digest_result(user_prompt)
     if "[task: discover_events" in system_prompt:
         return _discovery_candidates(user_prompt)
     if "[task: keyword_merge_suggest" in system_prompt:
@@ -234,6 +274,56 @@ def _fixture_content(system_prompt: str, user_prompt: str) -> dict[str, object]:
         "summary": "计算平台已发布。",
         "content": "这是中文正文。",
     }
+
+
+@app.get("/fixtures/search")
+def fixture_search(request: Request) -> dict[str, object]:
+    """SearXNG 形状的检索结果：命中指向本机夹具页面，便于走通"检索→读取"整条链路。"""
+
+    query = request.query_params.get("q", "")
+    hits = [
+        {
+            "title": "验收：第三方测试报道",
+            "url": "http://127.0.0.1:8877/fixtures/article?doc=test",
+            "content": "夹具摘要：第三方独立测试的报道。",
+            "engine": "fixture",
+            "publishedDate": "None",  # 真实实例在缺失时返回字符串 "None"
+        },
+        {
+            "title": "验收：厂商声明",
+            "url": "http://127.0.0.1:8877/fixtures/article?doc=maker",
+            "content": "夹具摘要：厂商声明页面。",
+            "engine": "fixture",
+        },
+    ]
+    return {
+        "query": query,
+        "results": hits,
+        "unresponsive_engines": [["brave", "too many requests"]],
+    }
+
+
+@app.get("/fixtures/article")
+def fixture_article(request: Request) -> Response:
+    """夹具原文：正文足够长（正文抽取阈值 400 字），两篇内容不同以免被去重。"""
+
+    doc = request.query_params.get("doc", "test")
+    bodies = {
+        "test": (
+            "第三方测试机构在封闭场地对三台尊界 V800 进行了紧急制动测试，"
+            "三台车的刹车踏板支架均在测试中出现断裂，断裂瞬间的踏板力读数约为 1612 牛。"
+        ),
+        "maker": (
+            "尊界汽车回应称，其制动系统按照高于国家标准的要求完成全流程开发与验证，"
+            "在用户实际使用场景中未发生制动踏板支架底座断裂，并将为该部件提供免费升级。"
+        ),
+    }
+    body = bodies.get(doc, bodies["test"]) * 6
+    html = f"""<!doctype html><html><head>
+<meta property="og:title" content="验收原文 {doc}">
+<meta property="og:site_name" content="验收站点">
+</head><body><article><p>{body}</p></article></body></html>"""
+    return Response(html.encode("utf-8"), media_type="text/html")
 
 
 @app.post("/fixtures/suggestions/reset")

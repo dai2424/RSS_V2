@@ -77,8 +77,13 @@ class MaterialService:
 
     # ---------------------------------------------------------------- 入队
 
-    def create(self, project_id: str) -> tuple[Task, bool]:
-        """创建（或复用）资料准备任务；输入快照相同的重复请求不会重复付费。"""
+    def create(self, project_id: str, force: bool = False) -> tuple[Task, bool]:
+        """创建（或复用）资料准备任务。
+
+        默认对"同一份订阅输入"去重：重复点击不会重复付费。`force=True` 是用户主动的
+        "重新获取资料"：新起一个任务重新检索与读取（已读地址与内容指纹仍会跳过，
+        因此不会产生重复资料），用于来源更新或上次有资料没读到的情况。
+        """
 
         project = self._require_project(project_id)
         members = self.leads.members(project.lead_id)
@@ -87,15 +92,20 @@ class MaterialService:
         snapshot = snapshot_hash(members)
         key = f"materials:{project.id}:{snapshot}"
         existing = self.tasks.get_by_idempotency(key)
-        if existing is not None and existing.status in {
-            TaskStatus.QUEUED.value,
-            TaskStatus.RUNNING.value,
-            TaskStatus.SUCCEEDED.value,
-        }:
+        if (
+            not force
+            and existing is not None
+            and existing.status
+            in {
+                TaskStatus.QUEUED.value,
+                TaskStatus.RUNNING.value,
+                TaskStatus.SUCCEEDED.value,
+            }
+        ):
             return existing, True
         snapshot_values = self._snapshot(existing)
         if existing is not None:
-            key = f"{key}:retry:{now()}"
+            key = f"{key}:{'run' if force else 'retry'}:{now()}"
         task = self.tasks.create(
             Task(
                 id=new_id(),
