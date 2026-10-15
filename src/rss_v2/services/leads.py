@@ -1,8 +1,11 @@
-"""线索用例：人工选定的一组消息版本，供后续草稿生成使用。
+"""线索用例：一组同属一件事的消息版本。
 
 这一层只做机械校验：线索名非空、成员是真实存在的消息、成员条数在界面上限之内、
 同一条消息不会重复进入同一条线索（成员按版本存，重复加入会被忽略）。
-"这些消息是不是同一件事"由人工判断，服务层不猜——与关键词合并的处理一致。
+"这些消息是不是同一件事"由人工判断或选题发现判定，服务层不猜。
+
+至少一条消息即可成立：阶段 4 允许单篇有趣报道走完整写作流程，旧的"至少两条"
+门槛会挡住单篇选题。
 """
 
 from __future__ import annotations
@@ -28,13 +31,24 @@ class LeadService:
     leads: LeadRepository  # 线索本体与成员
     messages: MessageRepository  # 校验消息存在并解析最新版本
 
-    def create(self, title: str, message_ids: Sequence[str], note: str | None = None) -> Lead:
-        """按消息 id 建线索：成员取各自当前的最新版本，至少两条。"""
+    def create(
+        self,
+        title: str,
+        message_ids: Sequence[str],
+        note: str | None = None,
+        kind: str = "manual",
+    ) -> Lead:
+        """按消息 id 建线索：成员取各自当前的最新版本，至少一条。"""
 
         cleaned = self._title(title)
         versions = self._resolve_versions(message_ids)
-        if len(versions) < 2:
-            raise DomainError("lead_needs_members", "线索至少要有两条消息，请再多选一条")
+        if not versions:
+            raise DomainError("lead_needs_members", "线索至少要有一条消息")
+        if len(versions) > MAX_LEAD_MEMBERS:
+            raise DomainError(
+                "lead_members_limit",
+                f"一条线索最多 {MAX_LEAD_MEMBERS} 条消息，请分批创建或先移除一些成员",
+            )
         timestamp = now()
         return self.leads.create(
             Lead(
@@ -43,6 +57,7 @@ class LeadService:
                 note=(note or "").strip() or None,
                 created_at=timestamp,
                 updated_at=timestamp,
+                kind=kind,
             ),
             versions,
         )
@@ -75,10 +90,12 @@ class LeadService:
             raise DomainError("lead_not_found", "线索不存在")
         return updated
 
-    def list(self, limit: int = 50, offset: int = 0) -> tuple[list[LeadSummary], int]:
-        """线索列表与总数。"""
+    def list(
+        self, limit: int = 50, offset: int = 0, kind: str | None = "manual"
+    ) -> tuple[list[LeadSummary], int]:
+        """线索列表与总数；默认只看人工线索，选题发现建立的线索另走发现界面。"""
 
-        return self.leads.list(limit, offset)
+        return self.leads.list(limit, offset, kind)
 
     def detail(self, lead_id: str) -> LeadDetail:
         """线索详情：本体与成员（按发布时间从早到晚）。"""

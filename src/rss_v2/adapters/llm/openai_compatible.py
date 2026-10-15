@@ -80,6 +80,23 @@ class ChatResponse(BaseModel):
 class OpenAICompatibleProvider:
     """使用 OpenAI chat completions 协议调用翻译与内容加工模型。"""
 
+    def structured(
+        self,
+        provider: Provider,
+        model: str,
+        secret: str,
+        prompt: PromptPayload,
+        prompt_version: str,
+        task_kind: str,
+        schema: type[SchemaT],
+        max_output_tokens: int | None = None,
+    ) -> tuple[SchemaT, dict[str, int], int]:
+        """通用结构化调用：与翻译/加工共用同一协议边界，schema 由调用方提供。"""
+
+        return self._complete(
+            provider, model, secret, prompt, task_kind, prompt_version, schema, max_output_tokens
+        )
+
     def translate(
         self,
         provider: Provider,
@@ -221,8 +238,9 @@ class OpenAICompatibleProvider:
         task_kind: str,
         prompt_version: str,
         schema: type[SchemaT],
+        max_output_tokens: int | None = None,
     ) -> tuple[SchemaT, dict[str, int], int]:
-        """发送一次结构化请求并校验响应；翻译与加工共用同一协议边界。"""
+        """发送一次结构化请求并校验响应；翻译、加工与新任务的共用协议边界。"""
 
         endpoint = provider.base_url.rstrip("/") + "/chat/completions"
         headers = self._headers(provider, secret)
@@ -236,11 +254,13 @@ class OpenAICompatibleProvider:
             "temperature": 0.2,
             "response_format": {"type": "json_object"},
         }
+        if max_output_tokens is not None:
+            payload["max_tokens"] = max_output_tokens
         started = time.perf_counter()
         response = post_json(endpoint, headers, payload, provider.timeout_seconds)
         if response.status_code == 400:
-            # 兼容网关常拒绝可选参数（response_format / temperature）；去掉后重试一次，
-            # 结构化输出仍由 Pydantic 校验和有限重试兜底。
+            # 兼容网关常拒绝可选参数（response_format / temperature / max_tokens）；
+            # 去掉后重试一次，结构化输出仍由 Pydantic 校验和有限重试兜底。
             logging.getLogger(__name__).info(
                 "llm_optional_params_rejected protocol=chat_completions model=%s detail=%s",
                 model,

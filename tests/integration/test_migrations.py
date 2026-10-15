@@ -30,7 +30,7 @@ def test_fresh_database_and_checksum(tmp_path: Path) -> None:
     shutil.copytree("migrations", migrations)
     database = SQLiteDatabase(tmp_path / "rss.db")
     runner = MigrationRunner(database, migrations)
-    assert len(runner.run()) == 24
+    assert len(runner.run()) == 25
     assert runner.run() == []
     path = migrations / "0001_initial.sql"
     path.write_text(path.read_text(encoding="utf-8") + "\n-- mutation\n", encoding="utf-8")
@@ -81,6 +81,7 @@ def test_keyword_tables_and_structured_prompt_seed(tmp_path: Path) -> None:
             "SELECT sql FROM sqlite_master WHERE name='tasks'"
         ).fetchone()[0]
         assert "keyword_merge_suggest" in str(tasks_ddl)
+        assert "discover_events" in str(tasks_ddl)
         # 常驻建议：一条建议就是一个词，与合并建议形状不同，因此单独一张表。
         assert {
             row["name"] for row in connection.execute("PRAGMA table_info(keyword_pin_suggestions)")
@@ -156,7 +157,7 @@ def test_two_processes_do_not_apply_migration_twice(tmp_path: Path) -> None:
         results = list(
             pool.map(lambda _: MigrationRunner(database, Path("migrations")).run(), range(2))
         )
-    assert sum(len(result) for result in results) == 24
+    assert sum(len(result) for result in results) == 25
 
 
 def test_upgrade_preserves_versions_and_translations(tmp_path: Path) -> None:
@@ -189,6 +190,77 @@ def test_upgrade_preserves_versions_and_translations(tmp_path: Path) -> None:
         translation = connection.execute("SELECT * FROM translations").fetchone()
         assert version["published_at"] == 1791331200
         assert translation["message_version_id"] == version["id"] and translation["title"] == "译文"
+        assert not connection.execute("PRAGMA foreign_key_check").fetchall()
+    finally:
+        connection.close()
+
+
+def test_discovery_migration_upgrades_legacy_library(tmp_path: Path) -> None:
+    """0024 → 0025：线索补 kind、任务表重建不丢字段，并接受新的发现任务类型。"""
+
+    migrations = tmp_path / "migrations"
+    migrations.mkdir()
+    for path in sorted(Path("migrations").glob("*.sql")):
+        if path.name != "0025_discovery.sql":
+            shutil.copy(path, migrations / path.name)
+    database = SQLiteDatabase(tmp_path / "rss.db")
+    runner = MigrationRunner(database, migrations)
+    runner.run()
+    with database.transaction() as connection:
+        category = connection.execute("SELECT id FROM categories LIMIT 1").fetchone()[0]
+        connection.execute(
+            "INSERT INTO rss_sources(id,name,url,language,category_id,created_at,updated_at)"
+            " VALUES('s','Example Tech','https://example.test/feed.xml','en',?,1,1)",
+            (category,),
+        )
+        connection.execute("INSERT INTO messages VALUES('m','s','entry-1',1,1)")
+        connection.execute(
+            "INSERT INTO message_versions VALUES('v','m',1,'标题','摘要','正文',"
+            "'https://example.test/entry-1',1791331200,1,'en','hash-1')"
+        )
+        # 旧库里的线索没有 kind 列；升级后应回落为人工线索。
+        connection.execute(
+            "INSERT INTO leads(id,title,note,created_at,updated_at)"
+            " VALUES('lead-1','人工线索',NULL,10,10)"
+        )
+        connection.execute(
+            "INSERT INTO lead_messages(lead_id,message_version_id,added_at) VALUES('lead-1','v',10)"
+        )
+        # 旧任务行：重建 tasks 表时必须原样保留（含租约与重试字段）。
+        connection.execute(
+            "INSERT INTO tasks(id,task_type,idempotency_key,status,attempts,lease_until,"
+            "input_version_id,output_version_id,payload_json,error_code,error_message,"
+            "created_at,updated_at,lease_token,available_at)"
+            " VALUES('t1','enrich_message','k1','running',2,12345,'v','v','{\"model\":\"m\"}',"
+            "NULL,NULL,10,11,'token-1',7)"
+        )
+
+    shutil.copy(Path("migrations") / "0025_discovery.sql", migrations / "0025_discovery.sql")
+    assert runner.run() == ["0025_discovery.sql"]
+    connection = database.connect()
+    try:
+        lead = connection.execute("SELECT * FROM leads WHERE id='lead-1'").fetchone()
+        assert lead is not None and lead["kind"] == "manual"
+        task = connection.execute("SELECT * FROM tasks WHERE id='t1'").fetchone()
+        assert task is not None
+        assert (task["attempts"], task["lease_token"], task["available_at"]) == (2, "token-1", 7)
+        assert task["payload_json"] == '{"model":"m"}'
+        tables = {
+            row["name"]
+            for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")
+        }
+        assert {"discovery_batches", "discovery_candidates", "writing_projects"} <= tables
+        # 新任务类型被接受，非法类型仍被 CHECK 拒绝。
+        connection.execute(
+            "INSERT INTO tasks(id,task_type,idempotency_key,status,attempts,created_at,updated_at)"
+            " VALUES('t2','discover_events','k2','queued',0,10,10)"
+        )
+        with pytest.raises(sqlite3.IntegrityError):
+            connection.execute(
+                "INSERT INTO tasks(id,task_type,idempotency_key,status,attempts,"
+                "created_at,updated_at)"
+                " VALUES('t3','compose_lead_draft','k3','queued',0,10,10)"
+            )
         assert not connection.execute("PRAGMA foreign_key_check").fetchall()
     finally:
         connection.close()

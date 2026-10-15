@@ -63,6 +63,23 @@ TASK_SPECS: dict[TaskType, TaskSpec] = {
         # 不是按来源、按消息跑的任务：由词表页按钮触发，因此不进任务分配界面。
         assignable=False,
     ),
+    TaskType.DISCOVER_EVENTS: TaskSpec(
+        kind=TaskType.DISCOVER_EVENTS,
+        label="选题发现",
+        variables=(
+            "window_start",
+            "window_end",
+            "scope",
+            "messages",
+            "batch_index",
+            "batch_total",
+            "message_count",
+        ),
+        required_variables=("messages",),
+        output_fields=("candidates",),
+        # 输入是跨来源的时间窗口，按来源/分类分配没有意义：直接用当前生效版本。
+        assignable=False,
+    ),
 }
 
 #: 编译预览使用的样例取值；没有真实消息时也能看到渲染结果。
@@ -72,6 +89,14 @@ SAMPLE_VALUES: dict[str, str] = {
     "summary": "示例摘要。",
     "content": "示例正文。",
     "vocabulary": "实体：ChatGPT、OpenAI\n主题：AI 编程助手",
+    # 选题发现的编译预览：真实取值由服务层按窗口内的消息渲染。
+    "window_start": "1791337493",
+    "window_end": "1791942293",
+    "scope": "全部订阅",
+    "messages": "[示例消息ID] 2026-10-08 10:41 | 示例来源 | 示例标题 | 示例摘要 | 关键词：示例",
+    "batch_index": "1",
+    "batch_total": "1",
+    "message_count": "1",
 }
 
 

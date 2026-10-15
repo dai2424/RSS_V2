@@ -21,3 +21,16 @@ keyword_hot_min_mentions = 5
 
 # 合并建议每批的词数：受 Provider 超时与单次输出上限约束，不是输入上下文。
 llm_suggestion_batch_size = 20
+
+# 选题发现（阶段 4）：默认最近 7 天、全部订阅；窗口内消息超过上限时返回明确错误，
+# 提示缩小时间范围或增加筛选，不做静默截断。分批大小与单批字符上限共同决定
+# 一次模型调用的输入长度，批次条数 ≈ 窗口内消息数 / discovery_batch_size。
+discovery_window_days = 7
+discovery_max_window_days = 90
+discovery_max_window_messages = 400
+discovery_batch_size = 40
+discovery_batch_chars = 60000
+discovery_max_members = 20
+discovery_max_candidates = 50
+# 单次模型调用的输出上限；超出会把这一批对半拆开重试（最多两层）。
+discovery_max_output_tokens = 8192

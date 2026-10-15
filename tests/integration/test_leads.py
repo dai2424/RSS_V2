@@ -57,16 +57,22 @@ def test_create_lead_locks_versions_and_lists(client: TestClient) -> None:
 
 
 @respx.mock
-def test_lead_needs_two_distinct_messages(client: TestClient) -> None:
-    """一条消息（或同一条消息写两遍）不构成线索。"""
+def test_single_message_lead_and_empty_rejected(client: TestClient) -> None:
+    """单篇报道可以成线索（阶段 4 允许单篇选题）；空成员与无效消息仍被拒绝。"""
 
     ids = seeded(client)
     single = client.post("/api/leads", json={"title": "只有一条", "message_ids": ids[:1]})
-    assert (single.status_code, single.json()["code"]) == (400, "lead_needs_members")
+    assert single.status_code == 201
+    assert single.json()["members"] == 1
     repeated = client.post(
         "/api/leads", json={"title": "重复同一条", "message_ids": [ids[0], ids[0]]}
     )
-    assert (repeated.status_code, repeated.json()["code"]) == (400, "lead_needs_members")
+    assert repeated.status_code == 201
+    assert repeated.json()["members"] == 1
+    empty = client.post("/api/leads", json={"title": "没有成员", "message_ids": []})
+    assert empty.status_code == 422
+    missing = client.post("/api/leads", json={"title": "消息不存在", "message_ids": ["nope"]})
+    assert (missing.status_code, missing.json()["code"]) == (404, "message_not_found")
 
 
 @respx.mock

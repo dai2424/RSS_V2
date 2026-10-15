@@ -116,6 +116,30 @@ def _truncation(stop_reason: str) -> str:
 class AnthropicMessagesProvider:
     """使用 Anthropic Messages 协议调用翻译与内容加工模型。"""
 
+    def structured(
+        self,
+        provider: Provider,
+        model: str,
+        secret: str,
+        prompt: PromptPayload,
+        prompt_version: str,
+        task_kind: str,
+        schema: type[SchemaT],
+        max_output_tokens: int | None = None,
+    ) -> tuple[SchemaT, dict[str, int], int]:
+        """通用结构化调用：与翻译/加工共用同一协议边界，schema 由调用方提供。"""
+
+        return self._complete(
+            provider,
+            model,
+            secret,
+            prompt,
+            task_kind,
+            prompt_version,
+            schema,
+            max_tokens=max_output_tokens if max_output_tokens is not None else MAX_OUTPUT_TOKENS,
+        )
+
     def translate(
         self,
         provider: Provider,

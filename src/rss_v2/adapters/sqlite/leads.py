@@ -20,6 +20,7 @@ def _lead(row: sqlite3.Row) -> Lead:
         note=str(row["note"]) if row["note"] is not None else None,
         created_at=int(row["created_at"]),
         updated_at=int(row["updated_at"]),
+        kind=str(row["kind"]),
     )
 
 
@@ -61,8 +62,8 @@ class SQLiteLeadRepository:
 
         with self.database.transaction() as connection:
             connection.execute(
-                "INSERT INTO leads(id,title,note,created_at,updated_at) VALUES(?,?,?,?,?)",
-                (lead.id, lead.title, lead.note, lead.created_at, lead.updated_at),
+                "INSERT INTO leads(id,title,note,created_at,updated_at,kind) VALUES(?,?,?,?,?,?)",
+                (lead.id, lead.title, lead.note, lead.created_at, lead.updated_at, lead.kind),
             )
             connection.executemany(
                 "INSERT INTO lead_messages(lead_id,message_version_id,added_at) VALUES(?,?,?)"
@@ -79,23 +80,35 @@ class SQLiteLeadRepository:
         finally:
             connection.close()
 
-    def list(self, limit: int, offset: int) -> tuple[list[LeadSummary], int]:
-        """线索列表与总数；按最近成员变化时间倒序，成员条数一次查出来。"""
+    def list(
+        self, limit: int, offset: int, kind: str | None = None
+    ) -> tuple[list[LeadSummary], int]:
+        """线索列表与总数；按最近成员变化时间倒序，成员条数一次查出来。
 
+        `kind` 为空表示不限；人工线索页固定传 'manual'，发现建立的线索不混进人工列表。
+        """
+
+        where = "WHERE l.kind = ?" if kind else ""
+        args: list[object] = [kind] if kind else []
         connection = self.database.connect()
         try:
             rows = connection.execute(
-                """
+                f"""
                 SELECT l.*, COUNT(lm.message_version_id) AS members
                 FROM leads l
                 LEFT JOIN lead_messages lm ON lm.lead_id = l.id
+                {where}
                 GROUP BY l.id
                 ORDER BY l.updated_at DESC, l.id
                 LIMIT ? OFFSET ?
                 """,
-                (max(1, limit), max(0, offset)),
+                [*args, max(1, limit), max(0, offset)],
             ).fetchall()
-            total = int(connection.execute("SELECT COUNT(*) AS n FROM leads").fetchone()["n"])
+            total = int(
+                connection.execute(f"SELECT COUNT(*) AS n FROM leads l {where}", args).fetchone()[
+                    "n"
+                ]
+            )
             return [LeadSummary(_lead(row), int(row["members"])) for row in rows], total
         finally:
             connection.close()

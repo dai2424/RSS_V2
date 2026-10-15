@@ -456,7 +456,7 @@ export interface paths {
     };
     /**
      * List Leads
-     * @description 线索列表：按最近成员变化时间倒序。
+     * @description 线索列表：按最近成员变化时间倒序；默认只看人工线索。
      */
     get: operations["list_leads_api_leads_get"];
     put?: never;
@@ -659,6 +659,114 @@ export interface paths {
      * @description 忽略常驻建议；忽略过的词不会再被建议。
      */
     post: operations["dismiss_pin_suggestion_api_keywords_pin_suggestions__key__dismiss_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/discoveries": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * List Discoveries
+     * @description 批次列表：按创建时间倒序。
+     */
+    get: operations["list_discoveries_api_discoveries_get"];
+    put?: never;
+    /**
+     * Create Discovery
+     * @description 发起选题发现：默认最近 7 天、全部订阅；重复请求复用既有批次。
+     */
+    post: operations["create_discovery_api_discoveries_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/discoveries/{batch_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Discovery Detail
+     * @description 批次详情：候选（含成员版本与推荐理由）。
+     */
+    get: operations["discovery_detail_api_discoveries__batch_id__get"];
+    put?: never;
+    post?: never;
+    /**
+     * Delete Discovery
+     * @description 删除批次；候选与无人引用的自动线索一并清理，人工线索不受影响。
+     */
+    delete: operations["delete_discovery_api_discoveries__batch_id__delete"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/discoveries/{batch_id}/candidates/{candidate_id}/select": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Select Candidate
+     * @description 选定候选并建立写作项目；重复选择返回既有项目（幂等）。
+     */
+    post: operations["select_candidate_api_discoveries__batch_id__candidates__candidate_id__select_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/projects": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * List Projects
+     * @description 写作项目列表：按最近更新时间倒序。
+     */
+    get: operations["list_projects_api_projects_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/projects/{project_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Project Detail
+     * @description 写作项目详情：本体、成员与各阶段产物数量。
+     */
+    get: operations["project_detail_api_projects__project_id__get"];
+    put?: never;
+    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -1195,6 +1303,173 @@ export interface components {
        * @default
        */
       reply: string;
+    };
+    /**
+     * DiscoveryBatchDetailResponse
+     * @description 批次详情：批次本体 + 候选列表。
+     */
+    DiscoveryBatchDetailResponse: {
+      batch: components["schemas"]["DiscoveryBatchResponse"];
+      /** Candidates */
+      candidates: components["schemas"]["DiscoveryCandidateResponse"][];
+    };
+    /**
+     * DiscoveryBatchListResponse
+     * @description 批次列表。
+     */
+    DiscoveryBatchListResponse: {
+      /** Items */
+      items: components["schemas"]["DiscoveryBatchResponse"][];
+      /** Total */
+      total: number;
+      /** Limit */
+      limit: number;
+      /** Offset */
+      offset: number;
+    };
+    /**
+     * DiscoveryBatchResponse
+     * @description 发现批次：实际生效范围、状态与处理计数。
+     */
+    DiscoveryBatchResponse: {
+      /** Id */
+      id: string;
+      /** Status */
+      status: string;
+      /** Window Start */
+      window_start: number;
+      /** Window End */
+      window_end: number;
+      /** Category Id */
+      category_id: string | null;
+      /** Category Name */
+      category_name: string | null;
+      /** Source Id */
+      source_id: string | null;
+      /** Source Name */
+      source_name: string | null;
+      /** Message Count */
+      message_count: number;
+      /** Candidate Count */
+      candidate_count: number;
+      /** Duplicate Members */
+      duplicate_members: number;
+      /** Out Of Range */
+      out_of_range: number;
+      /** Dropped Members */
+      dropped_members: number;
+      /** Dropped Candidates */
+      dropped_candidates: number;
+      /** Error Code */
+      error_code: string | null;
+      /** Error Message */
+      error_message: string | null;
+      /** Task Id */
+      task_id: string | null;
+      /** Task Status */
+      task_status: string | null;
+      /** Reused */
+      reused: boolean;
+      /** Created At */
+      created_at: number;
+      /** Updated At */
+      updated_at: number;
+    };
+    /**
+     * DiscoveryCandidateResponse
+     * @description 候选事件：概要、时间、成员、推荐理由与已建立的写作项目。
+     */
+    DiscoveryCandidateResponse: {
+      /** Id */
+      id: string;
+      /** Rank */
+      rank: number;
+      /** Title */
+      title: string;
+      /** Summary */
+      summary: string;
+      /** Event Time */
+      event_time: number | null;
+      /** Score */
+      score: number;
+      /** Reasons */
+      reasons: components["schemas"]["DiscoveryReasonResponse"][];
+      /** Member Count */
+      member_count: number;
+      /** Dropped Members */
+      dropped_members: number;
+      /** Lead Id */
+      lead_id: string;
+      /** Project Id */
+      project_id: string | null;
+      /** Members */
+      members: components["schemas"]["DiscoveryMemberResponse"][];
+    };
+    /**
+     * DiscoveryCreateRequest
+     * @description 发起一次发现：默认最近 N 天、全部订阅；也可以限定时段与分类/来源。
+     */
+    DiscoveryCreateRequest: {
+      /**
+       * Window Start
+       * @description 窗口起点，UTC 秒（含）；与 window_end 必须同时给出
+       */
+      window_start?: number | null;
+      /**
+       * Window End
+       * @description 窗口终点，UTC 秒（不含）；与 window_start 必须同时给出
+       */
+      window_end?: number | null;
+      /**
+       * Category Id
+       * @description 限定分类；为空表示全部分类
+       */
+      category_id?: string | null;
+      /**
+       * Source Id
+       * @description 限定来源；为空表示全部来源
+       */
+      source_id?: string | null;
+    };
+    /**
+     * DiscoveryDeletionResponse
+     * @description 删除批次的结果。
+     */
+    DiscoveryDeletionResponse: {
+      /** Deleted */
+      deleted: number;
+    };
+    /**
+     * DiscoveryMemberResponse
+     * @description 候选成员：一条消息版本（事件成员锁定版本，消息后续更新不影响它）。
+     */
+    DiscoveryMemberResponse: {
+      /** Message Id */
+      message_id: string;
+      /** Version Id */
+      version_id: string;
+      /** Version Number */
+      version_number: number;
+      /** Title */
+      title: string;
+      /** Source Id */
+      source_id: string;
+      /** Source Name */
+      source_name: string;
+      /** Published At */
+      published_at: number | null;
+      /** Collected At */
+      collected_at: number;
+    };
+    /**
+     * DiscoveryReasonResponse
+     * @description 一条推荐理由：interesting（有趣）/ important（重要）。
+     */
+    DiscoveryReasonResponse: {
+      /** Kind */
+      kind: string;
+      /** Text */
+      text: string;
     };
     /**
      * EnrichmentResponse
@@ -1974,6 +2249,55 @@ export interface components {
       created_at: number;
       /** Resolved At */
       resolved_at: number | null;
+    };
+    /**
+     * ProjectDetailResponse
+     * @description 写作项目详情：本体、成员与各阶段产物数量（后续阶段填充）。
+     */
+    ProjectDetailResponse: {
+      project: components["schemas"]["ProjectResponse"];
+      /** Members */
+      members: components["schemas"]["DiscoveryMemberResponse"][];
+      /** Counts */
+      counts: {
+        [key: string]: number;
+      };
+    };
+    /**
+     * ProjectListResponse
+     * @description 写作项目列表。
+     */
+    ProjectListResponse: {
+      /** Items */
+      items: components["schemas"]["ProjectResponse"][];
+      /** Total */
+      total: number;
+      /** Limit */
+      limit: number;
+      /** Offset */
+      offset: number;
+    };
+    /**
+     * ProjectResponse
+     * @description 写作项目：选定候选后的写作上下文。
+     */
+    ProjectResponse: {
+      /** Id */
+      id: string;
+      /** Title */
+      title: string;
+      /** Status */
+      status: string;
+      /** Lead Id */
+      lead_id: string;
+      /** Candidate Id */
+      candidate_id: string | null;
+      /** Reused */
+      reused: boolean;
+      /** Created At */
+      created_at: number;
+      /** Updated At */
+      updated_at: number;
     };
     /**
      * PromptCompileIssue
@@ -3587,6 +3911,8 @@ export interface operations {
   list_leads_api_leads_get: {
     parameters: {
       query?: {
+        /** @description 线索来源：manual 人工（默认）、discovery 选题发现、all 全部 */
+        kind?: string;
         limit?: number;
         offset?: number;
       };
@@ -4038,6 +4364,231 @@ export interface operations {
       };
     };
   };
+  list_discoveries_api_discoveries_get: {
+    parameters: {
+      query?: {
+        /** @description 按批次状态筛选 */
+        status?: string | null;
+        limit?: number;
+        offset?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["DiscoveryBatchListResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  create_discovery_api_discoveries_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["DiscoveryCreateRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["DiscoveryBatchResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  discovery_detail_api_discoveries__batch_id__get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        batch_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["DiscoveryBatchDetailResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  delete_discovery_api_discoveries__batch_id__delete: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        batch_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["DiscoveryDeletionResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  select_candidate_api_discoveries__batch_id__candidates__candidate_id__select_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        batch_id: string;
+        candidate_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ProjectResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  list_projects_api_projects_get: {
+    parameters: {
+      query?: {
+        status?: string | null;
+        limit?: number;
+        offset?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ProjectListResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  project_detail_api_projects__project_id__get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ProjectDetailResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
   get_task_api_tasks__task_id__get: {
     parameters: {
       query?: never;
@@ -4104,7 +4655,7 @@ export interface operations {
     parameters: {
       query?: {
         status?: string | null;
-        /** @description 任务类型：采集、翻译、内容加工或合并建议 */
+        /** @description 任务类型：采集、翻译、内容加工、合并建议或选题发现 */
         task_type?: string | null;
         /** @description 来源：采集任务看任务快照，消息任务看所属来源 */
         source_id?: string | null;

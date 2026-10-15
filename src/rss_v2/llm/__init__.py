@@ -1,7 +1,9 @@
 """业务调用 LLM 的唯一端口。"""
 
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Protocol, TypeVar
+
+from pydantic import BaseModel
 
 from rss_v2.domain import (
     EnrichmentResult,
@@ -10,6 +12,9 @@ from rss_v2.domain import (
     SuggestResult,
     TranslationResult,
 )
+
+#: 结构化输出的 schema 类型：调用方传入，适配器只负责校验并原样返回。
+ResultT = TypeVar("ResultT", bound=BaseModel)
 
 
 @dataclass(frozen=True, slots=True)
@@ -26,6 +31,25 @@ class PromptPayload:
 
 class LLMProvider(Protocol):
     """业务层唯一可使用的模型调用端口。"""
+
+    def structured(
+        self,
+        provider: Provider,
+        model: str,
+        secret: str,
+        prompt: PromptPayload,
+        prompt_version: str,
+        task_kind: str,
+        schema: type[ResultT],
+        max_output_tokens: int | None = None,
+    ) -> tuple[ResultT, dict[str, int], int]:
+        """通用结构化调用：按传入的 Pydantic schema 校验模型输出。
+
+        阶段 4 的选题发现、资料整理、提纲与全文都走这里：schema 由服务层提供
+        （domain/generation.py），适配器只做协议边界的解析、校验与错误分类，
+        避免为每种新任务类型复制一份同构方法。
+        """
+        ...
 
     def translate(
         self,

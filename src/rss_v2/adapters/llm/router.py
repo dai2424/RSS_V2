@@ -12,7 +12,7 @@ from rss_v2.domain import (
     SuggestResult,
     TranslationResult,
 )
-from rss_v2.llm import LLMProvider, PromptPayload
+from rss_v2.llm import LLMProvider, PromptPayload, ResultT
 
 
 class ProtocolRouter:
@@ -24,6 +24,21 @@ class ProtocolRouter:
 
     def __init__(self, protocols: Mapping[str, LLMProvider]) -> None:
         self.protocols = dict(protocols)
+
+    def structured(
+        self,
+        provider: Provider,
+        model: str,
+        secret: str,
+        prompt: PromptPayload,
+        prompt_version: str,
+        task_kind: str,
+        schema: type[ResultT],
+        max_output_tokens: int | None = None,
+    ) -> tuple[ResultT, dict[str, int], int]:
+        return self._for(provider).structured(
+            provider, model, secret, prompt, prompt_version, task_kind, schema, max_output_tokens
+        )
 
     def translate(
         self,

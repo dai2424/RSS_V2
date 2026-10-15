@@ -9,7 +9,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 
 from rss_v2.domain import DomainError, Task, TaskDeletion, TaskStatus, TaskType, TaskView
-from rss_v2.ports import MessageRepository, SourceRepository, TaskRepository
+from rss_v2.ports import DiscoveryRepository, MessageRepository, SourceRepository, TaskRepository
 
 #: 无法解析目标时回落的标识长度，够在一眼内区分不同目标。
 SHORT_ID_LENGTH = 8
@@ -22,6 +22,7 @@ class TaskService:
     tasks: TaskRepository
     messages: MessageRepository
     sources: SourceRepository
+    discovery: DiscoveryRepository  # 选题发现任务的目标是批次（阶段 4 P2a）
 
     def get(self, task_id: str) -> Task:
         task = self.tasks.get(task_id)
@@ -82,6 +83,8 @@ class TaskService:
 
         if task.task_type == TaskType.KEYWORD_MERGE_SUGGEST.value:
             return TaskView(task, "vocabulary", "", self._batch_label(task))
+        if task.task_type == TaskType.DISCOVER_EVENTS.value:
+            return self._discovery_view(task)
         kind, target_id = self._target(task)
         if not target_id:
             return TaskView(task, "unknown", "", "")
@@ -132,6 +135,16 @@ class TaskService:
         if task.status != TaskStatus.FAILED:
             raise DomainError("task_not_failed", "只有失败任务可以手动重试")
         return self.tasks.retry(task_id)
+
+    def _discovery_view(self, task: Task) -> TaskView:
+        """选题发现任务：目标是批次（范围 + 消息条数），不是某条消息。"""
+
+        batch_id = str(task.payload.get("batch_id") or "")
+        batch = self.discovery.get(batch_id) if batch_id else None
+        if batch is None:
+            return TaskView(task, "discovery_batch", batch_id, self._short(batch_id))
+        label = f"{batch.source_label} · 消息 {batch.message_count} 条"
+        return TaskView(task, "discovery_batch", batch.id, label)
 
     @staticmethod
     def _batch_label(task: Task) -> str:

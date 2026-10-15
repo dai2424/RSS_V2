@@ -35,6 +35,7 @@ class TaskType(StrEnum):
     ENRICH_MESSAGE = "enrich_message"
     KEYWORD_MERGE_SUGGEST = "keyword_merge_suggest"  # 合并建议：一批词表一个任务
     KEYWORD_PIN_SUGGEST = "keyword_pin_suggest"  # 常驻建议：只登记提示词规格，同步调用
+    DISCOVER_EVENTS = "discover_events"  # 选题发现：一个时间窗口一个任务，分批调用模型
 
 
 class LLMProtocol(StrEnum):
@@ -50,7 +51,12 @@ class LLMProtocol(StrEnum):
 
 #: 走 Provider×模型 调度、逐次审计并按冷却重试的任务类型。
 LLM_TASK_TYPES = frozenset(
-    {TaskType.TRANSLATE_MESSAGE, TaskType.ENRICH_MESSAGE, TaskType.KEYWORD_MERGE_SUGGEST}
+    {
+        TaskType.TRANSLATE_MESSAGE,
+        TaskType.ENRICH_MESSAGE,
+        TaskType.KEYWORD_MERGE_SUGGEST,
+        TaskType.DISCOVER_EVENTS,
+    }
 )
 
 #: worker 能执行的任务类型：采集加上调模型的任务。
@@ -167,13 +173,18 @@ class MessageVersion:
 
 @dataclass(frozen=True, slots=True)
 class Lead:
-    """线索：人工选定的一组消息，语义是"这些消息说的是同一件事"。"""
+    """线索：一组同属一件事的消息版本，语义是"这些消息说的是同一件事"。
+
+    人工创建的线索（kind=manual）由人挑选消息；选题发现自动建立的线索
+    （kind=discovery）由候选事件生成，人工线索页默认不显示后者。
+    """
 
     id: str  # 实体 UUID
-    title: str  # 人工命名的线索名，用于列表与草稿标题默认值
+    title: str  # 线索名，用于列表与草稿标题默认值
     note: str | None  # 可选备注，只作展示
     created_at: int  # 创建时间，UTC 秒
     updated_at: int  # 最近一次成员变化时间，UTC 秒
+    kind: str = "manual"  # manual 人工创建 / discovery 选题发现自动建立
 
 
 @dataclass(frozen=True, slots=True)

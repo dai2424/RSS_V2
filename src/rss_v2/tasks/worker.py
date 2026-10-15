@@ -86,6 +86,9 @@ class Worker:
         elif task.task_type == TaskType.KEYWORD_MERGE_SUGGEST:
             # 批次结果写进建议表，任务本身没有"输出版本"可关联。
             self.container.suggestion_service.run(task)
+        elif task.task_type == TaskType.DISCOVER_EVENTS:
+            # 候选写进发现批次，任务由服务自行结束（见 DiscoveryService.run）。
+            self.container.discovery_service.run(task)
         else:
             raise DomainError("task_type_unsupported", "不支持的任务类型")
 

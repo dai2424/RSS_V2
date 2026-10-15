@@ -1562,9 +1562,22 @@
           "leads"
         ],
         "summary": "List Leads",
-        "description": "线索列表：按最近成员变化时间倒序。",
+        "description": "线索列表：按最近成员变化时间倒序；默认只看人工线索。",
         "operationId": "list_leads_api_leads_get",
         "parameters": [
+          {
+            "name": "kind",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(manual|discovery|all)$",
+              "description": "线索来源：manual 人工（默认）、discovery 选题发现、all 全部",
+              "default": "manual",
+              "title": "Kind"
+            },
+            "description": "线索来源：manual 人工（默认）、discovery 选题发现、all 全部"
+          },
           {
             "name": "limit",
             "in": "query",
@@ -2194,6 +2207,374 @@
         }
       }
     },
+    "/api/discoveries": {
+      "post": {
+        "tags": [
+          "discovery"
+        ],
+        "summary": "Create Discovery",
+        "description": "发起选题发现：默认最近 7 天、全部订阅；重复请求复用既有批次。",
+        "operationId": "create_discovery_api_discoveries_post",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DiscoveryCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiscoveryBatchResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "discovery"
+        ],
+        "summary": "List Discoveries",
+        "description": "批次列表：按创建时间倒序。",
+        "operationId": "list_discoveries_api_discoveries_get",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^(queued|running|succeeded|failed)$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "按批次状态筛选",
+              "title": "Status"
+            },
+            "description": "按批次状态筛选"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiscoveryBatchListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/discoveries/{batch_id}": {
+      "get": {
+        "tags": [
+          "discovery"
+        ],
+        "summary": "Discovery Detail",
+        "description": "批次详情：候选（含成员版本与推荐理由）。",
+        "operationId": "discovery_detail_api_discoveries__batch_id__get",
+        "parameters": [
+          {
+            "name": "batch_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Batch Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiscoveryBatchDetailResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "discovery"
+        ],
+        "summary": "Delete Discovery",
+        "description": "删除批次；候选与无人引用的自动线索一并清理，人工线索不受影响。",
+        "operationId": "delete_discovery_api_discoveries__batch_id__delete",
+        "parameters": [
+          {
+            "name": "batch_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Batch Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiscoveryDeletionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/discoveries/{batch_id}/candidates/{candidate_id}/select": {
+      "post": {
+        "tags": [
+          "discovery"
+        ],
+        "summary": "Select Candidate",
+        "description": "选定候选并建立写作项目；重复选择返回既有项目（幂等）。",
+        "operationId": "select_candidate_api_discoveries__batch_id__candidates__candidate_id__select_post",
+        "parameters": [
+          {
+            "name": "batch_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Batch Id"
+            }
+          },
+          {
+            "name": "candidate_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Candidate Id"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects": {
+      "get": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "List Projects",
+        "description": "写作项目列表：按最近更新时间倒序。",
+        "operationId": "list_projects_api_projects_get",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{project_id}": {
+      "get": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Project Detail",
+        "description": "写作项目详情：本体、成员与各阶段产物数量。",
+        "operationId": "project_detail_api_projects__project_id__get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectDetailResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/tasks/{task_id}": {
       "get": {
         "tags": [
@@ -2311,16 +2692,16 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "pattern": "^(collect_source|translate_message|enrich_message|keyword_merge_suggest)$"
+                  "pattern": "^(collect_source|translate_message|enrich_message|keyword_merge_suggest|discover_events)$"
                 },
                 {
                   "type": "null"
                 }
               ],
-              "description": "任务类型：采集、翻译、内容加工或合并建议",
+              "description": "任务类型：采集、翻译、内容加工、合并建议或选题发现",
               "title": "Task Type"
             },
-            "description": "任务类型：采集、翻译、内容加工或合并建议"
+            "description": "任务类型：采集、翻译、内容加工、合并建议或选题发现"
           },
           {
             "name": "source_id",
@@ -3816,6 +4197,462 @@
         ],
         "title": "ConnectionTestResponse",
         "description": "连接测试响应；只返回密钥掩码与模型回复片段，不返回密钥值。"
+      },
+      "DiscoveryBatchDetailResponse": {
+        "properties": {
+          "batch": {
+            "$ref": "#/components/schemas/DiscoveryBatchResponse"
+          },
+          "candidates": {
+            "items": {
+              "$ref": "#/components/schemas/DiscoveryCandidateResponse"
+            },
+            "type": "array",
+            "title": "Candidates"
+          }
+        },
+        "type": "object",
+        "required": [
+          "batch",
+          "candidates"
+        ],
+        "title": "DiscoveryBatchDetailResponse",
+        "description": "批次详情：批次本体 + 候选列表。"
+      },
+      "DiscoveryBatchListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DiscoveryBatchResponse"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "limit": {
+            "type": "integer",
+            "title": "Limit"
+          },
+          "offset": {
+            "type": "integer",
+            "title": "Offset"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "DiscoveryBatchListResponse",
+        "description": "批次列表。"
+      },
+      "DiscoveryBatchResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "window_start": {
+            "type": "integer",
+            "title": "Window Start"
+          },
+          "window_end": {
+            "type": "integer",
+            "title": "Window End"
+          },
+          "category_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category Id"
+          },
+          "category_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category Name"
+          },
+          "source_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Id"
+          },
+          "source_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Name"
+          },
+          "message_count": {
+            "type": "integer",
+            "title": "Message Count"
+          },
+          "candidate_count": {
+            "type": "integer",
+            "title": "Candidate Count"
+          },
+          "duplicate_members": {
+            "type": "integer",
+            "title": "Duplicate Members"
+          },
+          "out_of_range": {
+            "type": "integer",
+            "title": "Out Of Range"
+          },
+          "dropped_members": {
+            "type": "integer",
+            "title": "Dropped Members"
+          },
+          "dropped_candidates": {
+            "type": "integer",
+            "title": "Dropped Candidates"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "error_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Message"
+          },
+          "task_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Task Id"
+          },
+          "task_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Task Status"
+          },
+          "reused": {
+            "type": "boolean",
+            "title": "Reused"
+          },
+          "created_at": {
+            "type": "integer",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "integer",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "status",
+          "window_start",
+          "window_end",
+          "category_id",
+          "category_name",
+          "source_id",
+          "source_name",
+          "message_count",
+          "candidate_count",
+          "duplicate_members",
+          "out_of_range",
+          "dropped_members",
+          "dropped_candidates",
+          "error_code",
+          "error_message",
+          "task_id",
+          "task_status",
+          "reused",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "DiscoveryBatchResponse",
+        "description": "发现批次：实际生效范围、状态与处理计数。"
+      },
+      "DiscoveryCandidateResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "rank": {
+            "type": "integer",
+            "title": "Rank"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary"
+          },
+          "event_time": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Time"
+          },
+          "score": {
+            "type": "integer",
+            "title": "Score"
+          },
+          "reasons": {
+            "items": {
+              "$ref": "#/components/schemas/DiscoveryReasonResponse"
+            },
+            "type": "array",
+            "title": "Reasons"
+          },
+          "member_count": {
+            "type": "integer",
+            "title": "Member Count"
+          },
+          "dropped_members": {
+            "type": "integer",
+            "title": "Dropped Members"
+          },
+          "lead_id": {
+            "type": "string",
+            "title": "Lead Id"
+          },
+          "project_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Id"
+          },
+          "members": {
+            "items": {
+              "$ref": "#/components/schemas/DiscoveryMemberResponse"
+            },
+            "type": "array",
+            "title": "Members"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "rank",
+          "title",
+          "summary",
+          "event_time",
+          "score",
+          "reasons",
+          "member_count",
+          "dropped_members",
+          "lead_id",
+          "project_id",
+          "members"
+        ],
+        "title": "DiscoveryCandidateResponse",
+        "description": "候选事件：概要、时间、成员、推荐理由与已建立的写作项目。"
+      },
+      "DiscoveryCreateRequest": {
+        "properties": {
+          "window_start": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Window Start",
+            "description": "窗口起点，UTC 秒（含）；与 window_end 必须同时给出"
+          },
+          "window_end": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Window End",
+            "description": "窗口终点，UTC 秒（不含）；与 window_start 必须同时给出"
+          },
+          "category_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category Id",
+            "description": "限定分类；为空表示全部分类"
+          },
+          "source_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Id",
+            "description": "限定来源；为空表示全部来源"
+          }
+        },
+        "type": "object",
+        "title": "DiscoveryCreateRequest",
+        "description": "发起一次发现：默认最近 N 天、全部订阅；也可以限定时段与分类/来源。"
+      },
+      "DiscoveryDeletionResponse": {
+        "properties": {
+          "deleted": {
+            "type": "integer",
+            "title": "Deleted"
+          }
+        },
+        "type": "object",
+        "required": [
+          "deleted"
+        ],
+        "title": "DiscoveryDeletionResponse",
+        "description": "删除批次的结果。"
+      },
+      "DiscoveryMemberResponse": {
+        "properties": {
+          "message_id": {
+            "type": "string",
+            "title": "Message Id"
+          },
+          "version_id": {
+            "type": "string",
+            "title": "Version Id"
+          },
+          "version_number": {
+            "type": "integer",
+            "title": "Version Number"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "source_id": {
+            "type": "string",
+            "title": "Source Id"
+          },
+          "source_name": {
+            "type": "string",
+            "title": "Source Name"
+          },
+          "published_at": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Published At"
+          },
+          "collected_at": {
+            "type": "integer",
+            "title": "Collected At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "message_id",
+          "version_id",
+          "version_number",
+          "title",
+          "source_id",
+          "source_name",
+          "published_at",
+          "collected_at"
+        ],
+        "title": "DiscoveryMemberResponse",
+        "description": "候选成员：一条消息版本（事件成员锁定版本，消息后续更新不影响它）。"
+      },
+      "DiscoveryReasonResponse": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "text"
+        ],
+        "title": "DiscoveryReasonResponse",
+        "description": "一条推荐理由：interesting（有趣）/ important（重要）。"
       },
       "EnrichmentResponse": {
         "properties": {
@@ -5700,6 +6537,123 @@
         ],
         "title": "PinSuggestionResponse",
         "description": "一条常驻建议：候选词、跨了几周与模型给的理由。"
+      },
+      "ProjectDetailResponse": {
+        "properties": {
+          "project": {
+            "$ref": "#/components/schemas/ProjectResponse"
+          },
+          "members": {
+            "items": {
+              "$ref": "#/components/schemas/DiscoveryMemberResponse"
+            },
+            "type": "array",
+            "title": "Members"
+          },
+          "counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Counts"
+          }
+        },
+        "type": "object",
+        "required": [
+          "project",
+          "members",
+          "counts"
+        ],
+        "title": "ProjectDetailResponse",
+        "description": "写作项目详情：本体、成员与各阶段产物数量（后续阶段填充）。"
+      },
+      "ProjectListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ProjectResponse"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "limit": {
+            "type": "integer",
+            "title": "Limit"
+          },
+          "offset": {
+            "type": "integer",
+            "title": "Offset"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "ProjectListResponse",
+        "description": "写作项目列表。"
+      },
+      "ProjectResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "lead_id": {
+            "type": "string",
+            "title": "Lead Id"
+          },
+          "candidate_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Candidate Id"
+          },
+          "reused": {
+            "type": "boolean",
+            "title": "Reused"
+          },
+          "created_at": {
+            "type": "integer",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "integer",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "status",
+          "lead_id",
+          "candidate_id",
+          "reused",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "ProjectResponse",
+        "description": "写作项目：选定候选后的写作上下文。"
       },
       "PromptCompileIssue": {
         "properties": {

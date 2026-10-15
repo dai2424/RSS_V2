@@ -2,6 +2,7 @@
 
 from rss_v2.llm import LLMProvider
 
+from .discovery import DiscoveryRepository, MessageScopeReader, WritingProjectRepository
 from .external import FeedClient
 from .repositories import (
     CategoryRepository,
@@ -25,11 +26,13 @@ from .repositories import (
 __all__ = [
     "CategoryRepository",
     "CollectionRunRepository",
+    "DiscoveryRepository",
     "EnrichmentRepository",
     "FeedClient",
     "HealthRepository",
     "KeywordRepository",
     "LeadRepository",
+    "MessageScopeReader",
     "SuggestionRepository",
     "LLMCallRepository",
     "LLMConfigRepository",
@@ -41,4 +44,5 @@ __all__ = [
     "TaskSettingRepository",
     "TranslationRepository",
     "VersionProcessing",
+    "WritingProjectRepository",
 ]

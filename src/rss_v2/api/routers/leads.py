@@ -44,12 +44,17 @@ def create_lead(request: Request, payload: LeadCreateRequest) -> LeadResponse:
 @leads_router.get("", response_model=LeadListResponse)
 def list_leads(
     request: Request,
+    kind: str = Query(
+        default="manual",
+        pattern="^(manual|discovery|all)$",
+        description="线索来源：manual 人工（默认）、discovery 选题发现、all 全部",
+    ),
     limit: int = Query(default=50, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
 ) -> LeadListResponse:
-    """线索列表：按最近成员变化时间倒序。"""
+    """线索列表：按最近成员变化时间倒序；默认只看人工线索。"""
 
-    items, total = _service(request).list(limit, offset)
+    items, total = _service(request).list(limit, offset, None if kind == "all" else kind)
     return LeadListResponse(
         items=[lead_summary_response(item) for item in items],
         total=total,

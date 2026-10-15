@@ -47,6 +47,20 @@ class Settings(BaseSettings):
     # 默认的 60 秒超时；把 Provider 超时调大后可以加大到 60。改这个值会让已生成的批次
     # 与词表偏移对不上，需要从头再走一遍（已建议过的组仍按组指纹去重）。
     llm_suggestion_batch_size: int = Field(default=20, ge=2, le=100)
+    # 选题发现（阶段 4）：默认窗口、分批与上限。窗口内消息超过上限时返回明确错误并
+    # 提示缩小范围，不做静默截断；分批大小决定单次模型调用的输入长度与调用次数。
+    # 实测参考：7 天窗口当前 89 条 → 3 批；上限 400 条约 10 批。
+    discovery_window_days: int = Field(default=7, ge=1, le=90)
+    discovery_max_window_days: int = Field(default=90, ge=1, le=365)
+    discovery_max_window_messages: int = Field(default=400, ge=10, le=5000)
+    discovery_batch_size: int = Field(default=40, ge=5, le=200)
+    discovery_batch_chars: int = Field(default=60000, ge=5000, le=200000)
+    discovery_max_members: int = Field(default=20, ge=1, le=100)
+    # 单次发现的候选上限。实测 7 天窗口（89 条消息）模型给出约 65 个候选，
+    # 默认 50 保留大部分可选题材；被截断的数量在批次上显示，不静默丢弃。
+    discovery_max_candidates: int = Field(default=50, ge=1, le=200)
+    # 单次模型调用的输出上限：写不下时会自动把这一批对半拆开重试（最多两层）。
+    discovery_max_output_tokens: int = Field(default=8192, ge=1024, le=65536)
 
     @classmethod
     def settings_customise_sources(

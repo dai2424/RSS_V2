@@ -12,6 +12,11 @@ from rss_v2.adapters.llm.router import ProtocolRouter
 from rss_v2.adapters.rss.feedparser_client import HTTPXFeedClient
 from rss_v2.adapters.sqlite.collections import SQLiteCollectionRunRepository
 from rss_v2.adapters.sqlite.connection import SQLiteDatabase
+from rss_v2.adapters.sqlite.discovery import (
+    SQLiteDiscoveryRepository,
+    SQLiteDiscoveryScopeReader,
+    SQLiteWritingProjectRepository,
+)
 from rss_v2.adapters.sqlite.enrichments import SQLiteEnrichmentRepository
 from rss_v2.adapters.sqlite.keyword_suggestions import SQLiteSuggestionRepository
 from rss_v2.adapters.sqlite.keywords import SQLiteKeywordRepository
@@ -33,6 +38,7 @@ from rss_v2.adapters.sqlite.translations import SQLiteTranslationRepository
 from rss_v2.adapters.sqlite.v1_import import SQLiteV1Importer
 from rss_v2.domain import LLMProtocol, Provider
 from rss_v2.services.collection import CollectionService
+from rss_v2.services.discovery import DiscoveryLimits, DiscoveryService
 from rss_v2.services.enrichment import EnrichmentService
 from rss_v2.services.keyword_suggestions import KeywordSuggestionService
 from rss_v2.services.keywords import KeywordService
@@ -67,6 +73,9 @@ class Container:
     keywords: SQLiteKeywordRepository
     leads: SQLiteLeadRepository
     suggestions: SQLiteSuggestionRepository
+    discovery: SQLiteDiscoveryRepository
+    discovery_scope: SQLiteDiscoveryScopeReader
+    writing_projects: SQLiteWritingProjectRepository
     llm_config: SQLiteLLMConfigRepository
     llm_calls: SQLiteLLMCallRepository
     prompts: SQLitePromptRepository
@@ -83,6 +92,7 @@ class Container:
     keyword_service: KeywordService
     lead_service: LeadService
     suggestion_service: KeywordSuggestionService
+    discovery_service: DiscoveryService
     task_service: TaskService
     provider_service: ProviderService
 
@@ -120,6 +130,9 @@ def build_container(settings: Settings | None = None, migrate: bool = True) -> C
     keywords = SQLiteKeywordRepository(database)
     leads = SQLiteLeadRepository(database)
     suggestions = SQLiteSuggestionRepository(database)
+    discovery = SQLiteDiscoveryRepository(database)
+    discovery_scope = SQLiteDiscoveryScopeReader(database)
+    writing_projects = SQLiteWritingProjectRepository(database)
     llm_config = SQLiteLLMConfigRepository(database)
     llm_calls = SQLiteLLMCallRepository(database)
     prompts = SQLitePromptRepository(database)
@@ -210,7 +223,30 @@ def build_container(settings: Settings | None = None, migrate: bool = True) -> C
         actual_settings.keyword_hot_days,
     )
     lead_service = LeadService(leads, messages)
-    task_service = TaskService(tasks, messages, sources)
+    discovery_service = DiscoveryService(
+        discovery,
+        writing_projects,
+        leads,
+        discovery_scope,
+        sources,
+        categories,
+        tasks,
+        resolver,
+        llm_provider,
+        failover,
+        actual_settings.llm_retry_cooldown_seconds,
+        DiscoveryLimits(
+            window_days=actual_settings.discovery_window_days,
+            max_window_days=actual_settings.discovery_max_window_days,
+            max_window_messages=actual_settings.discovery_max_window_messages,
+            batch_size=actual_settings.discovery_batch_size,
+            batch_chars=actual_settings.discovery_batch_chars,
+            max_members=actual_settings.discovery_max_members,
+            max_candidates=actual_settings.discovery_max_candidates,
+            max_output_tokens=actual_settings.discovery_max_output_tokens,
+        ),
+    )
+    task_service = TaskService(tasks, messages, sources, discovery)
     provider_service = ProviderService(llm_config)
     return Container(
         actual_settings,
@@ -226,6 +262,9 @@ def build_container(settings: Settings | None = None, migrate: bool = True) -> C
         keywords,
         leads,
         suggestions,
+        discovery,
+        discovery_scope,
+        writing_projects,
         llm_config,
         llm_calls,
         prompts,
@@ -242,6 +281,7 @@ def build_container(settings: Settings | None = None, migrate: bool = True) -> C
         keyword_service,
         lead_service,
         suggestion_service,
+        discovery_service,
         task_service,
         provider_service,
     )

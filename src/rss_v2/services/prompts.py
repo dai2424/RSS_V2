@@ -10,7 +10,10 @@ import re
 from dataclasses import asdict, dataclass
 from typing import Any, cast
 
+from pydantic import BaseModel
+
 from rss_v2.domain import (
+    DiscoveryDigest,
     DomainError,
     EnrichmentResult,
     Prompt,
@@ -249,6 +252,18 @@ class PromptService:
             return self.provider.suggest_merges(
                 provider, model_name, secret, payload, prompt_version
             )
+        if task_kind == TaskType.DISCOVER_EVENTS.value:
+            # 试跑只验证"这份模板能不能让模型给出通过 schema 的候选"；
+            # 真实输入由发现任务按窗口渲染，这里用编译预览的样例消息。
+            return self.provider.structured(
+                provider,
+                model_name,
+                secret,
+                payload,
+                prompt_version,
+                TaskType.DISCOVER_EVENTS.value,
+                DiscoveryDigest,
+            )
         raise DomainError("task_kind_unsupported", f"任务类型尚未支持试跑：{task_kind}")
 
 
@@ -271,6 +286,12 @@ def _compile_or_fail(
 
 
 def _output(result: object) -> dict[str, Any]:
-    """结构化结果转成可展示字典；字段由任务类型的 schema 决定。"""
+    """结构化结果转成可展示字典；字段由任务类型的 schema 决定。
 
+    阶段 4 的生成任务直接返回 Pydantic 模型（schema 由调用方提供），
+    其余任务仍返回领域 dataclass。
+    """
+
+    if isinstance(result, BaseModel):
+        return dict(result.model_dump())
     return asdict(cast(TranslationResult | EnrichmentResult | SuggestResult, result))

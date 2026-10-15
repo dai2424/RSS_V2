@@ -208,8 +208,14 @@ class LeadRepository(Protocol):
         """按 id 取线索；不存在返回 None。"""
         ...
 
-    def list(self, limit: int, offset: int) -> tuple[list[LeadSummary], int]:
-        """线索列表与总数；按最近成员变化时间倒序。"""
+    def list(
+        self, limit: int, offset: int, kind: str | None = None
+    ) -> tuple[list[LeadSummary], int]:
+        """线索列表与总数；按最近成员变化时间倒序。
+
+        `kind` 为空表示不限来源；人工线索页固定传 'manual'，选题发现建立的
+        线索（'discovery'）默认不出现在人工列表里。
+        """
         ...
 
     def members(self, lead_id: str) -> list[LeadMember]:

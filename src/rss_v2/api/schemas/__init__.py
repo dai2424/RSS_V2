@@ -16,6 +16,19 @@ from .catalog import (
     SourceResponse,
     SourceTestResponse,
 )
+from .discovery import (
+    DiscoveryBatchDetailResponse,
+    DiscoveryBatchListResponse,
+    DiscoveryBatchResponse,
+    DiscoveryCandidateResponse,
+    DiscoveryCreateRequest,
+    DiscoveryDeletionResponse,
+    DiscoveryMemberResponse,
+    DiscoveryReasonResponse,
+    ProjectDetailResponse,
+    ProjectListResponse,
+    ProjectResponse,
+)
 from .keywords import (
     KeywordBackfillRequest,
     KeywordBackfillResponse,
@@ -103,6 +116,17 @@ from .messages import (
 from .pagination import Page
 
 __all__ = [
+    "DiscoveryBatchDetailResponse",
+    "DiscoveryBatchListResponse",
+    "DiscoveryBatchResponse",
+    "DiscoveryCandidateResponse",
+    "DiscoveryCreateRequest",
+    "DiscoveryDeletionResponse",
+    "DiscoveryMemberResponse",
+    "DiscoveryReasonResponse",
+    "ProjectDetailResponse",
+    "ProjectListResponse",
+    "ProjectResponse",
     "CategoryCreateRequest",
     "CategoryResponse",
     "CollectionRunDetailResponse",
