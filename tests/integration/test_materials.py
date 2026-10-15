@@ -194,10 +194,12 @@ def _seed_project(client: TestClient, title: str = "尊界 V800 制动争议") -
 
 
 def _stub(client: TestClient, *, search: FakeSearch, reader: FakeReader, provider: QueryProvider):
+    """把执行器的检索、读取与模型换成假实现（必须在跑 worker 之前调用）。"""
+
     service = client.app.state.container.material_service
-    service.search = search
-    service.reader = reader
-    service.provider = provider
+    service.runner.search = search
+    service.runner.reader = reader
+    service.runner.provider = provider
     return service
 
 
@@ -415,9 +417,9 @@ def test_search_failure_retries_task_with_reason(client: TestClient) -> None:
             raise ExternalServiceError("search_unconfigured", "没有配置检索服务地址")
 
     service = client.app.state.container.material_service
-    service.search = BrokenSearch()
-    service.reader = FakeReader({})
-    service.provider = QueryProvider()
+    service.runner.search = BrokenSearch()
+    service.runner.reader = FakeReader({})
+    service.runner.provider = QueryProvider()
 
     response = client.post(f"/api/projects/{project_id}/materials")
     assert response.status_code == 202
@@ -475,12 +477,12 @@ def test_missing_search_config_fails_clearly(client: TestClient) -> None:
     project_id = _seed_project(client, title="未配置检索选题")
     container = client.app.state.container
     service = container.material_service
-    service.provider = QueryProvider()
+    service.runner.provider = QueryProvider()
 
     # 用真实适配器（地址为空）验证失败文案。
     from rss_v2.adapters.web.searxng import HTTPXSearchClient
 
-    service.search = HTTPXSearchClient("", 5.0)
+    service.runner.search = HTTPXSearchClient("", 5.0)
     response = client.post(f"/api/projects/{project_id}/materials")
     assert response.status_code == 202
     worker = __import__("rss_v2.tasks.worker", fromlist=["Worker"]).Worker(container)

@@ -49,6 +49,7 @@ from rss_v2.services.keywords import KeywordService
 from rss_v2.services.leads import LeadService
 from rss_v2.services.llm_failover import LLMFailover
 from rss_v2.services.materials import MaterialService
+from rss_v2.services.materials_runner import MaterialRunner
 from rss_v2.services.messages import MessageService
 from rss_v2.services.processing import ProcessingService
 from rss_v2.services.prompt_resolver import PromptResolver
@@ -260,12 +261,10 @@ def build_container(settings: Settings | None = None, migrate: bool = True) -> C
             max_output_tokens=actual_settings.discovery_max_output_tokens,
         ),
     )
-    material_service = MaterialService(
+    material_runner = MaterialRunner(
         materials,
-        writing_projects,
         leads,
         messages,
-        tasks,
         resolver,
         llm_provider,
         failover,
@@ -274,6 +273,15 @@ def build_container(settings: Settings | None = None, migrate: bool = True) -> C
             actual_settings.article_read_timeout_seconds, actual_settings.article_max_bytes
         ),
         actual_settings.llm_retry_cooldown_seconds,
+    )
+    material_service = MaterialService(
+        materials,
+        writing_projects,
+        leads,
+        tasks,
+        resolver,
+        failover,
+        material_runner,
         MaterialLimits(
             max_queries=actual_settings.materials_max_queries,
             search_result_limit=actual_settings.search_result_limit,

@@ -19,53 +19,32 @@
 
 from __future__ import annotations
 
-import datetime
-import hashlib
 import json
 import logging
-from collections.abc import Sequence
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from typing import cast
-from urllib.parse import urlsplit, urlunsplit
 
 from rss_v2.domain import (
-    BUDGET_EXHAUSTED,
-    ArticleRead,
     DomainError,
-    LeadMember,
     Material,
-    MaterialKind,
     MaterialLimits,
-    MaterialQueries,
-    MaterialQuery,
-    MaterialStatus,
     MaterialSummary,
-    MessageVersion,
     ProjectStatus,
-    Prompt,
-    Provider,
-    ProviderKey,
-    QueryOutcome,
-    SearchHit,
     Task,
-    TaskLease,
     TaskStatus,
     TaskType,
     lease_of,
 )
-from rss_v2.domain.prompts import render
 from rss_v2.domain.values import new_id, now
-from rss_v2.llm import LLMProvider, PromptPayload
 from rss_v2.ports import (
-    ArticleReader,
     LeadRepository,
     MaterialRepository,
-    MessageRepository,
-    SearchClient,
     TaskRepository,
     WritingProjectRepository,
 )
-from rss_v2.services.llm_failover import LLMFailover, input_hash
+from rss_v2.services.llm_failover import LLMFailover
+from rss_v2.services.materials_runner import MaterialRunner
+from rss_v2.services.materials_support import snapshot_hash, summary_json
 from rss_v2.services.prompt_resolver import PromptResolver
 
 logger = logging.getLogger(__name__)
@@ -87,17 +66,13 @@ MAX_SKIPPED_ROWS = 8
 class MaterialService:
     """资料准备的创建、执行与查询。"""
 
-    materials: MaterialRepository
-    projects: WritingProjectRepository
-    leads: LeadRepository
-    messages: MessageRepository
-    tasks: TaskRepository
-    prompts: PromptResolver
-    provider: LLMProvider
-    failover: LLMFailover
-    search: SearchClient
-    reader: ArticleReader
-    cooldown_seconds: int
+    materials: MaterialRepository  # 资料快照
+    projects: WritingProjectRepository  # 写作项目（状态与摘要）
+    leads: LeadRepository  # 选题成员（消息版本）
+    tasks: TaskRepository  # 资料准备任务
+    prompts: PromptResolver  # 检索式提示词
+    failover: LLMFailover  # 入队时的模型候选
+    runner: MaterialRunner  # 一次运行的执行器（检索、读取、去重、预算）
     limits: MaterialLimits = MaterialLimits()
 
     # ---------------------------------------------------------------- 入队
@@ -109,7 +84,7 @@ class MaterialService:
         members = self.leads.members(project.lead_id)
         if not members:
             raise DomainError("project_members_empty", "这个选题的成员消息都已不存在，无法准备资料")
-        snapshot = _snapshot_hash(members)
+        snapshot = snapshot_hash(members)
         key = f"materials:{project.id}:{snapshot}"
         existing = self.tasks.get_by_idempotency(key)
         if existing is not None and existing.status in {
@@ -147,44 +122,33 @@ class MaterialService:
     # ---------------------------------------------------------------- 执行
 
     def run(self, task: Task) -> MaterialSummary:
-        """执行资料准备：检索式 → 读原文 → 联网补充 → 去重落库 → 写摘要。"""
+        """执行资料准备：先确认项目与任务租约，再交给执行器读资料并写回摘要。
 
-        project_id = str(task.payload.get("project_id", ""))
-        project = self._require_project(project_id)
+        执行器负责"一次运行怎么跑"（检索式、RSS 原文、联网补充、去重与预算），
+        这一层只负责项目校验、预算注入与结果落库，便于单独验证两侧行为。
+        """
+
         lease = lease_of(task)
-        self.materials.clear_budget_skips(project.id, lease)
-        members = self._members(project.lead_id, task)
-        prompt = self.prompts.snapshot(
-            str(task.payload.get("prompt_id", "")), str(task.payload.get("prompt_version", ""))
-        )
-        queries = self._queries(
-            task, project.title, self._lead_note(project.lead_id), members, prompt
-        )
-        summary = MaterialSummary()
-        # 1) RSS 原文：成员消息版本本身是订阅到的原文（不占网络读取额度）。
-        rss_summary, reads = self._store_rss(project.id, task, members, lease)
-        summary = summary.merged(rss_summary)
-        # 2) 联网补充：检索命中读取成功才算资料，读取条数受预算约束。
-        summary = summary.merged(self._store_web(project.id, task, queries, reads, lease))
-        finished = replace(summary, finished_at=now(), notes=tuple(summary.notes[:MAX_NOTES]))
+        project = self._require_project(str(task.payload.get("project_id", "")))
+        summary = self.runner.run(task, project, self.limits, lease)
         self.projects.set_materials_summary(
             project.id,
             ProjectStatus.MATERIALS_READY.value,
-            _summary_json(finished, task.id),
-            finished.finished_at,
+            summary_json(summary, task.id),
+            summary.finished_at,
             lease,
         )
         self.tasks.complete(task.id, lease_token=task.lease_token)
         logger.info(
             "materials_ready project=%s read=%d summary_only=%d failed=%d duplicates=%d skipped=%d",
             project.id,
-            finished.read,
-            finished.summary_only,
-            finished.failed,
-            finished.duplicates,
-            finished.skipped_by_budget,
+            summary.read,
+            summary.summary_only,
+            summary.failed,
+            summary.duplicates,
+            summary.skipped_by_budget,
         )
-        return finished
+        return summary
 
     # ---------------------------------------------------------------- 查询
 
@@ -231,277 +195,6 @@ class MaterialService:
 
     # ---------------------------------------------------------------- 内部
 
-    def _store_rss(
-        self,
-        project_id: str,
-        task: Task,
-        members: Sequence[LeadMember],
-        lease: TaskLease | None,
-    ) -> tuple[MaterialSummary, int]:
-        """把成员消息版本落成 RSS 资料；正文为空的短消息再按链接回读一次页面。
-
-        返回（本次计数, 已用的网络读取条数）：RSS 快照不占读取额度，回读页面才占。
-        """
-
-        timestamp = now()
-        summary = MaterialSummary()
-        reads = 0
-        for member in members:
-            version = self.messages.get_version(member.version_id)
-            if version is None:
-                summary = summary.merged(
-                    MaterialSummary(
-                        failed=1,
-                        notes=(f"成员版本已不存在：{member.title[:40]}",),
-                    )
-                )
-                continue
-            content = (version.content or "").strip()
-            text = content or (version.summary or "").strip()
-            status = (
-                MaterialStatus.READ.value
-                if content
-                else (MaterialStatus.SUMMARY_ONLY.value if text else MaterialStatus.FAILED.value)
-            )
-            stored = self.materials.add(
-                _material_from_version(project_id, task, version, status, text, timestamp), lease
-            )
-            summary = summary.merged(
-                MaterialSummary(
-                    read=1 if status == MaterialStatus.READ.value else 0,
-                    summary_only=1 if status == MaterialStatus.SUMMARY_ONLY.value else 0,
-                    failed=1 if status == MaterialStatus.FAILED.value else 0,
-                    duplicates=0 if stored else 1,
-                )
-            )
-            # 短消息（电报/推特转发）只有摘要：按它的链接回读页面，尽力补上正文。
-            url = _normalize_url(version.url)
-            if content or not url:
-                continue
-            if reads >= self.limits.max_reads:
-                summary = summary.merged(
-                    MaterialSummary(
-                        skipped_by_budget=1,
-                        notes=(
-                            f"读取上限 {self.limits.max_reads} 条已用完，"
-                            f"未回读：{version.title[:30]}",
-                        ),
-                    )
-                )
-                continue
-            reads += 1
-            summary = summary.merged(
-                self._read_and_store(
-                    project_id, task, url, version.title, timestamp, lease, version.id
-                )
-            )
-        return summary, reads
-
-    def _store_web(
-        self,
-        project_id: str,
-        task: Task,
-        queries: Sequence[MaterialQuery],
-        used_reads: int,
-        lease: TaskLease | None,
-    ) -> MaterialSummary:
-        """按检索式补充资料：命中只是候选，读取成功才算资料。
-
-        候选按"每条检索式轮流取一条"排序后读取：预算不够时每条检索式都能拿到一部分，
-        不会让第一条检索式把额度用光（实测中文检索式一次就给出 8 条命中）。
-        超预算的候选留成"未读取"占位行（最多 MAX_SKIPPED_ROWS 条，总数记在摘要里）。
-        """
-
-        timestamp = now()
-        reads = used_reads
-        summary = MaterialSummary()
-        seen_urls: set[str] = set()
-        outcomes: list[QueryOutcome] = []
-        queues: list[list[SearchHit]] = []
-        for query in queries:
-            # 检索失败（未配置、超时、限流、格式未开）直接抛出：整次任务冷却重试；
-            # 已经写入的资料在重试时按地址跳过，进度不丢。
-            outcome = self.search.search(query.text, limit=self.limits.search_result_limit)
-            outcomes.append(
-                QueryOutcome(
-                    query=query.text,
-                    purpose=query.purpose,
-                    hits=len(outcome.hits),
-                    unresponsive_engines=outcome.unresponsive_engines,
-                )
-            )
-            if not outcome.hits and outcome.unresponsive_engines:
-                # "没问到"和"没有资料"必须分开：引擎全被限流时结果为空不代表没有资料。
-                summary = summary.merged(
-                    MaterialSummary(
-                        notes=(
-                            "部分引擎未响应（"
-                            + "、".join(outcome.unresponsive_engines[:3])
-                            + f"），检索式：{query.text[:30]}",
-                        )
-                    )
-                )
-            fresh: list[SearchHit] = []
-            for hit in outcome.hits:
-                url = _normalize_url(hit.url)
-                if not url or url in seen_urls:
-                    summary = summary.merged(MaterialSummary(duplicates=1))
-                    continue
-                seen_urls.add(url)
-                if self.materials.by_url(project_id, url) is not None:
-                    summary = summary.merged(MaterialSummary(duplicates=1))
-                    continue
-                fresh.append(hit)
-            queues.append(fresh)
-        candidates = _interleave(queues, MAX_CANDIDATES_PER_RUN)
-        skipped_rows = 0
-        for hit in candidates:
-            url = _normalize_url(hit.url)
-            if reads >= self.limits.max_reads:
-                skipped_rows += 1
-                summary = summary.merged(
-                    MaterialSummary(
-                        skipped_by_budget=1,
-                        notes=(
-                            f"读取上限 {self.limits.max_reads} 条已用完，未读取：{hit.title[:30]}",
-                        ),
-                    )
-                )
-                if skipped_rows <= MAX_SKIPPED_ROWS:
-                    self.materials.add(
-                        _skipped_material(project_id, task, url, hit.title, timestamp), lease
-                    )
-                continue
-            reads += 1
-            summary = summary.merged(
-                self._read_and_store(project_id, task, url, hit.title, timestamp, lease)
-            )
-        return summary.merged(MaterialSummary(queries=tuple(outcomes)))
-
-    def _read_and_store(
-        self,
-        project_id: str,
-        task: Task,
-        url: str,
-        title: str,
-        timestamp: int,
-        lease: TaskLease | None,
-        message_version_id: str | None = None,
-    ) -> MaterialSummary:
-        """读取一份网页并落库；返回这一份资料的计数。"""
-
-        try:
-            read = self.reader.read(url)
-        except Exception as exc:  # noqa: BLE001 - 读取端口异常同样落成失败资料
-            logger.warning("material_read_error url=%s class=%s", url, type(exc).__name__)
-            read = ArticleRead(
-                status=MaterialStatus.FAILED.value,
-                final_url="",
-                title=title,
-                publisher="",
-                published_at=None,
-                text="",
-                content_hash="",
-                byte_size=0,
-                error_code="material_read_error",
-                error_message="读取发生内部错误，请查看运行日志",
-            )
-        material = Material(
-            id=new_id(),
-            project_id=project_id,
-            kind=MaterialKind.WEB.value,
-            status=read.status,
-            url=url,
-            final_url=read.final_url,
-            title=read.title or title,
-            publisher=read.publisher,
-            published_at=read.published_at,
-            fetched_at=now(),
-            content_text=read.text,
-            content_hash=read.content_hash,
-            byte_size=read.byte_size,
-            truncated=read.truncated,
-            message_version_id=message_version_id,
-            task_id=task.id,
-            error_code=read.error_code,
-            error_message=read.error_message,
-            created_at=timestamp,
-        )
-        if self.materials.add(material, lease) is None:
-            return MaterialSummary(duplicates=1)
-        return MaterialSummary(
-            read=1 if read.status == MaterialStatus.READ.value else 0,
-            summary_only=1 if read.status == MaterialStatus.SUMMARY_ONLY.value else 0,
-            unavailable=1 if read.status == MaterialStatus.UNAVAILABLE.value else 0,
-            failed=1 if read.status == MaterialStatus.FAILED.value else 0,
-        )
-
-    def _queries(
-        self,
-        task: Task,
-        title: str,
-        summary: str,
-        members: Sequence[LeadMember],
-        prompt: Prompt,
-    ) -> list[MaterialQuery]:
-        """调用模型生成检索式；条数按预算截断，重复与空文本丢弃并记日志。"""
-
-        values = {
-            "title": title,
-            "summary": summary,
-            "members": _members_text(members),
-        }
-        payload = PromptPayload(
-            system=render(prompt.system_template, values),
-            user=render(prompt.user_template, values),
-        )
-
-        def invoke(
-            provider: Provider, model_name: str, secret: str
-        ) -> tuple[MaterialQueries, dict[str, int], int]:
-            return self.provider.structured(
-                provider,
-                model_name,
-                secret,
-                payload,
-                prompt.version_string,
-                TaskType.PREPARE_MATERIALS.value,
-                MaterialQueries,
-            )
-
-        def persist(
-            provider: Provider,
-            model_name: str,
-            key: ProviderKey,
-            result: MaterialQueries,
-            tokens: dict[str, int],
-            duration_ms: int,
-        ) -> list[MaterialQuery]:
-            return _pick_queries(result, self.limits.max_queries)
-
-        return self.failover.execute(
-            task.id,
-            input_hash(payload.system, payload.user),
-            prompt.version_string,
-            self.cooldown_seconds,
-            invoke,
-            persist,
-        )
-
-    def _members(self, lead_id: str, task: Task) -> list[LeadMember]:
-        """按任务快照取成员：执行期间消息更新不会改变这次任务的输入。"""
-
-        wanted = [str(item) for item in task.payload.get("versions", [])]
-        members = {member.version_id: member for member in self.leads.members(lead_id)}
-        ordered = [members[version_id] for version_id in wanted if version_id in members]
-        if not ordered:
-            raise DomainError("project_members_empty", "选题成员快照已失效，请重新发起资料准备")
-        return ordered
-
-    def _lead_note(self, lead_id: str) -> str:
-        lead = self.leads.get(lead_id)
-        return (lead.note or "") if lead is not None else ""
-
     def _snapshot(self, existing: Task | None) -> dict[str, str]:
         """任务里的模型与提示词快照：重试沿用上次，首次取当前生效配置。"""
 
@@ -533,164 +226,3 @@ class MaterialService:
         if project is None:
             raise DomainError("project_not_found", "写作项目不存在")
         return project
-
-
-def _pick_queries(result: MaterialQueries, limit: int) -> list[MaterialQuery]:
-    """归一化检索式：去空、去重、按预算截断。"""
-
-    picked: list[MaterialQuery] = []
-    seen: set[str] = set()
-    for item in result.queries:
-        text = " ".join(item.text.split())
-        if not text or text in seen:
-            continue
-        seen.add(text)
-        picked.append(MaterialQuery(text=text[:120], purpose=" ".join(item.purpose.split())[:120]))
-        if len(picked) >= max(1, limit):
-            break
-    return picked
-
-
-def _interleave(queues: Sequence[Sequence[SearchHit]], limit: int) -> list[SearchHit]:
-    """按"每条检索式轮流取一条"合并候选，最多取 limit 条。
-
-    这样预算不够时每条检索式都有机会被读到，而不是第一条检索式把额度用光。
-    """
-
-    merged: list[SearchHit] = []
-    depth = 0
-    while len(merged) < limit:
-        progressed = False
-        for queue in queues:
-            if depth < len(queue):
-                merged.append(queue[depth])
-                progressed = True
-                if len(merged) >= limit:
-                    break
-        if not progressed:
-            break
-        depth += 1
-    return merged
-
-
-def _members_text(members: Sequence[LeadMember]) -> str:
-    lines: list[str] = []
-    for index, member in enumerate(members, start=1):
-        published = _beijing(member.published_at or member.collected_at)
-        lines.append(
-            f"{index}. {member.title or '（无标题）'}（来源：{member.source_name}，{published}）"
-        )
-    return "\n".join(lines)
-
-
-def _beijing(timestamp: int) -> str:
-    return datetime.datetime.fromtimestamp(
-        timestamp, datetime.timezone(datetime.timedelta(hours=8))
-    ).strftime("%Y-%m-%d %H:%M")
-
-
-def _normalize_url(url: str) -> str:
-    """规范化 URL：去 fragment、主机小写、去掉跟踪参数；只保留 http/https。"""
-
-    parts = urlsplit(url.strip())
-    if parts.scheme not in {"http", "https"} or not parts.hostname:
-        return ""
-    query = "&".join(
-        pair
-        for pair in parts.query.split("&")
-        if pair and not pair.split("=", 1)[0].lower().startswith(_TRACKING_PREFIXES)
-    )
-    return urlunsplit((parts.scheme, parts.netloc.lower(), parts.path, query, ""))
-
-
-def _snapshot_hash(members: Sequence[LeadMember]) -> str:
-    digest = hashlib.sha256()
-    for member in members:
-        digest.update(f"{member.message_id}:{member.version_id}\n".encode())
-    return digest.hexdigest()[:24]
-
-
-def _material_from_version(
-    project_id: str,
-    task: Task,
-    version: MessageVersion,
-    status: str,
-    text: str,
-    timestamp: int,
-) -> Material:
-    return Material(
-        id=new_id(),
-        project_id=project_id,
-        kind=MaterialKind.RSS.value,
-        status=status,
-        url=version.url,
-        final_url="",
-        title=version.title,
-        publisher="",
-        published_at=version.published_at,
-        fetched_at=timestamp,
-        content_text=text,
-        content_hash=hashlib.sha256(" ".join(text.split()).encode("utf-8")).hexdigest()
-        if text
-        else "",
-        byte_size=len(text.encode("utf-8")),
-        truncated=False,
-        message_version_id=version.id,
-        task_id=task.id,
-        error_code="" if text else "message_content_empty",
-        error_message="" if text else "这条消息没有正文也没有摘要，无法作为证据",
-        created_at=timestamp,
-    )
-
-
-def _skipped_material(
-    project_id: str, task: Task, url: str, title: str, timestamp: int
-) -> Material:
-    return Material(
-        id=new_id(),
-        project_id=project_id,
-        kind=MaterialKind.WEB.value,
-        status=MaterialStatus.FAILED.value,
-        url=url,
-        final_url="",
-        title=title,
-        publisher="",
-        published_at=None,
-        fetched_at=timestamp,
-        content_text="",
-        content_hash="",
-        byte_size=0,
-        truncated=False,
-        message_version_id=None,
-        task_id=task.id,
-        error_code=BUDGET_EXHAUSTED,
-        error_message="这一轮读取预算已用完，未读取；可重新发起资料准备",
-        created_at=timestamp,
-    )
-
-
-def _summary_json(summary: MaterialSummary, task_id: str) -> str:
-    return json.dumps(
-        {
-            "queries": [
-                {
-                    "query": item.query,
-                    "purpose": item.purpose,
-                    "hits": item.hits,
-                    "unresponsive_engines": list(item.unresponsive_engines),
-                    "error_code": item.error_code,
-                }
-                for item in summary.queries
-            ],
-            "read": summary.read,
-            "summary_only": summary.summary_only,
-            "unavailable": summary.unavailable,
-            "failed": summary.failed,
-            "duplicates": summary.duplicates,
-            "skipped_by_budget": summary.skipped_by_budget,
-            "notes": list(summary.notes),
-            "task_id": task_id,
-            "finished_at": summary.finished_at,
-        },
-        ensure_ascii=False,
-    )
