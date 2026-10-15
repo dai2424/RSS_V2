@@ -36,9 +36,10 @@ from rss_v2.adapters.sqlite.repositories import (
 )
 from rss_v2.adapters.sqlite.translations import SQLiteTranslationRepository
 from rss_v2.adapters.sqlite.v1_import import SQLiteV1Importer
-from rss_v2.domain import LLMProtocol, Provider
+from rss_v2.domain import DiscoveryLimits, LLMProtocol, Provider
 from rss_v2.services.collection import CollectionService
-from rss_v2.services.discovery import DiscoveryLimits, DiscoveryService
+from rss_v2.services.discovery import DiscoveryService
+from rss_v2.services.discovery_runner import DiscoveryRunner
 from rss_v2.services.enrichment import EnrichmentService
 from rss_v2.services.keyword_suggestions import KeywordSuggestionService
 from rss_v2.services.keywords import KeywordService
@@ -223,6 +224,13 @@ def build_container(settings: Settings | None = None, migrate: bool = True) -> C
         actual_settings.keyword_hot_days,
     )
     lead_service = LeadService(leads, messages)
+    discovery_runner = DiscoveryRunner(
+        discovery_scope,
+        resolver,
+        llm_provider,
+        failover,
+        actual_settings.llm_retry_cooldown_seconds,
+    )
     discovery_service = DiscoveryService(
         discovery,
         writing_projects,
@@ -232,9 +240,8 @@ def build_container(settings: Settings | None = None, migrate: bool = True) -> C
         categories,
         tasks,
         resolver,
-        llm_provider,
         failover,
-        actual_settings.llm_retry_cooldown_seconds,
+        discovery_runner,
         DiscoveryLimits(
             window_days=actual_settings.discovery_window_days,
             max_window_days=actual_settings.discovery_max_window_days,

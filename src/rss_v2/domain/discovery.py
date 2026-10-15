@@ -41,6 +41,20 @@ class ProjectStatus(StrEnum):
 
 
 @dataclass(frozen=True, slots=True)
+class DiscoveryLimits:
+    """发现流程的预算与上限；由配置注入，测试可以传更小的值。"""
+
+    window_days: int = 7  # 默认窗口天数
+    max_window_days: int = 90  # 允许申请的最大跨度
+    max_window_messages: int = 400  # 窗口内消息上限，超过要求缩小范围
+    batch_size: int = 40  # 每批交给模型的消息条数
+    batch_chars: int = 60000  # 单批输入字符上限
+    max_members: int = 20  # 单个候选的成员上限
+    max_candidates: int = 50  # 单次发现的候选上限
+    max_output_tokens: int = 8192  # 单次模型调用的输出上限；截断会触发对半拆批
+
+
+@dataclass(frozen=True, slots=True)
 class DiscoveryInputVersion:
     """发现输入的一条消息（取最新版本），带展示所需的来源与已有关键词。
 

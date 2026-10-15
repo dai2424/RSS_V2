@@ -24,9 +24,8 @@ from keyword_support import (
 )
 from pydantic import ValidationError
 
-from rss_v2.domain import DomainError, ExternalServiceError, Provider
+from rss_v2.domain import DiscoveryLimits, DomainError, ExternalServiceError, Provider
 from rss_v2.llm import PromptPayload
-from rss_v2.services.discovery import DiscoveryLimits
 from rss_v2.tasks.worker import Worker
 
 MESSAGE_ID = re.compile(r"\[([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\]")
@@ -129,8 +128,10 @@ def _seed(client: TestClient, url: str = "https://discovery.test/feed") -> tuple
 
 
 def _stub(client: TestClient, fake: ScriptedProvider) -> None:
+    """把发现执行器的模型调用指向假 provider（必须在跑 worker 之前调用）。"""
+
     container = client.app.state.container
-    container.discovery_service.provider = fake
+    container.discovery_service.runner.provider = fake
 
 
 def _messages(client: TestClient) -> list[dict[str, Any]]:
