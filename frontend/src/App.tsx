@@ -37,6 +37,21 @@ const MessageDetail = lazy(() =>
     default: m.MessageDetailPage,
   })),
 );
+const Discover = lazy(() =>
+  import("./features/discovery/DiscoveryPage").then((m) => ({
+    default: m.DiscoveryPage,
+  })),
+);
+const DiscoverDetail = lazy(() =>
+  import("./features/discovery/DiscoveryDetailPage").then((m) => ({
+    default: m.DiscoveryDetailPage,
+  })),
+);
+const Project = lazy(() =>
+  import("./features/discovery/ProjectPage").then((m) => ({
+    default: m.ProjectPage,
+  })),
+);
 const Leads = lazy(() =>
   import("./features/leads/LeadsPage").then((m) => ({ default: m.LeadsPage })),
 );
@@ -73,6 +88,9 @@ const router = createBrowserRouter(
       <Route path="/sources/:sourceId/edit" element={<SourceForm />} />
       <Route path="/messages" element={<Messages />} />
       <Route path="/messages/:messageId" element={<MessageDetail />} />
+      <Route path="/discover" element={<Discover />} />
+      <Route path="/discover/:batchId" element={<DiscoverDetail />} />
+      <Route path="/projects/:projectId" element={<Project />} />
       <Route path="/leads" element={<Leads />} />
       <Route path="/leads/:leadId" element={<LeadDetail />} />
       <Route path="/tasks" element={<Tasks />} />

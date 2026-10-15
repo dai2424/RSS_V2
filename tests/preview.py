@@ -79,6 +79,40 @@ def two_items_feed(request: Request) -> Response:
     return Response(body.encode("utf-8"), media_type="application/xml")
 
 
+@app.get("/fixtures/stage4-feed.xml")
+def stage4_feed() -> Response:
+    """三条消息的 RSS，供选题发现验收：前两条是同一件事、第三条独立。
+
+    发布时间按当前时间生成：默认窗口是"最近 7 天"，写死日期会随时间过期。
+    """
+
+    base = datetime.now(tz=UTC) - timedelta(hours=6)
+    rows = [
+        ("尊界 V800 制动测试引争议", "懂车帝 100-0 km/h 实测中三台车支架断裂。" * 4, 3),
+        ("尊界回应制动踏板问题", "厂商称按高于国标的要求验证，将免费升级。" * 4, 2),
+        ("开源项目让安卓车机跑 CarPlay", "纯软件方案无需额外硬件。" * 4, 1),
+    ]
+    items = "".join(
+        f"""<item>
+  <guid>stage4-{index}</guid>
+  <title>{title}</title>
+  <link>https://example.test/stage4-{index}</link>
+  <description><![CDATA[{text}]]></description>
+  <pubDate>{(base - timedelta(hours=offset)).strftime("%a, %d %b %Y %H:%M:%S GMT")}</pubDate>
+</item>
+"""
+        for index, (title, text, offset) in enumerate(rows, start=1)
+    )
+    body = f"""<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0"><channel>
+<title>Stage 4 选题</title>
+<link>https://example.test/</link>
+<description>Stage 4 discovery fixture</description>
+<language>zh-cn</language>
+{items}</channel></rss>"""
+    return Response(body.encode("utf-8"), media_type="application/xml")
+
+
 def _user_prompt(body: dict[str, Any]) -> str:
     """读取请求里的用户提示；合并建议要从里面取本批词表。"""
 
@@ -141,9 +175,41 @@ def _suggestion_groups(user_prompt: str) -> list[dict[str, object]]:
     ]
 
 
+#: 发现任务的输入行以 "[消息ID] 时间 | 来源 | ..." 开头（服务端渲染的格式）。
+_UUID = r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+_DISCOVERY_MESSAGE = re.compile(rf"^\[({_UUID})\]", re.MULTILINE)
+
+
+def _discovery_candidates(user_prompt: str) -> dict[str, object]:
+    """把提示词里的消息按"前两条一个事件、其余各自成候选"分组。
+
+    照实读输入再分组（而不是写死 ID）：服务端的越界过滤会把写死的 ID 全部丢掉，
+    界面验收就看不到候选。第一条事件的推荐度最高，便于断言排序。
+    """
+
+    ids = _DISCOVERY_MESSAGE.findall(user_prompt)
+    if not ids:
+        return {"candidates": []}
+    groups = [ids[:2]] + [[item] for item in ids[2:]]
+    candidates: list[dict[str, object]] = []
+    for index, members in enumerate(groups, start=1):
+        candidates.append(
+            {
+                "member_message_ids": members,
+                "title": f"夹具事件 {index}",
+                "summary": f"夹具事件的概要 {index}：同一件事的多篇报道已合并。",
+                "score": max(1, 5 - index),
+                "reasons": [{"kind": "interesting", "text": f"夹具推荐理由 {index}"}],
+            }
+        )
+    return {"candidates": candidates}
+
+
 def _fixture_content(system_prompt: str, user_prompt: str) -> dict[str, object]:
     """按任务类型标记返回对应结构；两种协议的假端点共用它。"""
 
+    if "[task: discover_events" in system_prompt:
+        return _discovery_candidates(user_prompt)
     if "[task: keyword_merge_suggest" in system_prompt:
         return {"groups": _suggestion_groups(user_prompt)}
     if "[task: enrich_message" in system_prompt:

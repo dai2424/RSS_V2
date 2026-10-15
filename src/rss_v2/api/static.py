@@ -18,6 +18,8 @@ class FrontendFiles(StaticFiles):
             if exc.status_code != 404 or route not in {
                 "sources",
                 "messages",
+                "discover",
+                "projects",
                 "leads",
                 "tasks",
                 "settings",
