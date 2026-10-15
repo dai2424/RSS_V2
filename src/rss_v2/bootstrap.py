@@ -22,6 +22,7 @@ from rss_v2.adapters.sqlite.keyword_suggestions import SQLiteSuggestionRepositor
 from rss_v2.adapters.sqlite.keywords import SQLiteKeywordRepository
 from rss_v2.adapters.sqlite.leads import SQLiteLeadRepository
 from rss_v2.adapters.sqlite.llm import SQLiteLLMCallRepository, SQLiteLLMConfigRepository
+from rss_v2.adapters.sqlite.materials import SQLiteMaterialRepository
 from rss_v2.adapters.sqlite.messages import SQLiteMessageRepository
 from rss_v2.adapters.sqlite.migrations import MigrationRunner
 from rss_v2.adapters.sqlite.prompts import (
@@ -36,7 +37,9 @@ from rss_v2.adapters.sqlite.repositories import (
 )
 from rss_v2.adapters.sqlite.translations import SQLiteTranslationRepository
 from rss_v2.adapters.sqlite.v1_import import SQLiteV1Importer
-from rss_v2.domain import DiscoveryLimits, LLMProtocol, Provider
+from rss_v2.adapters.web.reader import HTTPXArticleReader
+from rss_v2.adapters.web.searxng import HTTPXSearchClient
+from rss_v2.domain import DiscoveryLimits, LLMProtocol, MaterialLimits, Provider
 from rss_v2.services.collection import CollectionService
 from rss_v2.services.discovery import DiscoveryService
 from rss_v2.services.discovery_runner import DiscoveryRunner
@@ -45,6 +48,7 @@ from rss_v2.services.keyword_suggestions import KeywordSuggestionService
 from rss_v2.services.keywords import KeywordService
 from rss_v2.services.leads import LeadService
 from rss_v2.services.llm_failover import LLMFailover
+from rss_v2.services.materials import MaterialService
 from rss_v2.services.messages import MessageService
 from rss_v2.services.processing import ProcessingService
 from rss_v2.services.prompt_resolver import PromptResolver
@@ -77,6 +81,7 @@ class Container:
     discovery: SQLiteDiscoveryRepository
     discovery_scope: SQLiteDiscoveryScopeReader
     writing_projects: SQLiteWritingProjectRepository
+    materials: SQLiteMaterialRepository
     llm_config: SQLiteLLMConfigRepository
     llm_calls: SQLiteLLMCallRepository
     prompts: SQLitePromptRepository
@@ -94,6 +99,7 @@ class Container:
     lead_service: LeadService
     suggestion_service: KeywordSuggestionService
     discovery_service: DiscoveryService
+    material_service: MaterialService
     task_service: TaskService
     provider_service: ProviderService
 
@@ -134,6 +140,7 @@ def build_container(settings: Settings | None = None, migrate: bool = True) -> C
     discovery = SQLiteDiscoveryRepository(database)
     discovery_scope = SQLiteDiscoveryScopeReader(database)
     writing_projects = SQLiteWritingProjectRepository(database)
+    materials = SQLiteMaterialRepository(database)
     llm_config = SQLiteLLMConfigRepository(database)
     llm_calls = SQLiteLLMCallRepository(database)
     prompts = SQLitePromptRepository(database)
@@ -253,7 +260,30 @@ def build_container(settings: Settings | None = None, migrate: bool = True) -> C
             max_output_tokens=actual_settings.discovery_max_output_tokens,
         ),
     )
-    task_service = TaskService(tasks, messages, sources, discovery)
+    material_service = MaterialService(
+        materials,
+        writing_projects,
+        leads,
+        messages,
+        tasks,
+        resolver,
+        llm_provider,
+        failover,
+        HTTPXSearchClient(actual_settings.search_base_url, actual_settings.search_timeout_seconds),
+        HTTPXArticleReader(
+            actual_settings.article_read_timeout_seconds, actual_settings.article_max_bytes
+        ),
+        actual_settings.llm_retry_cooldown_seconds,
+        MaterialLimits(
+            max_queries=actual_settings.materials_max_queries,
+            search_result_limit=actual_settings.search_result_limit,
+            max_reads=actual_settings.materials_max_reads,
+            max_bytes=actual_settings.article_max_bytes,
+            read_timeout_seconds=actual_settings.article_read_timeout_seconds,
+            search_timeout_seconds=actual_settings.search_timeout_seconds,
+        ),
+    )
+    task_service = TaskService(tasks, messages, sources, discovery, writing_projects)
     provider_service = ProviderService(llm_config)
     return Container(
         actual_settings,
@@ -272,6 +302,7 @@ def build_container(settings: Settings | None = None, migrate: bool = True) -> C
         discovery,
         discovery_scope,
         writing_projects,
+        materials,
         llm_config,
         llm_calls,
         prompts,
@@ -289,6 +320,7 @@ def build_container(settings: Settings | None = None, migrate: bool = True) -> C
         lead_service,
         suggestion_service,
         discovery_service,
+        material_service,
         task_service,
         provider_service,
     )

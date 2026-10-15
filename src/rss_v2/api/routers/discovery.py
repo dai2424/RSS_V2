@@ -127,4 +127,7 @@ def project_detail(project_id: str, request: Request) -> ProjectDetailResponse:
 
     service = _service(request)
     project, members = service.project_detail(project_id)
-    return project_detail_response(project, members, service.project_counts(project_id))
+    materials = container(request).material_service.counts(project_id)
+    # 资料条数来自资料服务；事实、提纲与文章在后续任务里填充（当前恒为 0）。
+    counts = {"materials": materials.get("total", 0), "facts": 0, "outlines": 0, "articles": 0}
+    return project_detail_response(project, members, counts)

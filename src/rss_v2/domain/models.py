@@ -36,6 +36,7 @@ class TaskType(StrEnum):
     KEYWORD_MERGE_SUGGEST = "keyword_merge_suggest"  # 合并建议：一批词表一个任务
     KEYWORD_PIN_SUGGEST = "keyword_pin_suggest"  # 常驻建议：只登记提示词规格，同步调用
     DISCOVER_EVENTS = "discover_events"  # 选题发现：一个时间窗口一个任务，分批调用模型
+    PREPARE_MATERIALS = "prepare_materials"  # 资料准备：一个写作项目一个任务
 
 
 class LLMProtocol(StrEnum):
@@ -56,6 +57,7 @@ LLM_TASK_TYPES = frozenset(
         TaskType.ENRICH_MESSAGE,
         TaskType.KEYWORD_MERGE_SUGGEST,
         TaskType.DISCOVER_EVENTS,
+        TaskType.PREPARE_MATERIALS,
     }
 )
 

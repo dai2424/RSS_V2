@@ -41,3 +41,16 @@ class DiscoveryDigest(BaseModel):
     """
 
     candidates: list[DiscoveryCandidateSchema]
+
+
+class MaterialQuerySchema(BaseModel):
+    """资料准备的一条检索式。"""
+
+    text: str
+    purpose: str = ""  # 用途说明，便于人工复核"为什么搜这个"
+
+
+class MaterialQueries(BaseModel):
+    """资料准备的检索式列表（数量上限由服务层按预算截断）。"""
+
+    queries: list[MaterialQuerySchema]

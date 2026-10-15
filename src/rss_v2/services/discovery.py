@@ -338,12 +338,6 @@ class DiscoveryService:
             task_status=task_status,
         )
 
-    def project_counts(self, project_id: str) -> dict[str, int]:
-        """项目各阶段产物数量；资料/提纲/文章表在 P3a 起建立，本阶段全为 0。"""
-
-        self.project_detail(project_id)
-        return {"materials": 0, "facts": 0, "outlines": 0, "articles": 0}
-
     def select(self, batch_id: str, candidate_id: str) -> tuple[WritingProject, bool]:
         """选定候选并建立写作项目；同一候选重复选择返回既有项目。"""
 

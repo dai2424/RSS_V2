@@ -89,6 +89,9 @@ class Worker:
         elif task.task_type == TaskType.DISCOVER_EVENTS:
             # 候选写进发现批次，任务由服务自行结束（见 DiscoveryService.run）。
             self.container.discovery_service.run(task)
+        elif task.task_type == TaskType.PREPARE_MATERIALS:
+            # 资料落进 project_materials，任务由服务自行结束（见 MaterialService.run）。
+            self.container.material_service.run(task)
         else:
             raise DomainError("task_type_unsupported", "不支持的任务类型")
 

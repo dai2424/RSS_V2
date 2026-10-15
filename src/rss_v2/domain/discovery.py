@@ -153,8 +153,9 @@ class WritingProject:
     candidate_id: str | None  # 来源候选 UUID；非候选来源（后续人工入口）为空
     title: str  # 项目标题
     status: str  # 取值见 ProjectStatus
-    created_at: int  # 创建时间，UTC 秒
-    updated_at: int  # 最近更新时间，UTC 秒
+    materials_summary_json: str = "{}"  # 资料准备的结果摘要（检索式、计数、缺口）
+    created_at: int = 0  # 创建时间，UTC 秒
+    updated_at: int = 0  # 最近更新时间，UTC 秒
 
 
 @dataclass(frozen=True, slots=True)

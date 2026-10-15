@@ -97,6 +97,13 @@ from .llm import (
     TaskSettingResponse,
     TaskSettingsUpdateRequest,
 )
+from .materials import (
+    MaterialDetailResponse,
+    MaterialListResponse,
+    MaterialQueryResponse,
+    MaterialResponse,
+    MaterialsSummaryResponse,
+)
 from .messages import (
     EnrichmentResponse,
     KeywordResponse,
@@ -116,6 +123,11 @@ from .messages import (
 from .pagination import Page
 
 __all__ = [
+    "MaterialDetailResponse",
+    "MaterialListResponse",
+    "MaterialQueryResponse",
+    "MaterialResponse",
+    "MaterialsSummaryResponse",
     "DiscoveryBatchDetailResponse",
     "DiscoveryBatchListResponse",
     "DiscoveryBatchResponse",

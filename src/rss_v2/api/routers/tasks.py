@@ -31,8 +31,10 @@ def list_tasks(
     status: str | None = Query(default=None, pattern="^(queued|running|succeeded|failed)$"),
     task_type: str | None = Query(
         default=None,
-        pattern="^(collect_source|translate_message|enrich_message|keyword_merge_suggest|discover_events)$",
-        description="任务类型：采集、翻译、内容加工、合并建议或选题发现",
+        pattern="^("
+        "collect_source|translate_message|enrich_message|keyword_merge_suggest|"
+        "discover_events|prepare_materials)$",
+        description="任务类型：采集、翻译、内容加工、合并建议、选题发现或资料准备",
     ),
     source_id: str | None = Query(
         default=None, description="来源：采集任务看任务快照，消息任务看所属来源"

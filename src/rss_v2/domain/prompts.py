@@ -80,6 +80,15 @@ TASK_SPECS: dict[TaskType, TaskSpec] = {
         # 输入是跨来源的时间窗口，按来源/分类分配没有意义：直接用当前生效版本。
         assignable=False,
     ),
+    TaskType.PREPARE_MATERIALS: TaskSpec(
+        kind=TaskType.PREPARE_MATERIALS,
+        label="资料检索式",
+        variables=("title", "summary", "members"),
+        required_variables=("title", "members"),
+        output_fields=("queries",),
+        # 输入是某个选题，按来源分配没有意义：直接用当前生效版本。
+        assignable=False,
+    ),
 }
 
 #: 编译预览使用的样例取值；没有真实消息时也能看到渲染结果。
@@ -97,6 +106,8 @@ SAMPLE_VALUES: dict[str, str] = {
     "batch_index": "1",
     "batch_total": "1",
     "message_count": "1",
+    # 资料准备的编译预览：真实取值由服务层按项目成员渲染。
+    "members": "1. 尊界 V800 制动测试引争议（来源：风向旗参考快讯，2026-10-08 10:41 上海）",
 }
 
 

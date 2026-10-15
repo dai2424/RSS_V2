@@ -9,7 +9,13 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 
 from rss_v2.domain import DomainError, Task, TaskDeletion, TaskStatus, TaskType, TaskView
-from rss_v2.ports import DiscoveryRepository, MessageRepository, SourceRepository, TaskRepository
+from rss_v2.ports import (
+    DiscoveryRepository,
+    MessageRepository,
+    SourceRepository,
+    TaskRepository,
+    WritingProjectRepository,
+)
 
 #: 无法解析目标时回落的标识长度，够在一眼内区分不同目标。
 SHORT_ID_LENGTH = 8
@@ -23,6 +29,7 @@ class TaskService:
     messages: MessageRepository
     sources: SourceRepository
     discovery: DiscoveryRepository  # 选题发现任务的目标是批次（阶段 4 P2a）
+    projects: WritingProjectRepository  # 写作阶段任务的目标是项目（阶段 4 P3a 起）
 
     def get(self, task_id: str) -> Task:
         task = self.tasks.get(task_id)
@@ -85,6 +92,8 @@ class TaskService:
             return TaskView(task, "vocabulary", "", self._batch_label(task))
         if task.task_type == TaskType.DISCOVER_EVENTS.value:
             return self._discovery_view(task)
+        if task.task_type == TaskType.PREPARE_MATERIALS.value:
+            return self._project_view(task)
         kind, target_id = self._target(task)
         if not target_id:
             return TaskView(task, "unknown", "", "")
@@ -145,6 +154,15 @@ class TaskService:
             return TaskView(task, "discovery_batch", batch_id, self._short(batch_id))
         label = f"{batch.source_label} · 消息 {batch.message_count} 条"
         return TaskView(task, "discovery_batch", batch.id, label)
+
+    def _project_view(self, task: Task) -> TaskView:
+        """写作阶段任务：目标是写作项目。"""
+
+        project_id = str(task.payload.get("project_id") or "")
+        project = self.projects.get(project_id) if project_id else None
+        if project is None:
+            return TaskView(task, "project", project_id, self._short(project_id))
+        return TaskView(task, "project", project.id, project.title)
 
     @staticmethod
     def _batch_label(task: Task) -> str:

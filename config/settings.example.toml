@@ -34,3 +34,16 @@ discovery_max_members = 20
 discovery_max_candidates = 50
 # 单次模型调用的输出上限；超出会把这一批对半拆开重试（最多两层）。
 discovery_max_output_tokens = 8192
+
+# 资料准备（阶段 4 P3a）：联网检索与原文读取。
+# search_base_url 指向 SearXNG 兼容端点（GET {base}/search?q=…&format=json），
+# 实例必须开启 JSON 输出（search.formats 含 json），否则请求会返回 403。
+# 留空时资料任务会以 search_unconfigured 明确失败，不会用摘要冒充已读资料。
+search_base_url = ""
+search_timeout_seconds = 20.0
+search_result_limit = 8
+article_read_timeout_seconds = 20.0
+article_max_bytes = 2000000
+# 每个项目的检索式条数与网络读取条数上限；超限的候选会落成"未读取"并在摘要里说明。
+materials_max_queries = 3
+materials_max_reads = 12

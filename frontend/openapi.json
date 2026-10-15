@@ -2575,6 +2575,142 @@
         }
       }
     },
+    "/api/projects/{project_id}/materials": {
+      "post": {
+        "tags": [
+          "materials"
+        ],
+        "summary": "Create Materials",
+        "description": "发起资料准备：检索式生成 → 读原文 → 联网补充 → 去重落库。",
+        "operationId": "create_materials_api_projects__project_id__materials_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "materials"
+        ],
+        "summary": "List Materials",
+        "description": "项目的资料列表、状态计数与上次运行的摘要。",
+        "operationId": "list_materials_api_projects__project_id__materials_get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MaterialListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{project_id}/materials/{material_id}": {
+      "get": {
+        "tags": [
+          "materials"
+        ],
+        "summary": "Material Detail",
+        "description": "一条资料的完整快照（含正文）。",
+        "operationId": "material_detail_api_projects__project_id__materials__material_id__get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "material_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Material Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MaterialDetailResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/tasks/{task_id}": {
       "get": {
         "tags": [
@@ -2692,16 +2828,16 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "pattern": "^(collect_source|translate_message|enrich_message|keyword_merge_suggest|discover_events)$"
+                  "pattern": "^(collect_source|translate_message|enrich_message|keyword_merge_suggest|discover_events|prepare_materials)$"
                 },
                 {
                   "type": "null"
                 }
               ],
-              "description": "任务类型：采集、翻译、内容加工、合并建议或选题发现",
+              "description": "任务类型：采集、翻译、内容加工、合并建议、选题发现或资料准备",
               "title": "Task Type"
             },
-            "description": "任务类型：采集、翻译、内容加工、合并建议或选题发现"
+            "description": "任务类型：采集、翻译、内容加工、合并建议、选题发现或资料准备"
           },
           {
             "name": "source_id",
@@ -6154,6 +6290,377 @@
         ],
         "title": "LeadResponse",
         "description": "线索本体与成员条数。"
+      },
+      "MaterialDetailResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "project_id": {
+            "type": "string",
+            "title": "Project Id"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
+          },
+          "final_url": {
+            "type": "string",
+            "title": "Final Url"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "publisher": {
+            "type": "string",
+            "title": "Publisher"
+          },
+          "published_at": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Published At"
+          },
+          "fetched_at": {
+            "type": "integer",
+            "title": "Fetched At"
+          },
+          "content_hash": {
+            "type": "string",
+            "title": "Content Hash"
+          },
+          "byte_size": {
+            "type": "integer",
+            "title": "Byte Size"
+          },
+          "truncated": {
+            "type": "boolean",
+            "title": "Truncated"
+          },
+          "message_version_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message Version Id"
+          },
+          "error_code": {
+            "type": "string",
+            "title": "Error Code"
+          },
+          "error_message": {
+            "type": "string",
+            "title": "Error Message"
+          },
+          "created_at": {
+            "type": "integer",
+            "title": "Created At"
+          },
+          "content_text": {
+            "type": "string",
+            "title": "Content Text"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "project_id",
+          "kind",
+          "status",
+          "url",
+          "final_url",
+          "title",
+          "publisher",
+          "published_at",
+          "fetched_at",
+          "content_hash",
+          "byte_size",
+          "truncated",
+          "message_version_id",
+          "error_code",
+          "error_message",
+          "created_at",
+          "content_text"
+        ],
+        "title": "MaterialDetailResponse",
+        "description": "资料详情：带正文快照（界面按需展开）。"
+      },
+      "MaterialListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/MaterialResponse"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Counts"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/MaterialsSummaryResponse"
+          },
+          "task_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Task Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "counts",
+          "summary",
+          "task_status"
+        ],
+        "title": "MaterialListResponse",
+        "description": "项目资料列表：条目、状态计数、上次摘要与在途任务状态。"
+      },
+      "MaterialQueryResponse": {
+        "properties": {
+          "query": {
+            "type": "string",
+            "title": "Query"
+          },
+          "purpose": {
+            "type": "string",
+            "title": "Purpose"
+          },
+          "hits": {
+            "type": "integer",
+            "title": "Hits"
+          },
+          "unresponsive_engines": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Unresponsive Engines"
+          },
+          "error_code": {
+            "type": "string",
+            "title": "Error Code"
+          }
+        },
+        "type": "object",
+        "required": [
+          "query",
+          "purpose",
+          "hits",
+          "unresponsive_engines",
+          "error_code"
+        ],
+        "title": "MaterialQueryResponse",
+        "description": "一条检索式的执行结果：命中数、未响应引擎与失败分类。"
+      },
+      "MaterialResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "project_id": {
+            "type": "string",
+            "title": "Project Id"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
+          },
+          "final_url": {
+            "type": "string",
+            "title": "Final Url"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "publisher": {
+            "type": "string",
+            "title": "Publisher"
+          },
+          "published_at": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Published At"
+          },
+          "fetched_at": {
+            "type": "integer",
+            "title": "Fetched At"
+          },
+          "content_hash": {
+            "type": "string",
+            "title": "Content Hash"
+          },
+          "byte_size": {
+            "type": "integer",
+            "title": "Byte Size"
+          },
+          "truncated": {
+            "type": "boolean",
+            "title": "Truncated"
+          },
+          "message_version_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message Version Id"
+          },
+          "error_code": {
+            "type": "string",
+            "title": "Error Code"
+          },
+          "error_message": {
+            "type": "string",
+            "title": "Error Message"
+          },
+          "created_at": {
+            "type": "integer",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "project_id",
+          "kind",
+          "status",
+          "url",
+          "final_url",
+          "title",
+          "publisher",
+          "published_at",
+          "fetched_at",
+          "content_hash",
+          "byte_size",
+          "truncated",
+          "message_version_id",
+          "error_code",
+          "error_message",
+          "created_at"
+        ],
+        "title": "MaterialResponse",
+        "description": "一条资料（列表里不含正文）。"
+      },
+      "MaterialsSummaryResponse": {
+        "properties": {
+          "queries": {
+            "items": {
+              "$ref": "#/components/schemas/MaterialQueryResponse"
+            },
+            "type": "array",
+            "title": "Queries"
+          },
+          "read": {
+            "type": "integer",
+            "title": "Read"
+          },
+          "summary_only": {
+            "type": "integer",
+            "title": "Summary Only"
+          },
+          "unavailable": {
+            "type": "integer",
+            "title": "Unavailable"
+          },
+          "failed": {
+            "type": "integer",
+            "title": "Failed"
+          },
+          "duplicates": {
+            "type": "integer",
+            "title": "Duplicates"
+          },
+          "skipped_by_budget": {
+            "type": "integer",
+            "title": "Skipped By Budget"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Notes"
+          },
+          "task_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Task Id"
+          },
+          "finished_at": {
+            "type": "integer",
+            "title": "Finished At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "queries",
+          "read",
+          "summary_only",
+          "unavailable",
+          "failed",
+          "duplicates",
+          "skipped_by_budget",
+          "notes",
+          "task_id",
+          "finished_at"
+        ],
+        "title": "MaterialsSummaryResponse",
+        "description": "资料准备摘要：范围、计数与缺口说明。"
       },
       "MessageBulkDeleteRequest": {
         "properties": {

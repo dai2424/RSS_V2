@@ -773,6 +773,50 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/projects/{project_id}/materials": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * List Materials
+     * @description 项目的资料列表、状态计数与上次运行的摘要。
+     */
+    get: operations["list_materials_api_projects__project_id__materials_get"];
+    put?: never;
+    /**
+     * Create Materials
+     * @description 发起资料准备：检索式生成 → 读原文 → 联网补充 → 去重落库。
+     */
+    post: operations["create_materials_api_projects__project_id__materials_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/projects/{project_id}/materials/{material_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Material Detail
+     * @description 一条资料的完整快照（含正文）。
+     */
+    get: operations["material_detail_api_projects__project_id__materials__material_id__get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/tasks/{task_id}": {
     parameters: {
       query?: never;
@@ -2088,6 +2132,145 @@ export interface components {
       created_at: number;
       /** Updated At */
       updated_at: number;
+    };
+    /**
+     * MaterialDetailResponse
+     * @description 资料详情：带正文快照（界面按需展开）。
+     */
+    MaterialDetailResponse: {
+      /** Id */
+      id: string;
+      /** Project Id */
+      project_id: string;
+      /** Kind */
+      kind: string;
+      /** Status */
+      status: string;
+      /** Url */
+      url: string;
+      /** Final Url */
+      final_url: string;
+      /** Title */
+      title: string;
+      /** Publisher */
+      publisher: string;
+      /** Published At */
+      published_at: number | null;
+      /** Fetched At */
+      fetched_at: number;
+      /** Content Hash */
+      content_hash: string;
+      /** Byte Size */
+      byte_size: number;
+      /** Truncated */
+      truncated: boolean;
+      /** Message Version Id */
+      message_version_id: string | null;
+      /** Error Code */
+      error_code: string;
+      /** Error Message */
+      error_message: string;
+      /** Created At */
+      created_at: number;
+      /** Content Text */
+      content_text: string;
+    };
+    /**
+     * MaterialListResponse
+     * @description 项目资料列表：条目、状态计数、上次摘要与在途任务状态。
+     */
+    MaterialListResponse: {
+      /** Items */
+      items: components["schemas"]["MaterialResponse"][];
+      /** Counts */
+      counts: {
+        [key: string]: number;
+      };
+      summary: components["schemas"]["MaterialsSummaryResponse"];
+      /** Task Status */
+      task_status: string | null;
+    };
+    /**
+     * MaterialQueryResponse
+     * @description 一条检索式的执行结果：命中数、未响应引擎与失败分类。
+     */
+    MaterialQueryResponse: {
+      /** Query */
+      query: string;
+      /** Purpose */
+      purpose: string;
+      /** Hits */
+      hits: number;
+      /** Unresponsive Engines */
+      unresponsive_engines: string[];
+      /** Error Code */
+      error_code: string;
+    };
+    /**
+     * MaterialResponse
+     * @description 一条资料（列表里不含正文）。
+     */
+    MaterialResponse: {
+      /** Id */
+      id: string;
+      /** Project Id */
+      project_id: string;
+      /** Kind */
+      kind: string;
+      /** Status */
+      status: string;
+      /** Url */
+      url: string;
+      /** Final Url */
+      final_url: string;
+      /** Title */
+      title: string;
+      /** Publisher */
+      publisher: string;
+      /** Published At */
+      published_at: number | null;
+      /** Fetched At */
+      fetched_at: number;
+      /** Content Hash */
+      content_hash: string;
+      /** Byte Size */
+      byte_size: number;
+      /** Truncated */
+      truncated: boolean;
+      /** Message Version Id */
+      message_version_id: string | null;
+      /** Error Code */
+      error_code: string;
+      /** Error Message */
+      error_message: string;
+      /** Created At */
+      created_at: number;
+    };
+    /**
+     * MaterialsSummaryResponse
+     * @description 资料准备摘要：范围、计数与缺口说明。
+     */
+    MaterialsSummaryResponse: {
+      /** Queries */
+      queries: components["schemas"]["MaterialQueryResponse"][];
+      /** Read */
+      read: number;
+      /** Summary Only */
+      summary_only: number;
+      /** Unavailable */
+      unavailable: number;
+      /** Failed */
+      failed: number;
+      /** Duplicates */
+      duplicates: number;
+      /** Skipped By Budget */
+      skipped_by_budget: number;
+      /** Notes */
+      notes: string[];
+      /** Task Id */
+      task_id: string | null;
+      /** Finished At */
+      finished_at: number;
     };
     /**
      * MessageBulkDeleteRequest
@@ -4589,6 +4772,100 @@ export interface operations {
       };
     };
   };
+  list_materials_api_projects__project_id__materials_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["MaterialListResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  create_materials_api_projects__project_id__materials_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["TaskResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  material_detail_api_projects__project_id__materials__material_id__get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: string;
+        material_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["MaterialDetailResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
   get_task_api_tasks__task_id__get: {
     parameters: {
       query?: never;
@@ -4655,7 +4932,7 @@ export interface operations {
     parameters: {
       query?: {
         status?: string | null;
-        /** @description 任务类型：采集、翻译、内容加工、合并建议或选题发现 */
+        /** @description 任务类型：采集、翻译、内容加工、合并建议、选题发现或资料准备 */
         task_type?: string | null;
         /** @description 来源：采集任务看任务快照，消息任务看所属来源 */
         source_id?: string | null;

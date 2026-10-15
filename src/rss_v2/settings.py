@@ -61,6 +61,15 @@ class Settings(BaseSettings):
     discovery_max_candidates: int = Field(default=50, ge=1, le=200)
     # 单次模型调用的输出上限：写不下时会自动把这一批对半拆开重试（最多两层）。
     discovery_max_output_tokens: int = Field(default=8192, ge=1024, le=65536)
+    # 资料准备（阶段 4 P3a）：检索服务地址、超时、读取体积与每项目预算。
+    # 地址为空时资料任务明确失败（search_unconfigured），不用假数据代替真实检索。
+    search_base_url: str = ""
+    search_timeout_seconds: float = Field(default=20.0, gt=0, le=120)
+    search_result_limit: int = Field(default=8, ge=1, le=20)
+    article_read_timeout_seconds: float = Field(default=20.0, gt=0, le=120)
+    article_max_bytes: int = Field(default=2_000_000, ge=50_000, le=10_000_000)
+    materials_max_queries: int = Field(default=3, ge=1, le=10)
+    materials_max_reads: int = Field(default=12, ge=1, le=50)
 
     @classmethod
     def settings_customise_sources(

@@ -30,7 +30,7 @@ def test_fresh_database_and_checksum(tmp_path: Path) -> None:
     shutil.copytree("migrations", migrations)
     database = SQLiteDatabase(tmp_path / "rss.db")
     runner = MigrationRunner(database, migrations)
-    assert len(runner.run()) == 25
+    assert len(runner.run()) == 26
     assert runner.run() == []
     path = migrations / "0001_initial.sql"
     path.write_text(path.read_text(encoding="utf-8") + "\n-- mutation\n", encoding="utf-8")
@@ -82,6 +82,7 @@ def test_keyword_tables_and_structured_prompt_seed(tmp_path: Path) -> None:
         ).fetchone()[0]
         assert "keyword_merge_suggest" in str(tasks_ddl)
         assert "discover_events" in str(tasks_ddl)
+        assert "prepare_materials" in str(tasks_ddl)
         # 常驻建议：一条建议就是一个词，与合并建议形状不同，因此单独一张表。
         assert {
             row["name"] for row in connection.execute("PRAGMA table_info(keyword_pin_suggestions)")
@@ -157,7 +158,7 @@ def test_two_processes_do_not_apply_migration_twice(tmp_path: Path) -> None:
         results = list(
             pool.map(lambda _: MigrationRunner(database, Path("migrations")).run(), range(2))
         )
-    assert sum(len(result) for result in results) == 25
+    assert sum(len(result) for result in results) == 26
 
 
 def test_upgrade_preserves_versions_and_translations(tmp_path: Path) -> None:
@@ -195,13 +196,84 @@ def test_upgrade_preserves_versions_and_translations(tmp_path: Path) -> None:
         connection.close()
 
 
+def test_materials_migration_upgrades_discovery_library(tmp_path: Path) -> None:
+    """0025 → 0026：项目补资料摘要列、资料表可用、任务类型接受 prepare_materials。"""
+
+    migrations = tmp_path / "migrations"
+    migrations.mkdir()
+    for path in sorted(Path("migrations").glob("*.sql")):
+        if path.name <= "0025_discovery.sql":
+            shutil.copy(path, migrations / path.name)
+    database = SQLiteDatabase(tmp_path / "rss.db")
+    runner = MigrationRunner(database, migrations)
+    runner.run()
+    with database.transaction() as connection:
+        category = connection.execute("SELECT id FROM categories LIMIT 1").fetchone()[0]
+        connection.execute(
+            "INSERT INTO rss_sources(id,name,url,language,category_id,created_at,updated_at)"
+            " VALUES('s','Example Tech','https://example.test/feed.xml','en',?,1,1)",
+            (category,),
+        )
+        connection.execute(
+            "INSERT INTO leads(id,title,note,created_at,updated_at,kind)"
+            " VALUES('lead-1','选题事件',NULL,10,10,'discovery')"
+        )
+        connection.execute(
+            "INSERT INTO writing_projects(id,lead_id,candidate_id,title,status,created_at,updated_at)"
+            " VALUES('p1','lead-1',NULL,'选题事件','materials_pending',10,10)"
+        )
+        connection.execute(
+            "INSERT INTO tasks(id,task_type,idempotency_key,status,attempts,created_at,updated_at)"
+            " VALUES('t1','discover_events','k1','succeeded',1,10,10)"
+        )
+
+    shutil.copy(Path("migrations") / "0026_materials.sql", migrations / "0026_materials.sql")
+    assert runner.run() == ["0026_materials.sql"]
+    connection = database.connect()
+    try:
+        project = connection.execute("SELECT * FROM writing_projects WHERE id='p1'").fetchone()
+        assert project is not None and project["materials_summary_json"] == "{}"
+        tables = {
+            row["name"]
+            for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")
+        }
+        assert "project_materials" in tables
+        # 新任务类型被接受，非法类型仍被 CHECK 拒绝。
+        connection.execute(
+            "INSERT INTO tasks(id,task_type,idempotency_key,status,attempts,created_at,updated_at)"
+            " VALUES('t2','prepare_materials','k2','queued',0,10,10)"
+        )
+        with pytest.raises(sqlite3.IntegrityError):
+            connection.execute(
+                "INSERT INTO tasks(id,task_type,idempotency_key,status,attempts,"
+                "created_at,updated_at)"
+                " VALUES('t3','compose_lead_draft','k3','queued',0,10,10)"
+            )
+        # 资料行的内容指纹在同一项目内唯一（空指纹不受约束）。
+        connection.execute(
+            "INSERT INTO project_materials(id,project_id,kind,status,url,title,fetched_at,"
+            "content_hash,created_at) VALUES('m1','p1','web','read','https://a.test/1','A',10,'h1',10)"
+        )
+        with pytest.raises(sqlite3.IntegrityError):
+            connection.execute(
+                "INSERT INTO project_materials(id,project_id,kind,status,url,title,fetched_at,"
+                "content_hash,created_at)"
+                " VALUES('m2','p1','web','read','https://a.test/1','A',10,'h1',10)"
+            )
+        assert not connection.execute("PRAGMA foreign_key_check").fetchall()
+    finally:
+        connection.close()
+
+
 def test_discovery_migration_upgrades_legacy_library(tmp_path: Path) -> None:
     """0024 → 0025：线索补 kind、任务表重建不丢字段，并接受新的发现任务类型。"""
 
     migrations = tmp_path / "migrations"
     migrations.mkdir()
+    # 只放 0024 及之前的迁移：后续迁移要逐个升级验证，不能一次性带上（否则 0025 建的表
+    # 会被更晚的迁移引用，这里就成了"跳级升级"）。
     for path in sorted(Path("migrations").glob("*.sql")):
-        if path.name != "0025_discovery.sql":
+        if path.name <= "0024_leads.sql":
             shutil.copy(path, migrations / path.name)
     database = SQLiteDatabase(tmp_path / "rss.db")
     runner = MigrationRunner(database, migrations)
