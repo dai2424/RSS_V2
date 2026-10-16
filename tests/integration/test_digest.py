@@ -186,6 +186,8 @@ def test_digest_links_facts_to_verifiable_quotes(client: TestClient) -> None:
         }
     )
 
+    # 引文校验关注的是"越界与被改写的引文怎么计数"：一次装下全部资料便于逐条对照。
+    client.app.state.container.digest_service.limits = DigestLimits(batch_size=10)
     body = _digest(client, project_id, provider)
     counts = body["run"]["counts"]
     assert counts["fact"] == 2 and counts["speculation"] == 1
@@ -239,6 +241,8 @@ def test_digest_versions_and_note_resolution_survive_rerun(client: TestClient) -
         }
     )
 
+    # 这个用例关注版本与重跑：显式设成一次装下全部资料，调用次数才可断言。
+    client.app.state.container.digest_service.limits = DigestLimits(batch_size=10)
     first = _digest(client, project_id, provider)
     first_run = first["run"]["id"]
     note = next(item for item in first["notes"] if item["blocking"])
