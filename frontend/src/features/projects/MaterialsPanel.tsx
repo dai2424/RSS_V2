@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
+import { TaskStatusBanner } from "../../components/TaskStatus";
 import { showToast } from "../../components/Toast";
 import {
   Badge,
@@ -28,15 +29,6 @@ const STATUS_TONES: Record<
   unavailable: "danger",
   failed: "danger",
 };
-
-/** 任务状态：排队/运行/失败/完成，界面提示用。 */
-function taskLabel(status: string | null | undefined) {
-  if (status === "queued") return "资料准备已排队";
-  if (status === "running") return "正在读取资料…";
-  if (status === "failed") return "上次资料准备失败";
-  if (status === "succeeded") return "资料准备已完成";
-  return "";
-}
 
 /** 资料面板：来源列表、原文入口、正文展开与缺口说明。 */
 export function MaterialsPanel({ projectId }: { projectId: string }) {
@@ -94,9 +86,20 @@ export function MaterialsPanel({ projectId }: { projectId: string }) {
           )}
         </div>
       </div>
-      {taskLabel(body?.task_status) && (
-        <p className="muted">{taskLabel(body?.task_status)}</p>
-      )}
+      <TaskStatusBanner
+        status={body?.task_status}
+        queuedText="资料准备已排队，等待 worker 领取"
+        runningText="正在读取资料（检索 + 抓取原文）…"
+        doneText={
+          items.length > 0
+            ? `已完成：资料 ${counts.total ?? items.length} 条`
+            : "资料准备已完成"
+        }
+        failedText="上次资料准备失败"
+        retryLabel="重新获取资料"
+        busy={prepare.isPending}
+        onRetry={body?.task_status === "failed" ? reRun : undefined}
+      />
       {prepare.isError && (
         <div className="field-error" role="alert">
           {prepare.error.message}

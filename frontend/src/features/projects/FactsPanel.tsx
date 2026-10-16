@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { TaskStatusBanner } from "../../components/TaskStatus";
 import { showToast } from "../../components/Toast";
 import {
   Badge,
@@ -94,14 +95,11 @@ export function FactsPanel({ projectId }: { projectId: string }) {
   const counts = body?.run.counts ?? {};
   const openNotes = notes.filter((note) => note.resolved_at === null);
   const blocking = openNotes.filter((note) => note.blocking);
-  const taskHint =
-    body?.task_status === "queued"
-      ? "整理任务已排队（worker 领取后开始）"
-      : body?.task_status === "running"
-        ? "正在整理资料…"
-        : body?.task_status === "failed"
-          ? "上次整理失败：下面是上一次成功的资料包；可在任务页看失败原因，再点「重新整理」重试"
-          : "";
+  const retry = () =>
+    request.mutate(true, {
+      onSuccess: () => showToast({ type: "info", content: "已发起重新整理。" }),
+      onError: (error) => showToast({ type: "error", content: error.message }),
+    });
 
   return (
     <>
@@ -141,7 +139,20 @@ export function FactsPanel({ projectId }: { projectId: string }) {
             </Button>
           </div>
         </div>
-        {taskHint && <p className="muted">{taskHint}</p>}
+        <TaskStatusBanner
+          status={body?.task_status}
+          queuedText="资料整理已排队，等待 worker 领取"
+          runningText="正在整理资料（分批调用模型）…"
+          doneText={
+            facts.length > 0
+              ? `整理完成：事实 ${facts.length} 条，引文 ${counts.evidence ?? 0} 条`
+              : "整理完成"
+          }
+          failedText="上次整理失败"
+          retryLabel="重新整理"
+          busy={request.isPending}
+          onRetry={body?.task_status === "failed" ? retry : undefined}
+        />
         {request.isError && (
           <div className="field-error" role="alert">
             {request.error.message}

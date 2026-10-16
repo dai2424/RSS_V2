@@ -1181,3 +1181,64 @@ p.alert {
   font-size: 12px;
   margin: 8px 0 4px;
 }
+
+/* 后台任务状态条：排队/运行中/失败/完成都要求"看得见"，不用灰色小字。 */
+.task-status {
+  align-items: flex-start;
+  background: hsl(var(--muted));
+  border: 1px solid hsl(var(--border));
+  border-radius: 8px;
+  display: flex;
+  font-size: 13px;
+  gap: 10px;
+  margin: 12px 0;
+  padding: 12px 14px;
+}
+.task-status strong {
+  display: block;
+  font-size: 14px;
+}
+.task-status-running {
+  background: hsl(var(--warning));
+  border-color: hsl(var(--warning));
+  color: hsl(var(--warning-foreground));
+}
+.task-status-failed {
+  background: hsl(var(--destructive-background));
+  border-color: hsl(var(--destructive));
+  color: hsl(var(--destructive));
+}
+.task-status-done {
+  background: hsl(var(--success));
+  border-color: hsl(var(--success));
+  color: hsl(var(--success-foreground));
+}
+.task-status .muted {
+  color: inherit;
+  opacity: 0.85;
+}
+.task-status a {
+  color: inherit;
+  text-decoration: underline;
+}
+.task-spinner {
+  animation: task-spin 0.9s linear infinite;
+  border: 2px solid currentColor;
+  border-radius: 50%;
+  border-top-color: transparent;
+  display: inline-block;
+  flex: 0 0 auto;
+  height: 14px;
+  margin-top: 2px;
+  width: 14px;
+}
+@keyframes task-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .task-spinner {
+    animation: none;
+  }
+}

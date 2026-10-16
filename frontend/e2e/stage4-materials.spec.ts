@@ -148,8 +148,9 @@ for (const width of [1280, 1920]) {
       .first();
     await blockingNote.getByRole("button", { name: "标记已处理" }).click();
     await expect(page.getByText("已标记为处理完成。")).toBeVisible();
-    await expect(page.getByRole("alert")).toBeHidden({ timeout: 20000 });
-    await expect(page.getByText(/已处理（1）/)).toBeVisible();
+    // 夹具模型可能同时产出多条阻塞缺口（缺引文的事实会自动补一条），
+    // 所以这里只断言"这条移入已处理"，不断言阻塞提示整体消失。
+    await expect(page.getByText(/已处理（1）/)).toBeVisible({ timeout: 20000 });
 
     // 5) 刷新后状态仍在（服务端为准），资料包版本可查
     await page.reload();
