@@ -96,11 +96,11 @@ export function FactsPanel({ projectId }: { projectId: string }) {
   const blocking = openNotes.filter((note) => note.blocking);
   const taskHint =
     body?.task_status === "queued"
-      ? "整理任务已排队"
+      ? "整理任务已排队（worker 领取后开始）"
       : body?.task_status === "running"
         ? "正在整理资料…"
         : body?.task_status === "failed"
-          ? "上次整理失败，可在任务页查看原因后重试"
+          ? "上次整理失败：下面是上一次成功的资料包；可在任务页看失败原因，再点「重新整理」重试"
           : "";
 
   return (
@@ -163,8 +163,14 @@ export function FactsPanel({ projectId }: { projectId: string }) {
         )}
         {facts.length === 0 ? (
           <EmptyState
-            title="这次整理没有产出事实"
-            description="资料可能太少或模型没有给出可核对的引文；补资料后重新整理。"
+            title={
+              body?.task_status ? "最近一次整理还没有结果" : "还没有整理出事实"
+            }
+            description={
+              body?.task_status
+                ? "先看上面的状态提示：排队或运行中请稍等，失败则按提示重试；也可以在任务页查看错误分类。"
+                : "资料可能太少或模型没有给出可核对的引文；补资料后重新整理。"
+            }
           />
         ) : (
           <ol className="related-list">

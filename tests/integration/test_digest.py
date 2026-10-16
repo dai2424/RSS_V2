@@ -329,9 +329,11 @@ def test_digest_requires_materials_and_lease(client: TestClient) -> None:
     with pytest.raises(DomainError) as raised:
         service.run(claimed)
     assert raised.value.code == "task_lease_lost"
-    # 失败版本留在库里，事实一条没写。
+    # 失败的尝试不写版本行（否则界面会把失败显示成"整理完成但没有产出事实"）；
+    # 失败原因留在任务行上，项目页按最近一次任务的状态提示。
     runs = client.get(f"/api/projects/{project_id}/digest-runs").json()["items"]
-    assert len(runs) == 1
+    assert runs == []
+    assert client.get(f"/api/projects/{project_id}/facts").status_code == 404
 
 
 @respx.mock

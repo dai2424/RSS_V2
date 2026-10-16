@@ -20,7 +20,6 @@ import json
 import logging
 from collections.abc import Sequence
 from dataclasses import dataclass, replace
-from typing import cast
 
 from rss_v2.domain import (
     DigestCounts,
@@ -167,22 +166,28 @@ class DigestService:
     # ---------------------------------------------------------------- 执行
 
     def run(self, task: Task) -> DigestOutcome:
-        """执行整理：渲染资料 → 调用模型 → 校验引文 → 落库版本与事实。"""
+        """执行整理：渲染资料 → 调用模型 → 校验引文 → 落库版本与事实。
+
+        **只有产出结果的尝试才写版本行**：失败或超时的尝试不留"0 事实的版本"，
+        否则界面会把一次失败的尝试显示成"整理完成但没有产出事实"。失败原因由任务
+        行记录（任务列表与项目页都能看到错误分类与尝试次数）。
+        """
 
         project_id = str(task.payload.get("project_id", ""))
         project = self._require_project(project_id)
         lease = lease_of(task)
         materials = self._task_materials(task)
+        drafts, notes, counters = self._drafts(
+            task, project.title, self._lead_note(project.lead_id), materials
+        )
         run_id = new_id()
         self.runs.create_run(run_id, project.id, str(task.payload.get("materials_hash", "")), now())
         try:
-            drafts, notes, counters = self._drafts(
-                task, project.title, self._lead_note(project.lead_id), materials
-            )
             outcome = self._store(run_id, project.id, task, drafts, notes, counters, lease)
         except Exception:
-            # 失败版本留在库里（能看出"这次整理跑了但没成"），由 worker 记录任务错误。
-            self.runs.finish_run(run_id, task.id, DigestCounts(), ("整理失败，未产出事实",), lease)
+            # 落库中途失败（例如租约失效）：连同事实/证据/待办一起删掉这个半成品版本，
+            # 不留"0 事实的版本"给界面误读成"整理完成但没有产出"。
+            self.runs.delete_run(run_id)
             raise
         blocking = sum(1 for note in outcome.notes if note.blocking and note.resolved_at is None)
         self.projects.set_digest_summary(
@@ -255,22 +260,20 @@ class DigestService:
         return self.runs.unresolved_blocking(project_id)
 
     def summary_view(self, project_id: str) -> tuple[str, str | None]:
-        """项目上的整理摘要与当前任务状态（界面显示进度用）。"""
+        """项目上的整理摘要与**最近一次整理任务**的状态。
+
+        任务状态不取摘要里的 task_id（那只在成功时写入）：失败的尝试同样要显示出来，
+        否则界面会把"超时失败"看成"整理完了但没产出事实"。这里按任务表里最近一次
+        `digest_materials` 任务的 payload 归属项目来判断。
+        """
 
         project = self._require_project(project_id)
         raw = project.digest_summary_json or "{}"
-        task_id = ""
-        try:
-            parsed: object = json.loads(raw)
-        except ValueError:
-            parsed = {}
-        if isinstance(parsed, dict):
-            record = cast(dict[str, object], parsed)
-            task_id = str(record.get("task_id") or "")
         status: str | None = None
-        if task_id:
-            task = self.tasks.get(task_id)
-            status = task.status if task else None
+        for task in self.tasks.list(task_type=TaskType.DIGEST_MATERIALS.value, limit=20):
+            if str(task.payload.get("project_id", "")) == project.id:
+                status = task.status
+                break
         return raw, status
 
     def resolve_note(self, project_id: str, note_id: str) -> Note:
