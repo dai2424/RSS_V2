@@ -29,6 +29,10 @@ class MaterialRepository(Protocol):
         """
         ...
 
+    def delete(self, material_id: str, lease: TaskLease | None = None) -> int:
+        """删除一条资料，返回删除行数（同 URL 的弱行被强结果替换时使用）。"""
+        ...
+
     def get(self, material_id: str) -> Material | None:
         """按 id 取资料；不存在返回 None。"""
         ...

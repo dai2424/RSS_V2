@@ -135,6 +135,12 @@ class SQLiteMaterialRepository:
         finally:
             connection.close()
 
+    def delete(self, material_id: str, lease: TaskLease | None = None) -> int:
+        with self.database.transaction() as connection:
+            ensure_lease(connection, lease)
+            cursor = connection.execute("DELETE FROM project_materials WHERE id=?", (material_id,))
+            return cursor.rowcount if cursor.rowcount > 0 else 0
+
     def by_url(self, project_id: str, url: str) -> Material | None:
         if not url:
             return None

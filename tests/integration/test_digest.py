@@ -159,16 +159,14 @@ def test_digest_links_facts_to_verifiable_quotes(client: TestClient) -> None:
                     "statement": "懂车帝实测三台车刹车踏板支架断裂，断裂受力约 1612 牛",
                     "kind": "fact",
                     "supports": [
-                        {"material_id": first, "quote": "三台尊界 V800 的刹车踏板支架全部断裂"},
+                        {"material_id": first, "quote": "懂车帝实测中三台车支架断裂"},
                         {"material_id": "不存在的材料", "quote": "这条引用越界"},
                     ],
                 },
                 {
                     "statement": "厂商称按高于国家标准的要求完成验证并免费升级",
                     "kind": "fact",
-                    "supports": [
-                        {"material_id": second, "quote": "制动系统按照高于国家标准的要求完成验证"}
-                    ],
+                    "supports": [{"material_id": second, "quote": "厂商称按高于国标要求验证"}],
                 },
                 {
                     "statement": "这起事件可能会影响该车型的销量",
@@ -231,7 +229,7 @@ def test_digest_versions_and_note_resolution_survive_rerun(client: TestClient) -
                     "supports": [
                         {
                             "material_id": materials["https://example.test/m1"],
-                            "quote": "三台尊界 V800 的刹车踏板支架全部断裂",
+                            "quote": "懂车帝实测中三台车支架断裂",
                         }
                     ],
                 }
@@ -306,7 +304,7 @@ def test_digest_requires_materials_and_lease(client: TestClient) -> None:
                     "supports": [
                         {
                             "material_id": materials["https://example.test/m1"],
-                            "quote": "三台尊界 V800 的刹车踏板支架全部断裂",
+                            "quote": "懂车帝实测中三台车支架断裂",
                         }
                     ],
                 }
@@ -406,21 +404,24 @@ class BatchCountingProvider(DigestProvider):
         max_output_tokens=None,
     ):
         self.calls += 1
-        material_ids = re.findall(r"^\[材料 ([0-9a-f-]{36})\]", prompt.user, re.MULTILINE)
-        self.batches.append(len(material_ids))
-        facts = [
-            {
-                "statement": f"第 {index} 条事实（{material_id[:8]}）",
-                "kind": "fact",
-                "supports": [
-                    {
-                        "material_id": material_id,
-                        "quote": "三台尊界 V800 的刹车踏板支架全部断裂",
-                    }
-                ],
-            }
-            for index, material_id in enumerate(material_ids)
-        ]
+        # 按提示词里的材料逐条取正文片段当引文：服务端的引文定位一定能命中。
+        blocks = re.split(r"^\[材料 ", prompt.user, flags=re.MULTILINE)[1:]
+        self.batches.append(len(blocks))
+        facts = []
+        for index, block in enumerate(blocks):
+            material_id = block[:36]
+            body = block.split("正文：", 1)[1].strip() if "正文：" in block else ""
+            body = body.split("[材料 ", 1)[0].strip()  # 下一份资料之前
+            quote = body[:40]
+            if len(quote) < 12:
+                continue
+            facts.append(
+                {
+                    "statement": f"第 {index} 条事实（{material_id[:8]}）",
+                    "kind": "fact",
+                    "supports": [{"material_id": material_id, "quote": quote}],
+                }
+            )
         return MaterialDigest.model_validate({"facts": facts, "conflicts": [], "gaps": []}), {}, 2
 
 

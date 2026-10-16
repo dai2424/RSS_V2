@@ -94,6 +94,17 @@ def beijing_time(timestamp: int) -> str:
     ).strftime("%Y-%m-%d %H:%M")
 
 
+def weak_row(row: Material) -> bool:
+    """这条资料没有证据价值（失败/不可用/预算未读），可以被后续读取替换。
+
+    "读到正文/仅摘要"的行不替换：历史文章依据不能被悄然换成最新正文。
+    """
+
+    return row.status in {MaterialStatus.FAILED.value, MaterialStatus.UNAVAILABLE.value} or (
+        row.error_code == BUDGET_EXHAUSTED
+    )
+
+
 def normalize_url(url: str) -> str:
     """规范化 URL：去 fragment、主机小写、去掉跟踪参数；只保留 http/https。"""
 

@@ -28,6 +28,7 @@ from rss_v2.domain import (
     WritingProject,
 )
 from rss_v2.domain.values import new_id, now
+from rss_v2.tasks.worker import Worker
 
 QUERY = "尊界 V800 制动 争议"
 
@@ -259,23 +260,20 @@ def test_materials_snapshot_and_summary(client: TestClient) -> None:
 
     body = _prepare(client, project_id)
     counts = body["counts"]
-    # 4 条读到正文（两条成员链接回读 + 两篇外部网页）、2 条只有摘要、1 条打不开。
-    assert (counts["read"], counts["summary_only"], counts["failed"]) == (4, 2, 1)
+    # 2 条读到正文（两篇外部网页）、2 条只有摘要（成员快照）、1 条打不开；
+    # 成员有摘要时不再回读链接，因此不会出现同一 URL 两行。
+    assert (counts["read"], counts["summary_only"], counts["failed"]) == (2, 2, 1)
     summary = body["summary"]
     assert [item["query"] for item in summary["queries"]] == [QUERY, "Zunjie V800 brake"]
     assert summary["queries"][0]["hits"] == 1
-    assert (summary["read"], summary["summary_only"], summary["failed"]) == (4, 2, 1)
+    assert (summary["read"], summary["summary_only"], summary["failed"]) == (2, 2, 1)
     assert provider.calls == 1  # 检索式只生成一次
 
     items = body["items"]
     web = [item for item in items if item["kind"] == "web"]
-    # 成员链接的回读也记在 web 资料里，并保留消息版本来源，便于回到订阅原文核对。
-    rereads = [item for item in web if item["message_version_id"]]
-    assert [item["url"] for item in rereads] == [
-        "https://example.test/m1",
-        "https://example.test/m2",
-    ]  # 成员按发布时间从早到晚，回读顺序一致
-    external = [item for item in web if not item["message_version_id"]]
+    # 成员有摘要就不再回读：web 资料全部来自检索命中，没有带消息版本的重复行。
+    assert [item for item in web if item["message_version_id"]] == []
+    external = web
     assert {item["url"] for item in external} == {
         "https://news.test/zunjie",
         "https://maker.test/statement",
@@ -294,7 +292,7 @@ def test_materials_snapshot_and_summary(client: TestClient) -> None:
     project = client.get(f"/api/projects/{project_id}").json()
     assert project["project"]["status"] == ProjectStatus.MATERIALS_READY.value
     assert body["task_status"] == "succeeded"
-    assert project["counts"]["materials"] == 7  # 2 条 RSS 摘要 + 2 条回读 + 3 条检索命中
+    assert project["counts"]["materials"] == 5  # 2 条 RSS 摘要 + 3 条检索命中
 
 
 @respx.mock
@@ -362,12 +360,12 @@ def test_budget_exhausted_keeps_gap_visible(client: TestClient) -> None:
     pages["https://example.test/m2"] = _page("https://example.test/m2", "消息二原文" * 100)
     reader = FakeReader(pages)
     service = _stub(client, search=search, reader=reader, provider=QueryProvider())
-    # 预算 4 = 两条成员链接回读 + 两条外部资料；其余候选落成"未读取"。
-    service.limits = MaterialLimits(max_reads=4, search_result_limit=4)
+    # 预算 2 条外部资料；其余候选落成"未读取"。
+    service.limits = MaterialLimits(max_reads=2, search_result_limit=4)
 
     body = _prepare(client, project_id)
-    # 预算内读了 4 条（两条成员链接 + 两条外部资料），其余候选留成"未读取"。
-    assert body["summary"]["read"] == 4
+    # 预算内读了 2 条外部资料，其余候选留成"未读取"。
+    assert body["summary"]["read"] == 2
     assert body["summary"]["skipped_by_budget"] == 2
     assert body["summary"]["notes"] and "读取上限" in body["summary"]["notes"][0]
     skipped = [item for item in body["items"] if item["error_code"] == BUDGET_EXHAUSTED]
@@ -490,3 +488,49 @@ def test_missing_search_config_fails_clearly(client: TestClient) -> None:
     task = client.get(f"/api/tasks/{response.json()['id']}").json()
     assert task["error_code"] == "search_unconfigured"
     assert "search_base_url" in task["error_message"]
+
+
+@respx.mock
+def test_same_url_keeps_one_row_and_replaces_weak_rows(client: TestClient) -> None:
+    """同一个 URL 在一个项目里只留一行；旧失败/未读取行被后来成功读取替换。
+
+    真实环境反馈过两个现象：短消息的"订阅原文"与"按链接回读页面"存成同 URL 两条；
+    旧失败记录跨轮保留，看起来像重复。这里的规则是：
+    - 成员有摘要就不回读，避免同 URL 两行；
+    - 已有"可引用"的行（读到正文/摘要）时不再加第二条；
+    - 旧行只是失败/不可用/未读取（没有证据价值）时，用这次的结果替换它。
+    """
+
+    configure_model(client)
+    project_id = _seed_project(client, title="同址去重选题")
+    member_url = "https://example.test/m1"
+
+    # 第一轮：成员快照占住这个 URL，检索命中同一地址 → 不再读、不加第二条。
+    search = FakeSearch(
+        {QUERY: [SearchHit(title="同址命中", url=member_url, snippet="", engine="bing")]}
+    )
+    reader = FakeReader({member_url: _page(member_url, "第二轮的正文" * 60)})
+    service = _stub(client, search=search, reader=reader, provider=QueryProvider())
+    first = _prepare(client, project_id)
+    rows = [item for item in first["items"] if item["url"].rstrip("/") == member_url]
+    assert len(rows) == 1, [item["url"] for item in first["items"]]
+    assert reader.calls == []  # 有摘要就不回读，也不重复读同址命中
+    assert first["summary"]["duplicates"] >= 1
+
+    # 第二轮（重新获取）：把上一条快照标成失败（模拟旧失败记录），同址这次读到正文 →
+    # 旧行被替换掉，而不是并排出现两行。
+    with client.app.state.container.database.transaction() as connection:
+        connection.execute(
+            "UPDATE project_materials SET status='failed', error_code='article_http_error',"
+            " error_message='读取返回 HTTP 403' WHERE url=?",
+            (member_url,),
+        )
+    service.limits = MaterialLimits(max_reads=5)
+    second = client.post(f"/api/projects/{project_id}/materials", params={"force": "true"})
+    assert second.status_code == 202
+    assert Worker(client.app.state.container).run_once() is True
+    body = client.get(f"/api/projects/{project_id}/materials").json()
+    rows = [item for item in body["items"] if item["url"].rstrip("/") == member_url]
+    assert len(rows) == 1, [item["url"] for item in body["items"]]
+    assert rows[0]["status"] == MaterialStatus.READ.value
+    assert reader.calls == [member_url]  # 这次真的读了（上一次是失败行）

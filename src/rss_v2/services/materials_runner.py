@@ -52,6 +52,7 @@ from rss_v2.services.materials_support import (
     normalize_url,
     pick_queries,
     skipped_material,
+    weak_row,
 )
 from rss_v2.services.prompt_resolver import PromptResolver
 
@@ -129,10 +130,13 @@ class MaterialRunner:
                 if content
                 else (MaterialStatus.SUMMARY_ONLY.value if text else MaterialStatus.FAILED.value)
             )
-            stored = self.materials.add(
-                material_from_version(project_id, task, version, status, text, timestamp),
-                lease,
-            )
+            snapshot = material_from_version(project_id, task, version, status, text, timestamp)
+            url = normalize_url(version.url)
+            if url and self.materials.by_url(project_id, url) is not None:
+                # 同一 URL 一个项目只保留一行：同一链接的不同消息版本只计数，不再存第二行。
+                summary = summary.merged(MaterialSummary(duplicates=1))
+                continue
+            stored = self.materials.add(snapshot, lease)
             summary = summary.merged(
                 MaterialSummary(
                     read=1 if status == MaterialStatus.READ.value else 0,
@@ -141,9 +145,9 @@ class MaterialRunner:
                     duplicates=0 if stored else 1,
                 )
             )
-            # 短消息（电报/推特转发）只有摘要：按它的链接回读页面，尽力补上正文。
-            url = normalize_url(version.url)
-            if content or not url:
+            # 只有"连摘要都没有"的短消息才按链接回读补正文：有摘要就不回读，
+            # 否则同一 URL 会存成两行（真实环境反馈的重复来源）。
+            if text or not url:
                 continue
             if reads >= limits.max_reads:
                 summary = summary.merged(
@@ -215,7 +219,9 @@ class MaterialRunner:
                     summary = summary.merged(MaterialSummary(duplicates=1))
                     continue
                 seen_urls.add(url)
-                if self.materials.by_url(project_id, url) is not None:
+                existing = self.materials.by_url(project_id, url)
+                if existing is not None and not weak_row(existing):
+                    # 已经读到正文/摘要：不重复读、不重复存；失败/未读取的旧行放行重读。
                     summary = summary.merged(MaterialSummary(duplicates=1))
                     continue
                 fresh.append(hit)
@@ -292,6 +298,14 @@ class MaterialRunner:
             error_message=read.error_message,
             created_at=timestamp,
         )
+        # 同一 URL 一个项目只保留一行：已有"可引用"的行（读到正文/摘要）时不再加第二条；
+        # 旧行只是失败/不可用/未读取（没有证据价值）时，用这次的结果替换它，
+        # 避免旧失败记录跨轮堆积（真实环境反馈的第二个问题）。
+        existing = self.materials.by_url(project_id, url)
+        if existing is not None:
+            if not weak_row(existing) or read.status == MaterialStatus.FAILED.value:
+                return MaterialSummary(duplicates=1)
+            self.materials.delete(existing.id, lease)
         if self.materials.add(material, lease) is None:
             return MaterialSummary(duplicates=1)
         return MaterialSummary(
