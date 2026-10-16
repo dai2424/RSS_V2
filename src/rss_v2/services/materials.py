@@ -19,10 +19,8 @@
 
 from __future__ import annotations
 
-import json
 import logging
 from dataclasses import dataclass
-from typing import cast
 
 from rss_v2.domain import (
     DomainError,
@@ -180,18 +178,13 @@ class MaterialService:
         """
 
         project = self._require_project(project_id)
-        task_id = ""
-        try:
-            parsed: object = json.loads(project.materials_summary_json or "{}")
-        except ValueError:
-            parsed = {}
-        if isinstance(parsed, dict):
-            record = cast(dict[str, object], parsed)
-            task_id = str(record.get("task_id") or "")
+        # 任务状态取**最近一次 prepare_materials 任务**：摘要里的 task_id 只在成功时写入，
+        # 用它会让"排队中/失败"的任务在界面上完全看不见（与资料整理同一口径）。
         status: str | None = None
-        if task_id:
-            task = self.tasks.get(task_id)
-            status = task.status if task else None
+        for task in self.tasks.list(task_type=TaskType.PREPARE_MATERIALS.value, limit=20):
+            if str(task.payload.get("project_id", "")) == project.id:
+                status = task.status
+                break
         return project.materials_summary_json or "{}", status
 
     def detail(self, project_id: str, material_id: str) -> Material:
