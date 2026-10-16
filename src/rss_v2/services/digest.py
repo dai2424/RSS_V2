@@ -29,6 +29,7 @@ from rss_v2.domain import (
     DigestRun,
     DomainError,
     Evidence,
+    ExternalServiceError,
     Fact,
     FactDraft,
     Material,
@@ -38,6 +39,7 @@ from rss_v2.domain import (
     NoteDraft,
     NoteKind,
     ProjectStatus,
+    Prompt,
     Provider,
     ProviderKey,
     Task,
@@ -67,6 +69,9 @@ from rss_v2.services.llm_failover import LLMFailover, input_hash
 from rss_v2.services.prompt_resolver import PromptResolver
 
 logger = logging.getLogger(__name__)
+
+#: 输出被截断时把这一批对半拆开重试的最大层数（1 层 = 拆成两批，2 层 = 最多四批）。
+MAX_SPLIT_DEPTH = 2
 
 #: 能作为证据的资料状态：只有读到正文或摘要的才算已读。
 _EVIDENCE_STATUSES = {MaterialStatus.READ.value, MaterialStatus.SUMMARY_ONLY.value}
@@ -171,14 +176,9 @@ class DigestService:
         run_id = new_id()
         self.runs.create_run(run_id, project.id, str(task.payload.get("materials_hash", "")), now())
         try:
-            digest = self._digest(task, project.title, self._lead_note(project.lead_id), materials)
-            drafts, notes, counters = normalize_digest(
-                digest,
-                {material.id: material.content_text for material in materials},
-                max_facts=self.limits.max_facts,
-                max_supports=self.limits.max_evidence_per_fact,
+            drafts, notes, counters = self._drafts(
+                task, project.title, self._lead_note(project.lead_id), materials
             )
-            drafts, notes = mark_conflicts(drafts, notes)
             outcome = self._store(run_id, project.id, task, drafts, notes, counters, lease)
         except Exception:
             # 失败版本留在库里（能看出"这次整理跑了但没成"），由 worker 记录任务错误。
@@ -287,12 +287,62 @@ class DigestService:
 
     # ---------------------------------------------------------------- 内部
 
-    def _digest(
-        self, task: Task, title: str, summary: str, materials: Sequence[Material]
-    ) -> MaterialDigest:
+    def _drafts(
+        self,
+        task: Task,
+        title: str,
+        summary: str,
+        materials: Sequence[Material],
+    ) -> tuple[list[FactDraft], list[NoteDraft], dict[str, int]]:
+        """按批整理资料：每批一次模型调用，返回合并后的事实与待办草稿。
+
+        真实环境实测：把整份资料包放进一次调用时，事实与引文会写不完（输出上限截断、
+        JSON 不完整）——因此按 `batch_size` 分批，相邻批重叠一份资料；输出仍被截断时
+        再对半拆（见 `_run_batch`）。冲突里引用的"第几条事实"按批内偏移换算成全局序号。
+        """
+
         prompt = self.prompts.snapshot(
             str(task.payload.get("prompt_id", "")), str(task.payload.get("prompt_version", ""))
         )
+        chunks = _chunks(materials, self.limits.batch_size)
+        facts: list[FactDraft] = []
+        notes: list[NoteDraft] = []
+        counters = {"out_of_range": 0, "rejected_quotes": 0}
+        for chunk in chunks:
+            chunk_facts, chunk_notes, chunk_counters = self._run_batch(
+                task, title, summary, chunk, prompt
+            )
+            offset = len(facts)
+            facts.extend(chunk_facts)
+            notes.extend(
+                replace(note, fact_indexes=tuple(index + offset for index in note.fact_indexes))
+                for note in chunk_notes
+            )
+            counters["out_of_range"] += chunk_counters.get("out_of_range", 0)
+            counters["rejected_quotes"] += chunk_counters.get("rejected_quotes", 0)
+        if len(facts) > self.limits.max_facts:
+            # 全部批次合计仍受事实条数上限约束：丢弃的部分在待办里写明，不静默。
+            dropped = len(facts) - self.limits.max_facts
+            facts = facts[: self.limits.max_facts]
+            notes.append(
+                NoteDraft(
+                    kind=NoteKind.NOTE.value,
+                    text=f"事实条数超过上限（{self.limits.max_facts}），已丢弃 {dropped} 条",
+                )
+            )
+        return facts, notes, counters
+
+    def _run_batch(
+        self,
+        task: Task,
+        title: str,
+        summary: str,
+        materials: Sequence[Material],
+        prompt: Prompt,
+        depth: int = 0,
+    ) -> tuple[list[FactDraft], list[NoteDraft], dict[str, int]]:
+        """整理一批资料；输出被截断时把这一批对半拆开重试（两半重叠一份资料）。"""
+
         values = {
             "title": title,
             "summary": summary,
@@ -314,6 +364,7 @@ class DigestService:
                 prompt.version_string,
                 TaskType.DIGEST_MATERIALS.value,
                 MaterialDigest,
+                self.limits.max_output_tokens,
             )
 
         def persist(
@@ -326,14 +377,44 @@ class DigestService:
         ) -> MaterialDigest:
             return result
 
-        return self.failover.execute(
-            task.id,
-            input_hash(payload.system, payload.user),
-            prompt.version_string,
-            self.cooldown_seconds,
-            invoke,
-            persist,
+        try:
+            digest = self.failover.execute(
+                task.id,
+                input_hash(payload.system, payload.user),
+                prompt.version_string,
+                self.cooldown_seconds,
+                invoke,
+                persist,
+            )
+        except ExternalServiceError as exc:
+            if (
+                exc.code != "llm_output_truncated"
+                or len(materials) <= 1
+                or depth >= MAX_SPLIT_DEPTH
+            ):
+                raise
+            middle = len(materials) // 2
+            logger.info("digest_batch_split task=%s size=%d", task.id, len(materials))
+            left = self._run_batch(task, title, summary, materials[: middle + 1], prompt, depth + 1)
+            right = self._run_batch(task, title, summary, materials[middle:], prompt, depth + 1)
+            return (
+                [*left[0], *right[0]],
+                [*left[1], *right[1]],
+                {
+                    "out_of_range": left[2].get("out_of_range", 0)
+                    + right[2].get("out_of_range", 0),
+                    "rejected_quotes": left[2].get("rejected_quotes", 0)
+                    + right[2].get("rejected_quotes", 0),
+                },
+            )
+        facts, notes, counters = normalize_digest(
+            digest,
+            {material.id: material.content_text for material in materials},
+            max_facts=self.limits.max_facts,
+            max_supports=self.limits.max_evidence_per_fact,
         )
+        marked, marked_notes = mark_conflicts(facts, notes)
+        return marked, marked_notes, counters
 
     def _materials_text(self, materials: Sequence[Material]) -> str:
         entries: list[tuple[str, str, str, str]] = []
@@ -498,3 +579,20 @@ def _counts_json(run: DigestRun) -> dict[str, int]:
 
 def _empty_run(run_id: str, project_id: str) -> DigestRun:
     return DigestRun(id=run_id, project_id=project_id, materials_hash="", task_id=None)
+
+
+def _chunks(materials: Sequence[Material], size: int) -> list[list[Material]]:
+    """按条数切分资料，相邻批重叠一份，保证跨切点的同一事件两边都能看到。"""
+
+    limit = max(1, size)
+    if len(materials) <= limit:
+        return [list(materials)]
+    chunks: list[list[Material]] = []
+    index = 0
+    while index < len(materials):
+        chunk = list(materials[index : index + limit])
+        chunks.append(chunk)
+        if index + limit >= len(materials):
+            break
+        index += limit - 1  # 重叠一份
+    return chunks

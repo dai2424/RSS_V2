@@ -54,6 +54,9 @@ materials_max_reads = 12
 materials_digest_max_input_chars = 80000
 digest_material_chars = 4000
 digest_max_facts = 40
+# 每次调用整理几份资料、单次输出的 token 上限；写不完会自动把这一批对半拆开重试。
+digest_batch_size = 6
+digest_max_output_tokens = 8192
 digest_max_evidence_per_fact = 4
 # 允许读取本机/内网地址：仅本机夹具（tests/preview.py）或内网资料源使用；
 # 默认 false，生产环境必须保持 false，避免检索结果把应用当成内网代理。

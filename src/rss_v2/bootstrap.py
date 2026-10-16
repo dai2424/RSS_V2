@@ -317,6 +317,8 @@ def build_container(settings: Settings | None = None, migrate: bool = True) -> C
         DigestLimits(
             max_input_chars=actual_settings.materials_digest_max_input_chars,
             material_chars=actual_settings.digest_material_chars,
+            batch_size=actual_settings.digest_batch_size,
+            max_output_tokens=actual_settings.digest_max_output_tokens,
             max_facts=actual_settings.digest_max_facts,
             max_evidence_per_fact=actual_settings.digest_max_evidence_per_fact,
         ),

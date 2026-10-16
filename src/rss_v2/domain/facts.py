@@ -120,9 +120,11 @@ class DigestRun:
 class DigestLimits:
     """资料整理的预算与上限；由配置注入，测试可以传更小的值。"""
 
-    max_input_chars: int = 80000  # 输入资料正文总长度上限
+    max_input_chars: int = 80000  # 单次调用的输入资料正文长度上限
     material_chars: int = 4000  # 单份资料放进提示词的正文长度上限
-    max_facts: int = 40  # 事实（含分析、推测）条数上限
+    batch_size: int = 6  # 每次调用整理几份资料；太多会让输出写不完（真实环境实测被截断）
+    max_output_tokens: int = 8192  # 单次调用的输出上限；截断会自动对半拆批重试
+    max_facts: int = 40  # 事实（含分析、推测）条数上限（全部批次合计）
     max_evidence_per_fact: int = 4  # 每条事实最多保留几条引文
 
 

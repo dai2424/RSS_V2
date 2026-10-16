@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 import respx
@@ -380,3 +381,73 @@ def test_digest_only_uses_read_materials(client: TestClient) -> None:
         for item in client.get(f"/api/projects/{project_id}/materials").json()["items"]
     }
     assert statuses["https://example.test/m1"] == MaterialStatus.SUMMARY_ONLY.value
+
+
+class BatchCountingProvider(DigestProvider):
+    """按提示词里的材料逐条给出事实，并记录每批的材料份数。"""
+
+    def __init__(self) -> None:
+        super().__init__({})
+        self.batches: list[int] = []
+
+    def structured(
+        self,
+        provider,
+        model,
+        secret,
+        prompt,
+        prompt_version,
+        task_kind,
+        schema,
+        max_output_tokens=None,
+    ):
+        self.calls += 1
+        material_ids = re.findall(r"^\[材料 ([0-9a-f-]{36})\]", prompt.user, re.MULTILINE)
+        self.batches.append(len(material_ids))
+        facts = [
+            {
+                "statement": f"第 {index} 条事实（{material_id[:8]}）",
+                "kind": "fact",
+                "supports": [
+                    {
+                        "material_id": material_id,
+                        "quote": "三台尊界 V800 的刹车踏板支架全部断裂",
+                    }
+                ],
+            }
+            for index, material_id in enumerate(material_ids)
+        ]
+        return MaterialDigest.model_validate({"facts": facts, "conflicts": [], "gaps": []}), {}, 2
+
+
+@respx.mock
+def test_digest_splits_materials_into_batches(client: TestClient) -> None:
+    """资料多时按批整理：每批一次调用，各批事实都落库且引文可定位。
+
+    真实环境实测过"整包一次调用写不完"（输出上限截断），因此分批是默认行为：
+    这里用 batch_size=2 验证确实分了多批，且每批的事实都带可定位引文。
+    """
+
+    configure_model(client)
+    project_id = _seed_project(client, "分批验收选题")
+    _prepare_materials(client, project_id)
+    materials = _materials_by_url(client, project_id)
+    provider = BatchCountingProvider()
+    service = client.app.state.container.digest_service
+    service.provider = provider
+    service.limits = DigestLimits(batch_size=2, max_facts=20)
+    response = client.post(f"/api/projects/{project_id}/facts")
+    assert response.status_code == 202
+    assert Worker(client.app.state.container).run_once() is True
+    body = client.get(f"/api/projects/{project_id}/facts").json()
+
+    assert provider.calls >= 2, f"batches={provider.batches}"
+    assert all(size <= 2 for size in provider.batches), f"batches={provider.batches}"
+    assert body["run"]["counts"]["fact"] == len(body["facts"]) >= 2
+    # 证据与状态必须一致：有引文才算 supported，没有引文的记为 missing（产品规则）。
+    supported = [fact for fact in body["facts"] if fact["evidence"]]
+    assert supported, "至少有一条事实带可定位的引文"
+    assert all(
+        fact["status"] == ("supported" if fact["evidence"] else "missing") for fact in body["facts"]
+    )
+    assert supported[0]["evidence"][0]["material_id"] in set(materials.values())

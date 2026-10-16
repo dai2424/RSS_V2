@@ -75,6 +75,10 @@ class Settings(BaseSettings):
     materials_digest_max_input_chars: int = Field(default=80000, ge=10000, le=400000)
     digest_material_chars: int = Field(default=4000, ge=500, le=20000)
     digest_max_facts: int = Field(default=40, ge=1, le=200)
+    # 每次整理调用处理几份资料：太多会让模型写不完（真实环境实测被输出上限截断）。
+    digest_batch_size: int = Field(default=6, ge=1, le=30)
+    # 单次调用的输出上限；被截断时会自动把这一批对半拆开重试。
+    digest_max_output_tokens: int = Field(default=8192, ge=1024, le=65536)
     digest_max_evidence_per_fact: int = Field(default=4, ge=1, le=10)
     # 允许读取私网/本机地址：仅本机夹具（preview）或内网资料源使用；默认关闭，
     # 生产环境必须保持拒绝，避免检索结果把应用当成内网代理。
