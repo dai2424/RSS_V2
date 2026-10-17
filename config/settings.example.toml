@@ -59,6 +59,10 @@ digest_max_facts = 40
 digest_batch_size = 3
 digest_max_output_tokens = 16384
 digest_max_evidence_per_fact = 4
+# 单批事实与缺口条数上限：写进提示词，同时作为服务端截断兜底（缺口优先保留 blocking）。
+# 实测不限量时模型每批写 1–2 万 token 的事实与缺口，既慢又噪声大。
+digest_facts_per_batch = 8
+digest_gaps_per_batch = 2
 # 允许读取本机/内网地址：仅本机夹具（tests/preview.py）或内网资料源使用；
 # 默认 false，生产环境必须保持 false，避免检索结果把应用当成内网代理。
 article_allow_private_hosts = false

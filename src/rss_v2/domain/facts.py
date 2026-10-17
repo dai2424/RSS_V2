@@ -126,6 +126,11 @@ class DigestLimits:
     max_output_tokens: int = 16384  # 单次调用的输出上限；被截断时自动对半拆批重试
     max_facts: int = 40  # 事实（含分析、推测）条数上限（全部批次合计）
     max_evidence_per_fact: int = 4  # 每条事实最多保留几条引文
+    #: 单批事实上限：真实环境实测单批写到 1–2 万 token，既慢又多是凑数与编造。
+    #: 既写进提示词（{{facts_per_batch}}），也在这里做服务端截断兜底。
+    facts_per_batch: int = 8
+    #: 单批"关键信息缺口"条数上限；缺口是模型的例行总结，不设上限会淹没真正的阻塞项。
+    gaps_per_batch: int = 2
 
 
 @dataclass(frozen=True, slots=True)

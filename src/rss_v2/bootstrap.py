@@ -321,6 +321,8 @@ def build_container(settings: Settings | None = None, migrate: bool = True) -> C
             max_output_tokens=actual_settings.digest_max_output_tokens,
             max_facts=actual_settings.digest_max_facts,
             max_evidence_per_fact=actual_settings.digest_max_evidence_per_fact,
+            facts_per_batch=actual_settings.digest_facts_per_batch,
+            gaps_per_batch=actual_settings.digest_gaps_per_batch,
         ),
     )
     task_service = TaskService(tasks, messages, sources, discovery, writing_projects)

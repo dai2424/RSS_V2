@@ -91,13 +91,16 @@ def normalize_digest(
     *,
     max_facts: int,
     max_supports: int,
+    max_gaps: int = 0,
 ) -> tuple[list[FactDraft], list[NoteDraft], dict[str, int]]:
     """把模型输出归一化成事实草稿与待办草稿，并统计被丢弃的引用。
 
     - `materials`：材料 ID → 资料正文（只有本项目已读资料才在表里）；
     - 引文必须在对应资料里能定位，否则丢弃该条引文（若一条事实的引文全被丢弃，
       该事实记为 `missing` 并在缺口里说明，而不是当作"有依据"）；
-    - 分歧涉及的序号越界时丢弃该条分歧并计数。
+    - 分歧涉及的序号越界时丢弃该条分歧并计数；
+    - `max_gaps` 限制模型给出的缺口条数（0 表示不限）：超限时优先保留 blocking 的，
+      因为阻塞缺口决定能不能动笔，一般性建议丢掉不影响判断。
     """
 
     out_of_range = 0
@@ -150,11 +153,19 @@ def normalize_digest(
         if conflict.statement_indexes and not valid:
             out_of_range += 1
         notes.append(NoteDraft(kind=NoteKind.CONFLICT.value, text=text, fact_indexes=valid))
-    for gap in digest.gaps:
-        text = normalize_text(gap.text)
-        if not text:
-            continue
-        notes.append(NoteDraft(kind=NoteKind.GAP.value, text=text, blocking=bool(gap.blocking)))
+    model_gaps = [
+        NoteDraft(
+            kind=NoteKind.GAP.value, text=normalize_text(gap.text), blocking=bool(gap.blocking)
+        )
+        for gap in digest.gaps
+        if normalize_text(gap.text)
+    ]
+    if max_gaps > 0 and len(model_gaps) > max_gaps:
+        # 优先保留 blocking：一般性建议被截断不影响"能不能动笔"的判断。
+        blocking = [gap for gap in model_gaps if gap.blocking]
+        advice = [gap for gap in model_gaps if not gap.blocking]
+        model_gaps = [*blocking, *advice][:max_gaps]
+    notes.extend(model_gaps)
     # 缺证据的事实本身也是缺口：明确提示"这条关键事实还找不到依据"。
     for index, fact in enumerate(facts):
         if fact.status == FactStatus.MISSING.value:
@@ -194,6 +205,31 @@ def mark_conflicts(
                 conflict_note=note.text,
             )
     return updated, list(notes)
+
+
+def dedupe_notes(notes: Sequence[NoteDraft]) -> list[NoteDraft]:
+    """合并文本相同的待办：跨批重复的缺口/分歧只留一条。
+
+    真实环境实测：每批都会例行补一条"缺少官方一手资料"之类的缺口，十几批下来同一句话
+    堆成几十条，把真正的阻塞项淹没。合并时保留 blocking（任一条为阻塞就是阻塞）并合并
+    关联事实序号，因此不会因为去重丢掉"某条事实有冲突"或"某条事实缺引文"的链接。
+    """
+
+    merged: dict[tuple[str, str], NoteDraft] = {}
+    order: list[tuple[str, str]] = []
+    for note in notes:
+        key = (note.kind, normalize_text(note.text))
+        current = merged.get(key)
+        if current is None:
+            merged[key] = note
+            order.append(key)
+            continue
+        merged[key] = replace(
+            current,
+            blocking=current.blocking or note.blocking,
+            fact_indexes=tuple(dict.fromkeys((*current.fact_indexes, *note.fact_indexes))),
+        )
+    return [merged[key] for key in order]
 
 
 def materials_fingerprint(materials: Sequence[tuple[str, str]]) -> str:

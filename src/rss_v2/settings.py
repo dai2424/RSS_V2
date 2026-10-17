@@ -80,6 +80,10 @@ class Settings(BaseSettings):
     # 单次调用的输出上限；被截断时会自动把这一批对半拆开重试。
     digest_max_output_tokens: int = Field(default=16384, ge=1024, le=65536)
     digest_max_evidence_per_fact: int = Field(default=4, ge=1, le=10)
+    # 单批事实与缺口条数上限：写进提示词，同时作为服务端截断兜底。真实环境实测不设上限时
+    # 模型每批会写 1–2 万 token 的事实与缺口（凑数、编造、每批例行补缺口），既慢又噪声大。
+    digest_facts_per_batch: int = Field(default=8, ge=1, le=40)
+    digest_gaps_per_batch: int = Field(default=2, ge=0, le=20)
     # 允许读取私网/本机地址：仅本机夹具（preview）或内网资料源使用；默认关闭，
     # 生产环境必须保持拒绝，避免检索结果把应用当成内网代理。
     article_allow_private_hosts: bool = False

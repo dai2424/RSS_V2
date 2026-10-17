@@ -48,6 +48,7 @@ from rss_v2.domain import (
     lease_of,
 )
 from rss_v2.domain.facts_rules import (
+    dedupe_notes,
     mark_conflicts,
     materials_fingerprint,
     materials_text,
@@ -302,12 +303,15 @@ class DigestService:
         真实环境实测：把整份资料包放进一次调用时，事实与引文会写不完（输出上限截断、
         JSON 不完整）——因此按 `batch_size` 分批，相邻批重叠一份资料；输出仍被截断时
         再对半拆（见 `_run_batch`）。冲突里引用的"第几条事实"按批内偏移换算成全局序号。
+
+        批的划分见 `_digest_batches`：只有搜索摘要的资料合并成一批，不各占一个批次名额。
+        跨批重复的缺口说明在这里合并，避免同一句"缺少官方资料"堆成几十条。
         """
 
         prompt = self.prompts.snapshot(
             str(task.payload.get("prompt_id", "")), str(task.payload.get("prompt_version", ""))
         )
-        chunks = _chunks(materials, self.limits.batch_size)
+        chunks = _digest_batches(materials, self.limits.batch_size)
         facts: list[FactDraft] = []
         notes: list[NoteDraft] = []
         counters = {"out_of_range": 0, "rejected_quotes": 0}
@@ -323,6 +327,7 @@ class DigestService:
             )
             counters["out_of_range"] += chunk_counters.get("out_of_range", 0)
             counters["rejected_quotes"] += chunk_counters.get("rejected_quotes", 0)
+        notes = dedupe_notes(notes)
         if len(facts) > self.limits.max_facts:
             # 全部批次合计仍受事实条数上限约束：丢弃的部分在待办里写明，不静默。
             dropped = len(facts) - self.limits.max_facts
@@ -350,6 +355,8 @@ class DigestService:
             "title": title,
             "summary": summary,
             "materials": self._materials_text(materials),
+            "facts_per_batch": str(self.limits.facts_per_batch),
+            "gaps_per_batch": str(self.limits.gaps_per_batch),
         }
         payload = PromptPayload(
             system=render(prompt.system_template, values),
@@ -413,8 +420,9 @@ class DigestService:
         facts, notes, counters = normalize_digest(
             digest,
             {material.id: material.content_text for material in materials},
-            max_facts=self.limits.max_facts,
+            max_facts=self.limits.facts_per_batch,
             max_supports=self.limits.max_evidence_per_fact,
+            max_gaps=self.limits.gaps_per_batch,
         )
         marked, marked_notes = mark_conflicts(facts, notes)
         return marked, marked_notes, counters
@@ -585,6 +593,8 @@ def _chunks(materials: Sequence[Material], size: int) -> list[list[Material]]:
     """按条数切分资料，相邻批重叠一份，保证跨切点的同一事件两边都能看到。"""
 
     limit = max(1, size)
+    if not materials:
+        return []
     if len(materials) <= limit:
         return [list(materials)]
     chunks: list[list[Material]] = []
@@ -596,3 +606,20 @@ def _chunks(materials: Sequence[Material], size: int) -> list[list[Material]]:
             break
         index += limit - 1  # 重叠一份
     return chunks
+
+
+def _digest_batches(materials: Sequence[Material], size: int) -> list[list[Material]]:
+    """整理批次：读到正文的资料按 size 切分（相邻批重叠一份），只有搜索摘要的合并成一批。
+
+    真实环境实测：搜索摘要（搜索结果里的标题与片段，单条几十到几百字符）各自占满一个
+    批次名额，既白白增加调用次数，又会让模型从极短的输入里扩写出大量"事实"——两批
+    59/87 token 的输入写出了 1 万与 1.96 万 token 的输出。合并成一批后，调用次数只由
+    有正文的资料决定，摘要也不会被丢掉（它们仍然可以作为证据被引用）。
+    """
+
+    full = [item for item in materials if item.status == MaterialStatus.READ.value]
+    brief = [item for item in materials if item.status != MaterialStatus.READ.value]
+    batches = _chunks(full, size)
+    if brief:
+        batches.append(brief)
+    return batches

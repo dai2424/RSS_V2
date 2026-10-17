@@ -35,7 +35,11 @@ BODY_TWO = "尊界回应称制动系统按照高于国家标准的要求完成�
 
 
 class DigestProvider:
-    """假模型：返回预设的资料整理结果；可指定"引文被改写"等异常形态。"""
+    """假模型：返回预设的资料整理结果；可指定"引文被改写"等异常形态。
+
+    整理会分批调用（读到正文的一批、只有搜索摘要的一批），假模型必须按批作答：
+    提示词里没有 payload 引用的材料时返回空结果，否则同一批事实会被数两遍。
+    """
 
     def __init__(self, payload: dict[str, Any]):
         self.payload = payload
@@ -54,6 +58,13 @@ class DigestProvider:
     ) -> tuple[Any, dict[str, int], int]:
         self.calls += 1
         assert schema is MaterialDigest
+        referenced = {
+            str(support["material_id"])
+            for fact in self.payload.get("facts", [])
+            for support in fact.get("supports", [])
+        }
+        if referenced and not any(f"[材料 {item}]" in prompt.user for item in referenced):
+            return MaterialDigest.model_validate({"facts": [], "conflicts": [], "gaps": []}), {}, 1
         return MaterialDigest.model_validate(self.payload), {"total_tokens": 7}, 3
 
 
@@ -243,6 +254,9 @@ def test_digest_versions_and_note_resolution_survive_rerun(client: TestClient) -
     client.app.state.container.digest_service.limits = DigestLimits(batch_size=10)
     first = _digest(client, project_id, provider)
     first_run = first["run"]["id"]
+    # 两条成员只有摘要（一批）+ 一篇网页读到正文（一批）：一次整理两次调用。
+    first_calls = provider.calls
+    assert first_calls == 2
     note = next(item for item in first["notes"] if item["blocking"])
     resolved = client.post(f"/api/projects/{project_id}/notes/{note['id']}/resolve")
     assert resolved.status_code == 200 and resolved.json()["note"]["resolved_at"]
@@ -251,7 +265,7 @@ def test_digest_versions_and_note_resolution_survive_rerun(client: TestClient) -
     again = client.post(f"/api/projects/{project_id}/facts")
     assert again.status_code == 202
     assert again.json()["status"] == "succeeded"
-    assert provider.calls == 1
+    assert provider.calls == first_calls
 
     # 换一份资料（新增一篇网页）后重跑：新版本，旧版本仍可查看，已处理的缺口保留。
     service = client.app.state.container.material_service
@@ -274,7 +288,7 @@ def test_digest_versions_and_note_resolution_survive_rerun(client: TestClient) -
 
     second = _digest(client, project_id, provider)
     assert second["run"]["id"] != first_run
-    assert provider.calls == 2
+    assert provider.calls == first_calls + 2  # 新一轮资料包同样是"有正文一批 + 只有摘要一批"
     history = client.get(f"/api/projects/{project_id}/digest-runs").json()["items"]
     assert [item["id"] for item in history][:2] == [second["run"]["id"], first_run]
     # 旧版本的缺口与事实仍在（按版本查询）。
@@ -388,11 +402,11 @@ def test_digest_only_uses_read_materials(client: TestClient) -> None:
 
 
 class BatchCountingProvider(DigestProvider):
-    """按提示词里的材料逐条给出事实，并记录每批的材料份数。"""
+    """按提示词里的材料逐条给出事实，并记录每批的材料 ID。"""
 
     def __init__(self) -> None:
         super().__init__({})
-        self.batches: list[int] = []
+        self.batches: list[list[str]] = []
 
     def structured(
         self,
@@ -408,7 +422,7 @@ class BatchCountingProvider(DigestProvider):
         self.calls += 1
         # 按提示词里的材料逐条取正文片段当引文：服务端的引文定位一定能命中。
         blocks = re.split(r"^\[材料 ", prompt.user, flags=re.MULTILINE)[1:]
-        self.batches.append(len(blocks))
+        self.batches.append([block[:36] for block in blocks])
         facts = []
         for index, block in enumerate(blocks):
             material_id = block[:36]
@@ -425,6 +439,47 @@ class BatchCountingProvider(DigestProvider):
                 }
             )
         return MaterialDigest.model_validate({"facts": facts, "conflicts": [], "gaps": []}), {}, 2
+
+
+class OverproducingProvider:
+    """假模型：每批都给出 12 条事实与 4 条缺口（超过单批上限），引文取本批第一份资料。"""
+
+    def __init__(self) -> None:
+        self.calls = 0
+        self.prompts: list[str] = []
+
+    def structured(
+        self,
+        provider,
+        model,
+        secret,
+        prompt,
+        prompt_version,
+        task_kind,
+        schema,
+        max_output_tokens=None,
+    ):
+        self.calls += 1
+        self.prompts.append(prompt.user)
+        blocks = re.split(r"^\[材料 ", prompt.user, flags=re.MULTILINE)[1:]
+        material_id = blocks[0][:36] if blocks else ""
+        body = blocks[0].split("正文：", 1)[1].strip() if blocks and "正文：" in blocks[0] else ""
+        quote = body.split("[材料 ", 1)[0].strip()[:40]
+        facts = [
+            {
+                "statement": f"超量事实 {index}",
+                "kind": "fact",
+                "supports": [{"material_id": material_id, "quote": quote}],
+            }
+            for index in range(12)
+        ]
+        gaps = [
+            {"text": "缺少官方一手资料", "blocking": True},
+            {"text": "缺少第三方检测结论", "blocking": False},
+            {"text": "缺少厂商完整声明", "blocking": False},
+            {"text": "建议补充行业背景", "blocking": False},
+        ]
+        return MaterialDigest.model_validate({"facts": facts, "conflicts": [], "gaps": gaps}), {}, 2
 
 
 @respx.mock
@@ -449,7 +504,7 @@ def test_digest_splits_materials_into_batches(client: TestClient) -> None:
     body = client.get(f"/api/projects/{project_id}/facts").json()
 
     assert provider.calls >= 2, f"batches={provider.batches}"
-    assert all(size <= 2 for size in provider.batches), f"batches={provider.batches}"
+    assert all(len(ids) <= 2 for ids in provider.batches), f"batches={provider.batches}"
     assert body["run"]["counts"]["fact"] == len(body["facts"]) >= 2
     # 证据与状态必须一致：有引文才算 supported，没有引文的记为 missing（产品规则）。
     supported = [fact for fact in body["facts"] if fact["evidence"]]
@@ -458,3 +513,72 @@ def test_digest_splits_materials_into_batches(client: TestClient) -> None:
         fact["status"] == ("supported" if fact["evidence"] else "missing") for fact in body["facts"]
     )
     assert supported[0]["evidence"][0]["material_id"] in set(materials.values())
+
+
+@respx.mock
+def test_digest_merges_brief_materials_into_one_batch(client: TestClient) -> None:
+    """只有搜索摘要的资料合并成一批：不各占一个批次名额，也不被丢掉。
+
+    真实环境实测：十几份搜索摘要（单条几十到几百字符）各自占满一批，还让模型从极短
+    输入里扩写出上万 token 的"事实"。合并成一批后，调用次数只由读到正文的资料决定。
+    """
+
+    configure_model(client)
+    project_id = _seed_project(client, "摘要合并选题")
+    _prepare_materials(client, project_id)
+    statuses = {
+        item["url"]: item["status"]
+        for item in client.get(f"/api/projects/{project_id}/materials").json()["items"]
+    }
+    brief = {
+        item["id"]
+        for item in client.get(f"/api/projects/{project_id}/materials").json()["items"]
+        if item["status"] == MaterialStatus.SUMMARY_ONLY.value
+    }
+    assert len(brief) == 2, statuses  # 两条成员消息只有摘要
+
+    provider = BatchCountingProvider()
+    service = client.app.state.container.digest_service
+    service.provider = provider
+    service.limits = DigestLimits(batch_size=1)  # 读到正文的资料每批一份，便于数批次数
+    response = client.post(f"/api/projects/{project_id}/facts")
+    assert response.status_code == 202
+    assert Worker(client.app.state.container).run_once() is True
+
+    assert provider.calls == 2, provider.batches  # 一篇网页一批 + 只有摘要的两份合起来一批
+    assert any(set(ids) == brief for ids in provider.batches)  # 两份摘要同批，没被拆开或丢掉
+    assert all(len(ids) == 1 for ids in provider.batches if set(ids) != brief)
+
+
+@respx.mock
+def test_digest_caps_per_batch_output_and_merges_repeated_gaps(client: TestClient) -> None:
+    """单批事实与缺口有上限（提示词 + 服务端截断），跨批重复的缺口说明合并成一条。
+
+    真实环境实测：不限量时每批写出 6k–22k token 的事实与缺口，同一次整理产出 108 条
+    缺口（53 条阻塞），把真正的缺口淹没。这里让假模型每批都给 12 条事实与 4 条缺口。
+    """
+
+    configure_model(client)
+    project_id = _seed_project(client, "限量验收选题")
+    _prepare_materials(client, project_id)
+    provider = OverproducingProvider()
+    service = client.app.state.container.digest_service
+    service.provider = provider
+    service.limits = DigestLimits()  # 默认每批 8 条事实、2 条缺口
+    response = client.post(f"/api/projects/{project_id}/facts")
+    assert response.status_code == 202
+    assert Worker(client.app.state.container).run_once() is True
+    body = client.get(f"/api/projects/{project_id}/facts").json()
+
+    assert provider.calls == 2  # 一篇网页一批 + 两份摘要一批
+    counts = body["run"]["counts"]
+    assert counts["fact"] == 16  # 每批 12 条被截到 8 条
+    assert counts["evidence"] == 16  # 引文都取自本批资料，全部定位成功
+    assert all(fact["status"] == "supported" for fact in body["facts"])
+    gaps = [note for note in body["notes"] if note["kind"] == "gap"]
+    # 每批 4 条截到 2 条（保留 blocking 的那条），两批文本相同再合并成 2 条。
+    assert len(gaps) == 2, [note["text"] for note in gaps]
+    assert sum(1 for note in gaps if note["blocking"]) == 1
+    assert "缺少官方一手资料" in {note["text"] for note in gaps}
+    # 上限写进提示词，模型才知道"少写"，服务端截断只是兜底。
+    assert all("最多 8 条" in prompt and "最多 2 条" in prompt for prompt in provider.prompts)

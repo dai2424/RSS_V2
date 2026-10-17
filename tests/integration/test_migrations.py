@@ -30,7 +30,7 @@ def test_fresh_database_and_checksum(tmp_path: Path) -> None:
     shutil.copytree("migrations", migrations)
     database = SQLiteDatabase(tmp_path / "rss.db")
     runner = MigrationRunner(database, migrations)
-    assert len(runner.run()) == 27
+    assert len(runner.run()) == 28
     assert runner.run() == []
     path = migrations / "0001_initial.sql"
     path.write_text(path.read_text(encoding="utf-8") + "\n-- mutation\n", encoding="utf-8")
@@ -159,7 +159,7 @@ def test_two_processes_do_not_apply_migration_twice(tmp_path: Path) -> None:
         results = list(
             pool.map(lambda _: MigrationRunner(database, Path("migrations")).run(), range(2))
         )
-    assert sum(len(result) for result in results) == 27
+    assert sum(len(result) for result in results) == 28
 
 
 def test_upgrade_preserves_versions_and_translations(tmp_path: Path) -> None:
@@ -509,5 +509,45 @@ def test_api_key_migration_rebuilds_keys_and_renames_audit_columns(tmp_path: Pat
         }
         assert "key_masked" in translation_columns
         assert not connection.execute("PRAGMA foreign_key_check").fetchall()
+    finally:
+        connection.close()
+
+
+def test_digest_prompt_v2_archives_v1(tmp_path: Path) -> None:
+    """0027 → 0028：整理提示词换到 v2 并归档 v1，旧版本仍可回溯。"""
+
+    migrations = tmp_path / "migrations"
+    migrations.mkdir()
+    for path in sorted(Path("migrations").glob("*.sql")):
+        if path.name <= "0027_digest.sql":
+            shutil.copy(path, migrations / path.name)
+    database = SQLiteDatabase(tmp_path / "rss.db")
+    runner = MigrationRunner(database, migrations)
+    runner.run()
+    connection = database.connect()
+    try:
+        before = connection.execute(
+            "SELECT version,status FROM llm_prompts WHERE task_kind='digest_materials'"
+        ).fetchall()
+        assert [(row["version"], row["status"]) for row in before] == [(1, "active")]
+    finally:
+        connection.close()
+
+    shutil.copy(
+        Path("migrations") / "0028_digest_prompt_v2.sql", migrations / "0028_digest_prompt_v2.sql"
+    )
+    assert runner.run() == ["0028_digest_prompt_v2.sql"]
+    connection = database.connect()
+    try:
+        rows = connection.execute(
+            "SELECT version,status,user_template FROM llm_prompts"
+            " WHERE task_kind='digest_materials' ORDER BY version"
+        ).fetchall()
+        assert [(row["version"], row["status"]) for row in rows] == [(1, "archived"), (2, "active")]
+        # 新版本必须把"最多几条"和引文长度写进提示词，否则限量只是服务端截断。
+        template = rows[1]["user_template"]
+        assert "{{facts_per_batch}}" in template and "{{gaps_per_batch}}" in template
+        assert "120 字" in template
+        assert "{{facts_per_batch}}" not in rows[0]["user_template"]
     finally:
         connection.close()
