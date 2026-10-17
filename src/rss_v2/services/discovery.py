@@ -440,10 +440,7 @@ class DiscoveryService:
         return prompt
 
     def _model(self) -> tuple[Provider, ProviderModel]:
-        candidate = self.failover.first_available()
-        if candidate is None:
-            raise DomainError("llm_key_not_configured", "没有启用且具有可用 Key 的模型")
-        return candidate
+        return self.failover.require_available()
 
     def _fresh_snapshot(self) -> TaskSnapshot:
         """入队时的模型与提示词快照：优先组合 + 该任务类型当前生效的提示词。"""

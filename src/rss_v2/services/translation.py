@@ -70,10 +70,7 @@ class TranslationService:
             )
             if existing is not None:
                 return existing
-        candidate = self.failover.first_available()
-        if candidate is None:
-            raise DomainError("llm_key_not_configured", "没有启用且具有可用 Key 的模型")
-        provider, model = candidate
+        provider, model = self.failover.require_available()
         return self.tasks.create(
             Task(
                 id=new_id(),

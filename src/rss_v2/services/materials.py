@@ -213,10 +213,7 @@ class MaterialService:
         prompt = self.prompts.active(TaskType.PREPARE_MATERIALS.value)
         if prompt is None:
             raise DomainError("prompt_not_configured", "没有可用的资料检索式提示词")
-        candidate = self.failover.first_available()
-        if candidate is None:
-            raise DomainError("llm_key_not_configured", "没有启用且具有可用 Key 的模型")
-        provider, model = candidate
+        provider, model = self.failover.require_available()
         return {
             "provider_id": provider.id,
             "model": model.model,

@@ -268,4 +268,5 @@ def test_backfill_reports_reason_when_model_is_missing(client: TestClient) -> No
     assert response.status_code == 200, response.text
     body = response.json()
     assert body["candidates"] == 1 and body["enqueued"] == 0 and body["skipped"] == 1
-    assert body["reasons"] == ["没有启用且具有可用 Key 的模型"]
+    # 完全没配 Provider 时报"没有启用的模型"；配了 Provider 但没有可用 Key 是另一种原因。
+    assert body["reasons"] == ["没有启用的模型"]

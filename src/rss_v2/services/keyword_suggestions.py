@@ -102,10 +102,7 @@ class KeywordSuggestionService:
         batches = self._scan_batches(max(1, min(count, MAX_ENQUEUE)), batch_size)
         if not batches:
             return SuggestionEnqueue(enqueued=0, queued_words=0)
-        candidate = self.failover.first_available()
-        if candidate is None:
-            raise DomainError("llm_key_not_configured", "没有启用且具有可用 Key 的模型")
-        provider, model = candidate
+        provider, model = self.failover.require_available()
         enqueued = 0
         queued_words = 0
         for offset, fingerprint, entries in batches:

@@ -76,6 +76,30 @@ class LLMFailover:
 
         return next((item for item in self.enabled_pairs() if self.keys(item[0])), None)
 
+    def require_available(self) -> tuple[Provider, ProviderModel]:
+        """入队前的可用性检查，返回首选候选；不可用时抛出可读的分类错误。
+
+        区分三种情况，避免把临时状态误报成配置缺失：没有启用模型、Key 全在冷却中、
+        没有可用的 Key（未配置或已停用）。
+        """
+
+        pairs = self.enabled_pairs()
+        if not pairs:
+            raise DomainError("llm_not_configured", "没有启用的模型")
+        available = next(
+            ((provider, model) for provider, model in pairs if self.keys(provider)), None
+        )
+        if available is not None:
+            return available
+        current = now()
+        if any(
+            self.cooling(key, current)
+            for provider, _ in pairs
+            for key in self.enabled_keys(provider)
+        ):
+            raise DomainError("llm_key_cooling", "模型 Key 都在冷却中，请稍后重试")
+        raise DomainError("llm_key_not_configured", "没有启用且具有可用 Key 的模型")
+
     def candidates(self, task_id: str | None) -> list[tuple[Provider, str]]:
         """首选组合在入队时快照；修改配置不改变已排队任务的模型名。
 
@@ -110,11 +134,26 @@ class LLMFailover:
         """仓储按优先级排序，过滤停用、冷却和密钥值为空的 Key。"""
 
         current = now()
-        return [
-            key
-            for key in self.llm_config.list_keys(provider.id, enabled_only=True)
-            if (key.cooldown_until is None or key.cooldown_until <= current) and key.secret.strip()
-        ]
+        return [key for key in self.enabled_keys(provider) if self.usable(key, current)]
+
+    def enabled_keys(self, provider: Provider) -> list[ProviderKey]:
+        """启用中的 Key 行，**不看冷却**：用来区分"没配 Key"与"Key 都在冷却中"。"""
+
+        return self.llm_config.list_keys(provider.id, enabled_only=True)
+
+    @staticmethod
+    def usable(key: ProviderKey, current: int) -> bool:
+        """冷却已结束且密钥非空的 Key 才可调用。"""
+
+        return (key.cooldown_until is None or key.cooldown_until <= current) and bool(
+            key.secret.strip()
+        )
+
+    @staticmethod
+    def cooling(key: ProviderKey, current: int) -> bool:
+        """Key 是否正处在冷却期（超时、限流等临时错误留下的）。"""
+
+        return key.cooldown_until is not None and key.cooldown_until > current
 
     def cooldown_until(self, error: DomainError, cooldown_seconds: int) -> int | None:
         """临时错误让 Key 进入冷却；配置类错误不冷却，避免误停可用密钥。"""
@@ -168,13 +207,25 @@ class LLMFailover:
         invoke 只接收 Provider、模型与密钥，提示词由调用方闭包携带。
         每次尝试都写审计并更新 Key 冷却；候选耗尽后抛出最后一个错误，
         由调用方写入失败记录，因此这里不捕获最终异常。
+
+        唯一例外是"Key 全在冷却中"：这是临时状态（同一 Key 刚被别的任务打成冷却），
+        按可重试错误抛出，让任务等冷却结束再跑，而不是当成"没配 Key"直接判死。
         """
         candidates = self.candidates(task_id)
         if not candidates:
             raise DomainError("llm_not_configured", "没有启用的模型")
+        current = now()
+        attempted = False
+        cooling = False
         last_error = DomainError("llm_key_not_configured", "没有可用的模型 API Key")
         for provider, model_name in candidates:
-            for key in self.keys(provider):
+            enabled = self.enabled_keys(provider)
+            available = [key for key in enabled if self.usable(key, current)]
+            if available:
+                attempted = True
+            elif any(self.cooling(key, current) for key in enabled):
+                cooling = True
+            for key in available:
                 started = time.perf_counter()
                 try:
                     result, tokens, duration = invoke(provider, model_name, key.secret)
@@ -211,4 +262,6 @@ class LLMFailover:
                 )
                 self.llm_config.mark_key(key.id, "succeeded", None)
                 return persist(provider, model_name, key, result, tokens, duration)
+        if not attempted and cooling:
+            raise ExternalServiceError("llm_key_cooling", "模型 Key 都在冷却中，稍后自动重试")
         raise last_error from None

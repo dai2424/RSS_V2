@@ -584,6 +584,59 @@ def test_model_retry_waits_for_configured_cooldown(
     assert not Worker(container).run_once()
 
 
+def cool_down_keys(client: TestClient, seconds: int = 60) -> None:
+    """把现有 Key 的冷却时间推到将来，模拟"刚被别的任务超时打成冷却"。"""
+
+    container: Container = client.app.state.container
+    with container.database.transaction() as connection:
+        connection.execute("UPDATE llm_provider_keys SET cooldown_until=?", (now() + seconds,))
+
+
+@respx.mock
+def test_task_waits_out_key_cooldown_instead_of_failing(client: TestClient) -> None:
+    """Key 全在冷却中时任务按可重试处理，不能判成不可重试的"没有可用 Key"。
+
+    真实环境反馈：上一个任务超时把 Key 打成冷却，紧接着执行的任务在冷却期内找不到
+    可用 Key，被当成配置缺失直接失败（尝试 1 次就判死）。冷却属于临时状态。
+    """
+    respx.get("https://one.test/feed").mock(return_value=httpx.Response(200, text=FEED))
+    source_id = source(client)
+    container: Container = client.app.state.container
+    collect(client, source_id, Worker(container))
+    provider(client)
+    message_id = client.get("/api/messages").json()["items"][0]["id"]
+    task = client.post(f"/api/messages/{message_id}/translate").json()
+    cool_down_keys(client)
+    assert Worker(container).run_once()
+    status = client.get(f"/api/tasks/{task['id']}").json()
+    assert status["status"] == "queued" and status["error_code"] == "llm_key_cooling"
+    assert status["attempts"] == 1
+    assert container.tasks.get(task["id"]).available_at >= now() + 59
+
+
+@respx.mock
+def test_enqueue_reports_key_cooldown_separately(client: TestClient) -> None:
+    """入队前的可用性检查区分"没有 Key"和"Key 都在冷却"，后者提示稍后重试。"""
+
+    respx.get("https://one.test/feed").mock(return_value=httpx.Response(200, text=FEED))
+    source_id = source(client)
+    container: Container = client.app.state.container
+    collect(client, source_id, Worker(container))
+    provider_id = provider(client)
+    message_id = client.get("/api/messages").json()["items"][0]["id"]
+    cool_down_keys(client)
+    cooling = client.post(f"/api/messages/{message_id}/translate")
+    assert cooling.status_code == 400
+    assert cooling.json()["code"] == "llm_key_cooling"
+    assert "冷却" in cooling.json()["message"]
+    keys = next(
+        item for item in client.get("/api/llm/providers").json() if item["id"] == provider_id
+    )["keys"]
+    client.patch(f"/api/llm/providers/{provider_id}/keys/{keys[0]['id']}", json={"enabled": False})
+    no_key = client.post(f"/api/messages/{message_id}/translate")
+    assert no_key.status_code == 400 and no_key.json()["code"] == "llm_key_not_configured"
+
+
 @pytest.mark.parametrize(
     "content", ["not json", '{"title":"标题"}', '{"title":4,"summary":"摘要","content":"正文"}']
 )
