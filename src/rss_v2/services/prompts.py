@@ -17,6 +17,7 @@ from rss_v2.domain import (
     DomainError,
     EnrichmentResult,
     MaterialDigest,
+    OutlineDraft,
     Prompt,
     PromptSample,
     PromptTest,
@@ -275,6 +276,17 @@ class PromptService:
                 prompt_version,
                 TaskType.DISCOVER_EVENTS.value,
                 DiscoveryDigest,
+            )
+        if task_kind == TaskType.GENERATE_OUTLINE.value:
+            # 试跑只验证模板能否产出通过 schema 的分节提纲；真实输入由生成任务按资料包渲染。
+            return self.provider.structured(
+                provider,
+                model_name,
+                secret,
+                payload,
+                prompt_version,
+                TaskType.GENERATE_OUTLINE.value,
+                OutlineDraft,
             )
         raise DomainError("task_kind_unsupported", f"任务类型尚未支持试跑：{task_kind}")
 

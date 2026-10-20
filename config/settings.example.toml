@@ -63,6 +63,14 @@ digest_max_evidence_per_fact = 4
 # 实测不限量时模型每批写 1–2 万 token 的事实与缺口，既慢又噪声大。
 digest_facts_per_batch = 8
 digest_gaps_per_batch = 2
+
+# 提纲生成（阶段 4 P4）：依据选题与确定的资料包生成分节提纲。
+# 输入是选题与已核对事实的清单；一次调用只生成一份提纲，不做分批——输出被截断会直接
+# 失败（重试仍会撞同一个上限），需要调大输出上限或改提示词。
+outline_max_input_chars = 80000
+# 实测（43 份资料 / 50 条事实的选题）：一次提纲输出 13.9k token（含模型思考），8192 会被
+# max_tokens 截断，因此默认给到 32768。
+outline_max_output_tokens = 32768
 # 允许读取本机/内网地址：仅本机夹具（tests/preview.py）或内网资料源使用；
 # 默认 false，生产环境必须保持 false，避免检索结果把应用当成内网代理。
 article_allow_private_hosts = false

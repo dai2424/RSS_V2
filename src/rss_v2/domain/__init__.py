@@ -45,6 +45,8 @@ from .generation import (
     MaterialDigest,
     MaterialQueries,
     MaterialQuerySchema,
+    OutlineDraft,
+    OutlineSectionSchema,
 )
 from .keywords import (
     EMPTY_VOCABULARY_TEXT,
@@ -146,6 +148,20 @@ from .models import (
     TranslationResult,
     lease_of,
 )
+from .outlines import (
+    MAX_ANGLE_CHARS,
+    MAX_HEADING_CHARS,
+    MAX_POINT_CHARS,
+    MAX_POINTS_PER_SECTION,
+    MAX_TITLE_CHARS,
+    MIN_SECTIONS,
+    OutlineCounters,
+    OutlineLimits,
+    OutlineSection,
+    OutlineSource,
+    OutlineStatus,
+    OutlineVersion,
+)
 
 __all__ = [
     "KEYWORD_LIMIT",
@@ -163,6 +179,20 @@ __all__ = [
     "FactSupportSchema",
     "GapSchema",
     "MaterialDigest",
+    "OutlineDraft",
+    "OutlineSectionSchema",
+    "MAX_ANGLE_CHARS",
+    "MAX_HEADING_CHARS",
+    "MAX_POINTS_PER_SECTION",
+    "MAX_POINT_CHARS",
+    "MAX_TITLE_CHARS",
+    "MIN_SECTIONS",
+    "OutlineCounters",
+    "OutlineLimits",
+    "OutlineSection",
+    "OutlineSource",
+    "OutlineStatus",
+    "OutlineVersion",
     "MAX_QUOTE_CHARS",
     "MIN_QUOTE_CHARS",
     "Note",

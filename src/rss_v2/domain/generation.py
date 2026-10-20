@@ -91,3 +91,29 @@ class MaterialDigest(BaseModel):
     facts: list[FactSchema]
     conflicts: list[ConflictSchema] = []
     gaps: list[GapSchema] = []
+
+
+class OutlineSectionSchema(BaseModel):
+    """提纲的一节：小标题、要点、依据事实与引文、行业影响分析。
+
+    `fact_ids`/`evidence_ids` 只能是本项目已核对事实与其引文的 ID；越界、指向
+    `missing` 事实或与所选事实无关的条目由服务层逐条丢弃并计数（见 domain/outline_rules）。
+    """
+
+    heading: str = ""
+    talking_points: list[str] = []
+    fact_ids: list[str] = []
+    evidence_ids: list[str] = []
+    impact_notes: list[str] = []
+
+
+class OutlineDraft(BaseModel):
+    """一次提纲生成的完整输出。
+
+    `sections` 必填：缺少字段说明模型没有按约定作答，整批判为无效输出，而不是
+    "这个选题写不出提纲"——两者在界面上必须区分。
+    """
+
+    title: str = ""
+    angle: str = ""
+    sections: list[OutlineSectionSchema]

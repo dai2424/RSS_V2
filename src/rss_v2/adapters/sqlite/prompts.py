@@ -175,14 +175,23 @@ class SQLitePromptRepository:
                 " WHERE prompt_version=? OR prompt_version=? || '+prompt-test'",
                 (version_string, version_string),
             )
-            results = _count(
-                connection,
-                "SELECT count(*) FROM translations WHERE prompt_version=?",
-                (version_string,),
-            ) + _count(
-                connection,
-                "SELECT count(*) FROM message_enrichments WHERE prompt_version=?",
-                (version_string,),
+            results = (
+                _count(
+                    connection,
+                    "SELECT count(*) FROM translations WHERE prompt_version=?",
+                    (version_string,),
+                )
+                + _count(
+                    connection,
+                    "SELECT count(*) FROM message_enrichments WHERE prompt_version=?",
+                    (version_string,),
+                )
+                # 提纲版本：人工保存的版本 prompt_version 留空，因此只统计模型生成的产物。
+                + _count(
+                    connection,
+                    "SELECT count(*) FROM outline_versions WHERE prompt_version=?",
+                    (version_string,),
+                )
             )
             # 提示词入库之前的任务快照没有 prompt_id，只有版本串；那种引用同样
             # 说明这条记录被用过，既影响能否删除，也影响升级后能否继续执行。

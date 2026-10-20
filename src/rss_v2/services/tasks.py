@@ -95,6 +95,7 @@ class TaskService:
         if task.task_type in (
             TaskType.PREPARE_MATERIALS.value,
             TaskType.DIGEST_MATERIALS.value,
+            TaskType.GENERATE_OUTLINE.value,
         ):
             return self._project_view(task)
         kind, target_id = self._target(task)

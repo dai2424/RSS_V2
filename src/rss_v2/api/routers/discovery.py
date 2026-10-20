@@ -127,7 +127,15 @@ def project_detail(project_id: str, request: Request) -> ProjectDetailResponse:
 
     service = _service(request)
     project, members = service.project_detail(project_id)
-    materials = container(request).material_service.counts(project_id)
-    # 资料条数来自资料服务；事实、提纲与文章在后续任务里填充（当前恒为 0）。
-    counts = {"materials": materials.get("total", 0), "facts": 0, "outlines": 0, "articles": 0}
+    holder = container(request)
+    materials = holder.material_service.counts(project_id)
+    # 事实取最新资料包版本的条数（历史版本的事实不计入，否则重跑几次就翻倍）；
+    # 文章条数在后续任务（P5）里填充，当前恒为 0。
+    digest = holder.digest_service.latest(project_id)
+    counts = {
+        "materials": materials.get("total", 0),
+        "facts": len(digest.facts) if digest is not None else 0,
+        "outlines": holder.outline_service.count(project_id),
+        "articles": 0,
+    }
     return project_detail_response(project, members, counts)

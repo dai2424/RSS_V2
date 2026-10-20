@@ -26,6 +26,7 @@ from rss_v2.adapters.sqlite.llm import SQLiteLLMCallRepository, SQLiteLLMConfigR
 from rss_v2.adapters.sqlite.materials import SQLiteMaterialRepository
 from rss_v2.adapters.sqlite.messages import SQLiteMessageRepository
 from rss_v2.adapters.sqlite.migrations import MigrationRunner
+from rss_v2.adapters.sqlite.outlines import SQLiteOutlineRepository
 from rss_v2.adapters.sqlite.prompts import (
     SQLitePromptRepository,
     SQLiteTaskSettingRepository,
@@ -45,6 +46,7 @@ from rss_v2.domain import (
     DiscoveryLimits,
     LLMProtocol,
     MaterialLimits,
+    OutlineLimits,
     Provider,
 )
 from rss_v2.services.collection import CollectionService
@@ -59,6 +61,8 @@ from rss_v2.services.llm_failover import LLMFailover
 from rss_v2.services.materials import MaterialService
 from rss_v2.services.materials_runner import MaterialRunner
 from rss_v2.services.messages import MessageService
+from rss_v2.services.outline_runner import OutlineRunner
+from rss_v2.services.outlines import OutlineService
 from rss_v2.services.processing import ProcessingService
 from rss_v2.services.prompt_resolver import PromptResolver
 from rss_v2.services.prompts import PromptService
@@ -92,6 +96,7 @@ class Container:
     writing_projects: SQLiteWritingProjectRepository
     materials: SQLiteMaterialRepository
     facts: SQLiteFactRepository
+    outlines: SQLiteOutlineRepository
     llm_config: SQLiteLLMConfigRepository
     llm_calls: SQLiteLLMCallRepository
     prompts: SQLitePromptRepository
@@ -111,6 +116,7 @@ class Container:
     discovery_service: DiscoveryService
     material_service: MaterialService
     digest_service: DigestService
+    outline_service: OutlineService
     task_service: TaskService
     provider_service: ProviderService
 
@@ -153,6 +159,7 @@ def build_container(settings: Settings | None = None, migrate: bool = True) -> C
     writing_projects = SQLiteWritingProjectRepository(database)
     materials = SQLiteMaterialRepository(database)
     facts = SQLiteFactRepository(database)
+    outlines = SQLiteOutlineRepository(database)
     llm_config = SQLiteLLMConfigRepository(database)
     llm_calls = SQLiteLLMCallRepository(database)
     prompts = SQLitePromptRepository(database)
@@ -325,6 +332,28 @@ def build_container(settings: Settings | None = None, migrate: bool = True) -> C
             gaps_per_batch=actual_settings.digest_gaps_per_batch,
         ),
     )
+    outline_limits = OutlineLimits(
+        max_input_chars=actual_settings.outline_max_input_chars,
+        max_output_tokens=actual_settings.outline_max_output_tokens,
+    )
+    outline_runner = OutlineRunner(
+        resolver,
+        llm_provider,
+        failover,
+        actual_settings.llm_retry_cooldown_seconds,
+        outline_limits,
+    )
+    outline_service = OutlineService(
+        outlines,
+        facts,
+        writing_projects,
+        leads,
+        tasks,
+        resolver,
+        failover,
+        outline_runner,
+        outline_limits,
+    )
     task_service = TaskService(tasks, messages, sources, discovery, writing_projects)
     provider_service = ProviderService(llm_config)
     return Container(
@@ -346,6 +375,7 @@ def build_container(settings: Settings | None = None, migrate: bool = True) -> C
         writing_projects,
         materials,
         facts,
+        outlines,
         llm_config,
         llm_calls,
         prompts,
@@ -365,6 +395,7 @@ def build_container(settings: Settings | None = None, migrate: bool = True) -> C
         discovery_service,
         material_service,
         digest_service,
+        outline_service,
         task_service,
         provider_service,
     )

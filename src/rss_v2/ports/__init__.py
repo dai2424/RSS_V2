@@ -6,6 +6,7 @@ from .discovery import DiscoveryRepository, MessageScopeReader, WritingProjectRe
 from .external import FeedClient
 from .facts import FactRepository
 from .materials import MaterialRepository
+from .outlines import OutlineRepository
 from .repositories import (
     CategoryRepository,
     CollectionRunRepository,
@@ -39,6 +40,7 @@ __all__ = [
     "FactRepository",
     "MaterialRepository",
     "MessageScopeReader",
+    "OutlineRepository",
     "SearchClient",
     "SuggestionRepository",
     "LLMCallRepository",

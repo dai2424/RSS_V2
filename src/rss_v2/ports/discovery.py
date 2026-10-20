@@ -115,8 +115,13 @@ class WritingProjectRepository(Protocol):
         """项目列表与总数，按最近更新时间倒序。"""
         ...
 
-    def set_status(self, project_id: str, status: str, timestamp: int) -> int:
-        """推进项目状态，返回更新行数（只允许向前推进由用例层保证）。"""
+    def set_status(
+        self, project_id: str, status: str, timestamp: int, lease: TaskLease | None = None
+    ) -> int:
+        """推进项目状态，返回更新行数（只允许向前推进由用例层保证）。
+
+        带租约时在同一事务里校验：任务被回收后重跑时，旧执行者不能再改项目状态。
+        """
         ...
 
     def set_digest_summary(

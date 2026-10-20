@@ -746,6 +746,59 @@ tbody tr:hover {
   padding: 32px;
   text-align: center;
 }
+/* 提纲一节：边框把相邻小节分开，长提纲滚动时不会连成一片。 */
+.outline-section {
+  border: 1px solid hsl(var(--border));
+  border-radius: 8px;
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 14px 16px 16px;
+}
+.outline-section legend {
+  color: hsl(var(--foreground));
+  font-size: 13px;
+  font-weight: 600;
+  padding: 0 6px;
+}
+/* 只读视图里的事实依据：每条一行，徽标不换行、正文可断行。 */
+.outline-facts {
+  display: grid;
+  gap: 6px;
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+}
+.outline-fact {
+  align-items: flex-start;
+  display: flex;
+  gap: 8px;
+  overflow-wrap: anywhere;
+}
+.outline-fact label {
+  align-items: flex-start;
+  cursor: pointer;
+  display: flex;
+  gap: 8px;
+}
+.outline-fact input {
+  margin-top: 3px;
+}
+/* 只读提纲按节列出；编号用原生序号，便于和编辑器里的“第 N 节”对齐。 */
+.outline-read {
+  display: grid;
+  gap: 14px;
+  margin: 12px 0 0;
+  padding-left: 22px;
+}
+.outline-read > li {
+  display: grid;
+  gap: 6px;
+}
+.outline-read ul {
+  margin: 0;
+  padding-left: 20px;
+}
 .key-list {
   display: grid;
   gap: 8px;

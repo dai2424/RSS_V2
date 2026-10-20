@@ -30,7 +30,7 @@ def test_fresh_database_and_checksum(tmp_path: Path) -> None:
     shutil.copytree("migrations", migrations)
     database = SQLiteDatabase(tmp_path / "rss.db")
     runner = MigrationRunner(database, migrations)
-    assert len(runner.run()) == 28
+    assert len(runner.run()) == 29
     assert runner.run() == []
     path = migrations / "0001_initial.sql"
     path.write_text(path.read_text(encoding="utf-8") + "\n-- mutation\n", encoding="utf-8")
@@ -159,7 +159,7 @@ def test_two_processes_do_not_apply_migration_twice(tmp_path: Path) -> None:
         results = list(
             pool.map(lambda _: MigrationRunner(database, Path("migrations")).run(), range(2))
         )
-    assert sum(len(result) for result in results) == 28
+    assert sum(len(result) for result in results) == 29
 
 
 def test_upgrade_preserves_versions_and_translations(tmp_path: Path) -> None:
@@ -549,5 +549,92 @@ def test_digest_prompt_v2_archives_v1(tmp_path: Path) -> None:
         assert "{{facts_per_batch}}" in template and "{{gaps_per_batch}}" in template
         assert "120 字" in template
         assert "{{facts_per_batch}}" not in rows[0]["user_template"]
+    finally:
+        connection.close()
+
+
+def test_outline_migration_upgrades_digest_library(tmp_path: Path) -> None:
+    """0028 → 0029：提纲版本表可用、任务类型接受 generate_outline、提示词种子就位。
+
+    `tasks` 是重建表：CHECK 必须同时接受旧类型与 `generate_outline`，两个领取索引
+    也必须跟着重建（漏掉索引不会报错，只会让任务领取变成全表扫描）。
+    """
+
+    migrations = tmp_path / "migrations"
+    migrations.mkdir()
+    for path in sorted(Path("migrations").glob("*.sql")):
+        if path.name <= "0028_digest_prompt_v2.sql":
+            shutil.copy(path, migrations / path.name)
+    database = SQLiteDatabase(tmp_path / "rss.db")
+    runner = MigrationRunner(database, migrations)
+    runner.run()
+    with database.transaction() as connection:
+        category = connection.execute("SELECT id FROM categories LIMIT 1").fetchone()[0]
+        connection.execute(
+            "INSERT INTO rss_sources(id,name,url,language,category_id,created_at,updated_at)"
+            " VALUES('s','Example Tech','https://example.test/feed.xml','en',?,1,1)",
+            (category,),
+        )
+        connection.execute(
+            "INSERT INTO leads(id,title,note,created_at,updated_at,kind)"
+            " VALUES('lead-1','选题事件',NULL,10,10,'discovery')"
+        )
+        connection.execute(
+            "INSERT INTO writing_projects(id,lead_id,title,status,created_at,updated_at)"
+            " VALUES('project-1','lead-1','选题事件','materials_ready',10,10)"
+        )
+        connection.execute(
+            "INSERT INTO tasks(id,task_type,idempotency_key,status,created_at,updated_at)"
+            " VALUES('task-old','digest_materials','digest:project-1:abc','succeeded',10,10)"
+        )
+
+    shutil.copy(Path("migrations") / "0029_outlines.sql", migrations / "0029_outlines.sql")
+    assert runner.run() == ["0029_outlines.sql"]
+    connection = database.connect()
+    try:
+        columns = {row["name"] for row in connection.execute("PRAGMA table_info(outline_versions)")}
+        assert {
+            "id",
+            "project_id",
+            "version_number",
+            "status",
+            "source",
+            "title",
+            "angle",
+            "sections_json",
+            "material_snapshot_hash",
+            "digest_run_id",
+            "prompt_version",
+            "model",
+            "task_id",
+            "based_on_version",
+            "created_at",
+            "confirmed_at",
+        } <= columns
+        indexes = {row["name"] for row in connection.execute("PRAGMA index_list(outline_versions)")}
+        assert {"idx_outline_versions_project", "idx_outline_versions_snapshot"} <= indexes
+        task_indexes = {row["name"] for row in connection.execute("PRAGMA index_list(tasks)")}
+        assert {"idx_tasks_claim", "idx_tasks_available"} <= task_indexes
+        # 重建表不能丢掉既有任务行。
+        assert (
+            connection.execute("SELECT COUNT(*) FROM tasks WHERE id='task-old'").fetchone()[0] == 1
+        )
+        connection.execute(
+            "INSERT INTO tasks(id,task_type,idempotency_key,status,created_at,updated_at)"
+            " VALUES('task-new','generate_outline','outline:project-1:abc','queued',11,11)"
+        )
+        # CHECK 仍要拒绝未登记的类型，否则任务表会悄悄接受没人能执行的任务。
+        with pytest.raises(sqlite3.IntegrityError):
+            connection.execute(
+                "INSERT INTO tasks(id,task_type,idempotency_key,status,created_at,updated_at)"
+                " VALUES('task-bad','write_article','x','queued',12,12)"
+            )
+        prompts = connection.execute(
+            "SELECT version,status,user_template FROM llm_prompts"
+            " WHERE task_kind='generate_outline'"
+        ).fetchall()
+        assert [(row["version"], row["status"]) for row in prompts] == [(1, "active")]
+        assert "sections" in prompts[0]["user_template"]
+        assert not connection.execute("PRAGMA foreign_key_check").fetchall()
     finally:
         connection.close()

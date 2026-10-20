@@ -38,6 +38,7 @@ class TaskType(StrEnum):
     DISCOVER_EVENTS = "discover_events"  # 选题发现：一个时间窗口一个任务，分批调用模型
     PREPARE_MATERIALS = "prepare_materials"  # 资料准备：一个写作项目一个任务
     DIGEST_MATERIALS = "digest_materials"  # 资料整理：事实/分歧/缺口，一个项目一个任务
+    GENERATE_OUTLINE = "generate_outline"  # 提纲生成：分节提纲，一个项目一个任务
 
 
 class LLMProtocol(StrEnum):
@@ -60,6 +61,7 @@ LLM_TASK_TYPES = frozenset(
         TaskType.DISCOVER_EVENTS,
         TaskType.PREPARE_MATERIALS,
         TaskType.DIGEST_MATERIALS,
+        TaskType.GENERATE_OUTLINE,
     }
 )
 

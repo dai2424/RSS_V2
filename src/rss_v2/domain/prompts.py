@@ -98,6 +98,15 @@ TASK_SPECS: dict[TaskType, TaskSpec] = {
         # 输入是某个选题的资料包，按来源分配没有意义：直接用当前生效版本。
         assignable=False,
     ),
+    TaskType.GENERATE_OUTLINE: TaskSpec(
+        kind=TaskType.GENERATE_OUTLINE,
+        label="提纲生成",
+        variables=("title", "summary", "facts", "notes"),
+        required_variables=("title", "facts"),
+        output_fields=("sections",),
+        # 输入是某个选题与它的资料包，按来源分配没有意义：直接用当前生效版本。
+        assignable=False,
+    ),
 }
 
 #: 编译预览使用的样例取值；没有真实消息时也能看到渲染结果。
@@ -121,6 +130,12 @@ SAMPLE_VALUES: dict[str, str] = {
     "materials": "[材料 material-1] 懂车帝实测报道（量子位）\n正文：示例正文。",
     "facts_per_batch": "8",
     "gaps_per_batch": "2",
+    # 提纲生成的编译预览：真实取值由服务层按项目的资料包渲染。
+    "facts": (
+        "[fact-1] 尊界 V800 在制动测试中取得 33.5 米成绩（客观事实）\n"
+        "引文：测试当天路面干燥，气温 18 摄氏度。"
+    ),
+    "notes": "阻塞缺口：缺少官方公布的测试标准与场地条件",
 }
 
 

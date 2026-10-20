@@ -129,6 +129,15 @@ from .messages import (
     TaskResponse,
     TranslationResponse,
 )
+from .outlines import (
+    OutlineCountersResponse,
+    OutlineListResponse,
+    OutlineResponse,
+    OutlineSaveRequest,
+    OutlineSectionRequest,
+    OutlineSectionResponse,
+    OutlineVersionResponse,
+)
 from .pagination import Page
 
 __all__ = [
@@ -208,6 +217,13 @@ __all__ = [
     "MessageVersionResponse",
     "Page",
     "PatchRequest",
+    "OutlineCountersResponse",
+    "OutlineListResponse",
+    "OutlineResponse",
+    "OutlineSaveRequest",
+    "OutlineSectionRequest",
+    "OutlineSectionResponse",
+    "OutlineVersionResponse",
     "PinSuggestionBatchResponse",
     "PinSuggestionListResponse",
     "PinSuggestionRequest",

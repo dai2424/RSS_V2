@@ -84,6 +84,13 @@ class Settings(BaseSettings):
     # 模型每批会写 1–2 万 token 的事实与缺口（凑数、编造、每批例行补缺口），既慢又噪声大。
     digest_facts_per_batch: int = Field(default=8, ge=1, le=40)
     digest_gaps_per_batch: int = Field(default=2, ge=0, le=20)
+    # 提纲生成（阶段 4 P4）：输入是选题与已核对事实的清单，一次调用只生成一份提纲，
+    # 因此不做分批——输出被截断直接失败，调大这里的上限或改提示词才是解法。
+    outline_max_input_chars: int = Field(default=80000, ge=10000, le=400000)
+    # 实测（43 份资料 / 50 条事实的选题，deepseek-v4.1-flash）：一次提纲输出 13.9k token，
+    # 8192 会被 max_tokens 截断（llm_output_truncated）；该模型的思考 token 也计入输出，
+    # 因此默认按实测值给到 32768。
+    outline_max_output_tokens: int = Field(default=32768, ge=1024, le=65536)
     # 允许读取私网/本机地址：仅本机夹具（preview）或内网资料源使用；默认关闭，
     # 生产环境必须保持拒绝，避免检索结果把应用当成内网代理。
     article_allow_private_hosts: bool = False

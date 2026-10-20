@@ -241,6 +241,34 @@ def _digest_result(user_prompt: str) -> dict[str, object]:
     }
 
 
+#: 提纲的输入行：[事实 <id>] 陈述（类型），引文在下一行；引文 id 不进提示词，
+#: 因此夹具只引用事实 id，引文由服务端按事实归属核对（本来就是服务端的事）。
+_OUTLINE_FACT = re.compile(r"^\[([0-9a-f-]{36})\] ", re.MULTILINE)
+
+
+def _outline_result(user_prompt: str) -> dict[str, object]:
+    """按提示词里的事实 id 生成两节提纲：id 原样引用，服务端一定核对得到。"""
+
+    facts = _OUTLINE_FACT.findall(user_prompt)
+    return {
+        "title": "验收：夹具提纲",
+        "angle": "夹具角度：从第三方测试与厂商声明两条线索切入。",
+        "sections": [
+            {
+                "heading": "发生了什么",
+                "talking_points": ["第三方测试出现异常", "厂商给出了自己的说法"],
+                "fact_ids": facts[:1],
+                "impact_notes": ["同类产品可能被要求补充验证"],
+            },
+            {
+                "heading": "行业影响",
+                "talking_points": ["检测标准可能被推动更新"],
+                "fact_ids": facts[1:2],
+            },
+        ],
+    }
+
+
 def _fixture_content(system_prompt: str, user_prompt: str) -> dict[str, object]:
     """按任务类型标记返回对应结构；两种协议的假端点共用它。"""
 
@@ -248,6 +276,8 @@ def _fixture_content(system_prompt: str, user_prompt: str) -> dict[str, object]:
         return {"queries": [{"text": "验收检索式", "purpose": "夹具：中文检索"}]}
     if "[task: digest_materials" in system_prompt:
         return _digest_result(user_prompt)
+    if "[task: generate_outline" in system_prompt:
+        return _outline_result(user_prompt)
     if "[task: discover_events" in system_prompt:
         return _discovery_candidates(user_prompt)
     if "[task: keyword_merge_suggest" in system_prompt:

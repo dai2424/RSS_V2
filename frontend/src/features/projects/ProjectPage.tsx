@@ -1,10 +1,12 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { Badge, Card, PageHeader } from "../../components/ui";
+import { UnsavedDialog } from "../../components/UnsavedChanges";
 import { formatTime } from "../../lib/display";
 import { FactsPanel } from "./FactsPanel";
 import { useProjectDetail } from "./hooks";
 import { MaterialsPanel } from "./MaterialsPanel";
+import { OutlinesPanel } from "./OutlinesPanel";
 
 /** 写作项目状态的中文说明；后续阶段会在同一状态机上继续推进。 */
 const STATUS_LABELS: Record<string, string> = {
@@ -16,15 +18,27 @@ const STATUS_LABELS: Record<string, string> = {
   saved: "已有人工保存稿",
 };
 
+type Section = "materials" | "facts" | "outline";
+
+const SECTIONS: { key: Section; label: string }[] = [
+  { key: "materials", label: "资料" },
+  { key: "facts", label: "事实与核对" },
+  { key: "outline", label: "提纲" },
+];
+
 /**
- * 写作项目工作台：分区展示资料、事实与核对。
+ * 写作项目工作台：分区展示资料、事实与核对、提纲。
  *
- * 提纲与全文属于后续任务（P4/P5）；在它们实现之前这里只展示已有的真实数据，
- * 不放置不可用的按钮。所有状态来自服务端，失败保留原因与重试入口。
+ * 全文生成属于 P5；这里只提供已经实现的入口。提纲编辑器有未保存内容时，切换
+ * 分区会先确认（切走会卸载编辑器，不提示就等于静默丢改动）。所有状态来自服务端，
+ * 失败保留原因与重试入口。
  */
 export function ProjectPage() {
   const { projectId = "" } = useParams();
-  const [section, setSection] = useState<"materials" | "facts">("materials");
+  const [section, setSection] = useState<Section>("materials");
+  const [outlineDirty, setOutlineDirty] = useState(false);
+  const [pendingSection, setPendingSection] = useState<Section | null>(null);
+  const returnFocus = useRef<HTMLElement | null>(null);
   const detail = useProjectDetail(projectId);
 
   if (detail.isLoading) return <div className="loading">正在加载写作项目…</div>;
@@ -42,6 +56,19 @@ export function ProjectPage() {
     );
   }
   const { project, members } = detail.data;
+
+  /** 切走提纲分区会卸载编辑器，有未保存修改时先问一句。 */
+  const go = (target: Section) => {
+    if (target === section) return;
+    if (section === "outline" && outlineDirty) {
+      if (document.activeElement instanceof HTMLElement)
+        returnFocus.current = document.activeElement;
+      setPendingSection(target);
+      return;
+    }
+    setSection(target);
+  };
+
   return (
     <div className="page page-wide">
       <PageHeader
@@ -79,35 +106,34 @@ export function ProjectPage() {
         </p>
       </Card>
       <div className="toolbar" role="tablist" aria-label="工作台分区">
-        <button
-          type="button"
-          role="tab"
-          aria-selected={section === "materials"}
-          className={section === "materials" ? "button" : "button secondary"}
-          onClick={() => setSection("materials")}
-        >
-          资料
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={section === "facts"}
-          className={section === "facts" ? "button" : "button secondary"}
-          onClick={() => setSection("facts")}
-        >
-          事实与核对
-        </button>
+        {SECTIONS.map((item) => (
+          <button
+            key={item.key}
+            type="button"
+            role="tab"
+            aria-selected={section === item.key}
+            className={section === item.key ? "button" : "button secondary"}
+            onClick={() => go(item.key)}
+          >
+            {item.label}
+          </button>
+        ))}
       </div>
-      {section === "materials" ? (
-        <MaterialsPanel projectId={projectId} />
-      ) : (
-        <FactsPanel projectId={projectId} />
+      {section === "materials" && <MaterialsPanel projectId={projectId} />}
+      {section === "facts" && <FactsPanel projectId={projectId} />}
+      {section === "outline" && (
+        <OutlinesPanel projectId={projectId} onDirtyChange={setOutlineDirty} />
       )}
-      <Card className="card-pad">
-        <p className="muted">
-          提纲确认与全文生成属于后续任务，当前不在这个页面提供入口；先把资料与事实核对清楚。
-        </p>
-      </Card>
+      <UnsavedDialog
+        open={pendingSection !== null}
+        onKeep={() => setPendingSection(null)}
+        onDiscard={() => {
+          setOutlineDirty(false);
+          setSection(pendingSection ?? section);
+          setPendingSection(null);
+        }}
+        returnFocus={returnFocus}
+      />
     </div>
   );
 }

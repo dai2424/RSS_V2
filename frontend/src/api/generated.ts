@@ -881,6 +881,73 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/projects/{project_id}/outlines": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * List Outlines
+     * @description 提纲版本列表（新到旧）与项目级当前状态。
+     */
+    get: operations["list_outlines_api_projects__project_id__outlines_get"];
+    put?: never;
+    /**
+     * Create Outline
+     * @description 发起提纲生成：依据项目最新的资料整理版本生成一版提纲草稿。
+     */
+    post: operations["create_outline_api_projects__project_id__outlines_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/projects/{project_id}/outlines/{outline_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /**
+     * Save Outline
+     * @description 基于某一版保存人工稿：另存新版本（draft），不改写被改的那一版。
+     *
+     *     路径里的 `outline_id` 是被改的基准版本，返回体里的是新版本——保存产生新资源，
+     *     因此用 201（与其它"创建"接口一致）。
+     */
+    put: operations["save_outline_api_projects__project_id__outlines__outline_id__put"];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/projects/{project_id}/outlines/{outline_id}/confirm": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Confirm Outline
+     * @description 确认提纲版本：只有最新版本可确认，重复确认幂等。
+     */
+    post: operations["confirm_outline_api_projects__project_id__outlines__outline_id__confirm_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/tasks/{task_id}": {
     parameters: {
       query?: never;
@@ -2543,6 +2610,168 @@ export interface components {
       blocking: boolean;
       /** Resolved At */
       resolved_at: number | null;
+    };
+    /**
+     * OutlineCountersResponse
+     * @description 生成时被丢弃的引用与结构：全部回给界面，丢弃必须看得见。
+     */
+    OutlineCountersResponse: {
+      /** Out Of Range */
+      out_of_range: number;
+      /** Unsupported */
+      unsupported: number;
+      /** Dropped Sections */
+      dropped_sections: number;
+      /** Dropped Points */
+      dropped_points: number;
+      /** Without Facts */
+      without_facts: number;
+    };
+    /**
+     * OutlineListResponse
+     * @description 提纲版本列表与项目级当前状态（新到旧）。
+     */
+    OutlineListResponse: {
+      /** Items */
+      items: components["schemas"]["OutlineVersionResponse"][];
+      /** Latest Version Id */
+      latest_version_id: string | null;
+      /** Confirmed Version Id */
+      confirmed_version_id: string | null;
+      /** Has Unconfirmed Changes */
+      has_unconfirmed_changes: boolean;
+      /** Has Blocking */
+      has_blocking: boolean;
+      /** Blocking Count */
+      blocking_count: number;
+      /** Task Status */
+      task_status: string | null;
+    };
+    /**
+     * OutlineResponse
+     * @description 保存或确认之后的版本与项目级状态。
+     */
+    OutlineResponse: {
+      version: components["schemas"]["OutlineVersionResponse"];
+      /** Latest Version Id */
+      latest_version_id: string | null;
+      /** Confirmed Version Id */
+      confirmed_version_id: string | null;
+      /** Has Unconfirmed Changes */
+      has_unconfirmed_changes: boolean;
+      /** Has Blocking */
+      has_blocking: boolean;
+      /** Blocking Count */
+      blocking_count: number;
+      /** Task Status */
+      task_status: string | null;
+    };
+    /**
+     * OutlineSaveRequest
+     * @description 人工保存的请求体：整份提纲，不做局部字段合并。
+     */
+    OutlineSaveRequest: {
+      /**
+       * Title
+       * @default
+       */
+      title: string;
+      /**
+       * Angle
+       * @default
+       */
+      angle: string;
+      /**
+       * Sections
+       * @default []
+       */
+      sections: components["schemas"]["OutlineSectionRequest"][];
+    };
+    /**
+     * OutlineSectionRequest
+     * @description 人工保存提交的一节；字段与模型输出一致，走同一条校验。
+     */
+    OutlineSectionRequest: {
+      /**
+       * Heading
+       * @default
+       */
+      heading: string;
+      /**
+       * Talking Points
+       * @default []
+       */
+      talking_points: string[];
+      /**
+       * Fact Ids
+       * @default []
+       */
+      fact_ids: string[];
+      /**
+       * Evidence Ids
+       * @default []
+       */
+      evidence_ids: string[];
+      /**
+       * Impact Notes
+       * @default []
+       */
+      impact_notes: string[];
+    };
+    /**
+     * OutlineSectionResponse
+     * @description 提纲的一节：小标题、要点、依据事实与引文、行业影响分析。
+     */
+    OutlineSectionResponse: {
+      /** Heading */
+      heading: string;
+      /** Talking Points */
+      talking_points: string[];
+      /** Fact Ids */
+      fact_ids: string[];
+      /** Evidence Ids */
+      evidence_ids: string[];
+      /** Impact Notes */
+      impact_notes: string[];
+    };
+    /**
+     * OutlineVersionResponse
+     * @description 一个提纲版本。
+     */
+    OutlineVersionResponse: {
+      /** Id */
+      id: string;
+      /** Version Number */
+      version_number: number;
+      /** Status */
+      status: string;
+      /** Source */
+      source: string;
+      /** Title */
+      title: string;
+      /** Angle */
+      angle: string;
+      /** Sections */
+      sections: components["schemas"]["OutlineSectionResponse"][];
+      counters: components["schemas"]["OutlineCountersResponse"];
+      /** Material Snapshot Hash */
+      material_snapshot_hash: string;
+      /** Digest Run Id */
+      digest_run_id: string | null;
+      /** Prompt Version */
+      prompt_version: string | null;
+      /** Model */
+      model: string | null;
+      /** Task Id */
+      task_id: string | null;
+      /** Based On Version */
+      based_on_version: string | null;
+      /** Created At */
+      created_at: number;
+      /** Confirmed At */
+      confirmed_at: number | null;
+      /** Is Latest */
+      is_latest: boolean;
     };
     /**
      * PinSuggestionBatchResponse
@@ -5168,6 +5397,139 @@ export interface operations {
       };
     };
   };
+  list_outlines_api_projects__project_id__outlines_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["OutlineListResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  create_outline_api_projects__project_id__outlines_post: {
+    parameters: {
+      query?: {
+        /** @description 重新生成（同一资料包也新起版本） */
+        force?: boolean;
+      };
+      header?: never;
+      path: {
+        project_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["TaskResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  save_outline_api_projects__project_id__outlines__outline_id__put: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: string;
+        outline_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["OutlineSaveRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["OutlineResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  confirm_outline_api_projects__project_id__outlines__outline_id__confirm_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: string;
+        outline_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["OutlineResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
   get_task_api_tasks__task_id__get: {
     parameters: {
       query?: never;
@@ -5234,7 +5596,7 @@ export interface operations {
     parameters: {
       query?: {
         status?: string | null;
-        /** @description 任务类型：采集、翻译、内容加工、合并建议、选题发现、资料准备或资料整理 */
+        /** @description 任务类型：采集、翻译、内容加工、合并建议、选题发现、资料准备、资料整理或提纲生成 */
         task_type?: string | null;
         /** @description 来源：采集任务看任务快照，消息任务看所属来源 */
         source_id?: string | null;

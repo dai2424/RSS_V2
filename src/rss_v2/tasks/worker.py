@@ -95,6 +95,9 @@ class Worker:
         elif task.task_type == TaskType.PREPARE_MATERIALS:
             # 资料落进 project_materials，任务由服务自行结束（见 MaterialService.run）。
             self.container.material_service.run(task)
+        elif task.task_type == TaskType.GENERATE_OUTLINE:
+            # 提纲版本落进 outline_versions，任务由服务自行结束（见 OutlineService.run）。
+            self.container.outline_service.run(task)
         else:
             raise DomainError("task_type_unsupported", "不支持的任务类型")
 

@@ -522,8 +522,11 @@ class SQLiteWritingProjectRepository:
         finally:
             connection.close()
 
-    def set_status(self, project_id: str, status: str, timestamp: int) -> int:
+    def set_status(
+        self, project_id: str, status: str, timestamp: int, lease: TaskLease | None = None
+    ) -> int:
         with self.database.transaction() as connection:
+            ensure_lease(connection, lease)
             cursor = connection.execute(
                 "UPDATE writing_projects SET status=?, updated_at=? WHERE id=?",
                 (status, timestamp, project_id),

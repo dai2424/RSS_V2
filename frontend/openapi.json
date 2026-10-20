@@ -2944,6 +2944,216 @@
         }
       }
     },
+    "/api/projects/{project_id}/outlines": {
+      "post": {
+        "tags": [
+          "outlines"
+        ],
+        "summary": "Create Outline",
+        "description": "发起提纲生成：依据项目最新的资料整理版本生成一版提纲草稿。",
+        "operationId": "create_outline_api_projects__project_id__outlines_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "force",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "重新生成（同一资料包也新起版本）",
+              "default": false,
+              "title": "Force"
+            },
+            "description": "重新生成（同一资料包也新起版本）"
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "outlines"
+        ],
+        "summary": "List Outlines",
+        "description": "提纲版本列表（新到旧）与项目级当前状态。",
+        "operationId": "list_outlines_api_projects__project_id__outlines_get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OutlineListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{project_id}/outlines/{outline_id}": {
+      "put": {
+        "tags": [
+          "outlines"
+        ],
+        "summary": "Save Outline",
+        "description": "基于某一版保存人工稿：另存新版本（draft），不改写被改的那一版。\n\n路径里的 `outline_id` 是被改的基准版本，返回体里的是新版本——保存产生新资源，\n因此用 201（与其它\"创建\"接口一致）。",
+        "operationId": "save_outline_api_projects__project_id__outlines__outline_id__put",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "outline_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Outline Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OutlineSaveRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OutlineResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{project_id}/outlines/{outline_id}/confirm": {
+      "post": {
+        "tags": [
+          "outlines"
+        ],
+        "summary": "Confirm Outline",
+        "description": "确认提纲版本：只有最新版本可确认，重复确认幂等。",
+        "operationId": "confirm_outline_api_projects__project_id__outlines__outline_id__confirm_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "outline_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Outline Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OutlineResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/tasks/{task_id}": {
       "get": {
         "tags": [
@@ -3061,16 +3271,16 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "pattern": "^(collect_source|translate_message|enrich_message|keyword_merge_suggest|discover_events|prepare_materials|digest_materials)$"
+                  "pattern": "^(collect_source|translate_message|enrich_message|keyword_merge_suggest|discover_events|prepare_materials|digest_materials|generate_outline)$"
                 },
                 {
                   "type": "null"
                 }
               ],
-              "description": "任务类型：采集、翻译、内容加工、合并建议、选题发现、资料准备或资料整理",
+              "description": "任务类型：采集、翻译、内容加工、合并建议、选题发现、资料准备、资料整理或提纲生成",
               "title": "Task Type"
             },
-            "description": "任务类型：采集、翻译、内容加工、合并建议、选题发现、资料准备或资料整理"
+            "description": "任务类型：采集、翻译、内容加工、合并建议、选题发现、资料准备、资料整理或提纲生成"
           },
           {
             "name": "source_id",
@@ -7420,6 +7630,425 @@
         ],
         "title": "NoteResponse",
         "description": "缺口/分歧待办；blocking 表示未处理前不该进提纲。"
+      },
+      "OutlineCountersResponse": {
+        "properties": {
+          "out_of_range": {
+            "type": "integer",
+            "title": "Out Of Range"
+          },
+          "unsupported": {
+            "type": "integer",
+            "title": "Unsupported"
+          },
+          "dropped_sections": {
+            "type": "integer",
+            "title": "Dropped Sections"
+          },
+          "dropped_points": {
+            "type": "integer",
+            "title": "Dropped Points"
+          },
+          "without_facts": {
+            "type": "integer",
+            "title": "Without Facts"
+          }
+        },
+        "type": "object",
+        "required": [
+          "out_of_range",
+          "unsupported",
+          "dropped_sections",
+          "dropped_points",
+          "without_facts"
+        ],
+        "title": "OutlineCountersResponse",
+        "description": "生成时被丢弃的引用与结构：全部回给界面，丢弃必须看得见。"
+      },
+      "OutlineListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/OutlineVersionResponse"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "latest_version_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest Version Id"
+          },
+          "confirmed_version_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confirmed Version Id"
+          },
+          "has_unconfirmed_changes": {
+            "type": "boolean",
+            "title": "Has Unconfirmed Changes"
+          },
+          "has_blocking": {
+            "type": "boolean",
+            "title": "Has Blocking"
+          },
+          "blocking_count": {
+            "type": "integer",
+            "title": "Blocking Count"
+          },
+          "task_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Task Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "latest_version_id",
+          "confirmed_version_id",
+          "has_unconfirmed_changes",
+          "has_blocking",
+          "blocking_count",
+          "task_status"
+        ],
+        "title": "OutlineListResponse",
+        "description": "提纲版本列表与项目级当前状态（新到旧）。"
+      },
+      "OutlineResponse": {
+        "properties": {
+          "version": {
+            "$ref": "#/components/schemas/OutlineVersionResponse"
+          },
+          "latest_version_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest Version Id"
+          },
+          "confirmed_version_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confirmed Version Id"
+          },
+          "has_unconfirmed_changes": {
+            "type": "boolean",
+            "title": "Has Unconfirmed Changes"
+          },
+          "has_blocking": {
+            "type": "boolean",
+            "title": "Has Blocking"
+          },
+          "blocking_count": {
+            "type": "integer",
+            "title": "Blocking Count"
+          },
+          "task_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Task Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "version",
+          "latest_version_id",
+          "confirmed_version_id",
+          "has_unconfirmed_changes",
+          "has_blocking",
+          "blocking_count",
+          "task_status"
+        ],
+        "title": "OutlineResponse",
+        "description": "保存或确认之后的版本与项目级状态。"
+      },
+      "OutlineSaveRequest": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title",
+            "default": ""
+          },
+          "angle": {
+            "type": "string",
+            "title": "Angle",
+            "default": ""
+          },
+          "sections": {
+            "items": {
+              "$ref": "#/components/schemas/OutlineSectionRequest"
+            },
+            "type": "array",
+            "title": "Sections",
+            "default": []
+          }
+        },
+        "type": "object",
+        "title": "OutlineSaveRequest",
+        "description": "人工保存的请求体：整份提纲，不做局部字段合并。"
+      },
+      "OutlineSectionRequest": {
+        "properties": {
+          "heading": {
+            "type": "string",
+            "title": "Heading",
+            "default": ""
+          },
+          "talking_points": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Talking Points",
+            "default": []
+          },
+          "fact_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Fact Ids",
+            "default": []
+          },
+          "evidence_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Evidence Ids",
+            "default": []
+          },
+          "impact_notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Impact Notes",
+            "default": []
+          }
+        },
+        "type": "object",
+        "title": "OutlineSectionRequest",
+        "description": "人工保存提交的一节；字段与模型输出一致，走同一条校验。"
+      },
+      "OutlineSectionResponse": {
+        "properties": {
+          "heading": {
+            "type": "string",
+            "title": "Heading"
+          },
+          "talking_points": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Talking Points"
+          },
+          "fact_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Fact Ids"
+          },
+          "evidence_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Evidence Ids"
+          },
+          "impact_notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Impact Notes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "heading",
+          "talking_points",
+          "fact_ids",
+          "evidence_ids",
+          "impact_notes"
+        ],
+        "title": "OutlineSectionResponse",
+        "description": "提纲的一节：小标题、要点、依据事实与引文、行业影响分析。"
+      },
+      "OutlineVersionResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "version_number": {
+            "type": "integer",
+            "title": "Version Number"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "angle": {
+            "type": "string",
+            "title": "Angle"
+          },
+          "sections": {
+            "items": {
+              "$ref": "#/components/schemas/OutlineSectionResponse"
+            },
+            "type": "array",
+            "title": "Sections"
+          },
+          "counters": {
+            "$ref": "#/components/schemas/OutlineCountersResponse"
+          },
+          "material_snapshot_hash": {
+            "type": "string",
+            "title": "Material Snapshot Hash"
+          },
+          "digest_run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Digest Run Id"
+          },
+          "prompt_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prompt Version"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "task_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Task Id"
+          },
+          "based_on_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Based On Version"
+          },
+          "created_at": {
+            "type": "integer",
+            "title": "Created At"
+          },
+          "confirmed_at": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confirmed At"
+          },
+          "is_latest": {
+            "type": "boolean",
+            "title": "Is Latest"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "version_number",
+          "status",
+          "source",
+          "title",
+          "angle",
+          "sections",
+          "counters",
+          "material_snapshot_hash",
+          "digest_run_id",
+          "prompt_version",
+          "model",
+          "task_id",
+          "based_on_version",
+          "created_at",
+          "confirmed_at",
+          "is_latest"
+        ],
+        "title": "OutlineVersionResponse",
+        "description": "一个提纲版本。"
       },
       "PinSuggestionBatchResponse": {
         "properties": {
