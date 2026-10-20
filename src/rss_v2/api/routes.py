@@ -1,5 +1,6 @@
 """路由集合的公开导出。"""
 
+from .routers.articles import articles_router
 from .routers.categories import categories_router
 from .routers.collection import collection_router
 from .routers.discovery import discovery_router, projects_router
@@ -17,6 +18,7 @@ from .routers.sources import sources_router
 from .routers.tasks import tasks_router
 
 __all__ = [
+    "articles_router",
     "categories_router",
     "discovery_router",
     "facts_router",

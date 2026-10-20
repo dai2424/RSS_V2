@@ -2,6 +2,7 @@
 
 from rss_v2.llm import LLMProvider
 
+from .articles import ArticleRepository
 from .discovery import DiscoveryRepository, MessageScopeReader, WritingProjectRepository
 from .external import FeedClient
 from .facts import FactRepository
@@ -28,6 +29,7 @@ from .repositories import (
 from .web import ArticleReader, SearchClient
 
 __all__ = [
+    "ArticleRepository",
     "CategoryRepository",
     "CollectionRunRepository",
     "DiscoveryRepository",

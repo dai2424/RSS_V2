@@ -13,6 +13,7 @@ from typing import Any, cast
 from pydantic import BaseModel
 
 from rss_v2.domain import (
+    ArticleDraft,
     DiscoveryDigest,
     DomainError,
     EnrichmentResult,
@@ -287,6 +288,17 @@ class PromptService:
                 prompt_version,
                 TaskType.GENERATE_OUTLINE.value,
                 OutlineDraft,
+            )
+        if task_kind == TaskType.GENERATE_ARTICLE.value:
+            # 试跑只验证模板能否产出通过 schema 的全文结构；真实输入由生成任务渲染。
+            return self.provider.structured(
+                provider,
+                model_name,
+                secret,
+                payload,
+                prompt_version,
+                TaskType.GENERATE_ARTICLE.value,
+                ArticleDraft,
             )
         raise DomainError("task_kind_unsupported", f"任务类型尚未支持试跑：{task_kind}")
 

@@ -269,6 +269,54 @@ def _outline_result(user_prompt: str) -> dict[str, object]:
     }
 
 
+#: 全文的输入里引文带 id：`引文 [<id>]：原文`；模型据此填 citations。
+_ARTICLE_EVIDENCE = re.compile(r"引文 \[([0-9a-f-]{36})\]：")
+
+
+def _article_result(user_prompt: str) -> dict[str, object]:
+    """按提示词里的事实与引文 id 生成两节正文：标记与引用表一一对应。"""
+
+    facts = _OUTLINE_FACT.findall(user_prompt)
+    evidence = _ARTICLE_EVIDENCE.findall(user_prompt)
+    if not facts:
+        return {
+            "title": "验收：夹具全文",
+            "lead": "夹具导语：这次资料里没有可用事实。",
+            "sections": [
+                {
+                    "heading": "发生了什么",
+                    "paragraphs": [{"text": "夹具没有可用事实。", "kind": "analysis"}],
+                }
+            ],
+            "citations": [],
+            "source_list": [],
+        }
+    return {
+        "title": "验收：夹具全文",
+        "lead": "夹具导语：第三方测试与厂商说法存在分歧。",
+        "sections": [
+            {
+                "heading": "发生了什么",
+                "paragraphs": [
+                    {"text": "第三方测试出现了异常[^1]。", "kind": "fact"},
+                    {"text": "这可能推动行业标准更新[^2]。", "kind": "speculation"},
+                ],
+            },
+            {
+                "heading": "行业影响",
+                "paragraphs": [{"text": "同类产品可能被要求补充验证[^1]。", "kind": "analysis"}],
+            },
+        ],
+        "citations": [
+            {"marker": "1", "fact_id": facts[0], "evidence_ids": evidence[:1]},
+            # 两个标记都引用同一条事实：夹具正文只有一份来源，便于验证"单一来源"提示。
+            {"marker": "2", "fact_id": facts[0], "evidence_ids": []},
+        ],
+        # 来源表留空：由服务端按正文引用推导（与真实提示词的口径一致）。
+        "source_list": [],
+    }
+
+
 def _fixture_content(system_prompt: str, user_prompt: str) -> dict[str, object]:
     """按任务类型标记返回对应结构；两种协议的假端点共用它。"""
 
@@ -278,6 +326,8 @@ def _fixture_content(system_prompt: str, user_prompt: str) -> dict[str, object]:
         return _digest_result(user_prompt)
     if "[task: generate_outline" in system_prompt:
         return _outline_result(user_prompt)
+    if "[task: generate_article" in system_prompt:
+        return _article_result(user_prompt)
     if "[task: discover_events" in system_prompt:
         return _discovery_candidates(user_prompt)
     if "[task: keyword_merge_suggest" in system_prompt:

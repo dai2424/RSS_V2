@@ -241,3 +241,77 @@ export function useConfirmOutline(projectId: string) {
     },
   });
 }
+
+/** 全文版本列表与项目级当前状态（含最近一次生成任务的状态）。 */
+export function useArticles(projectId: string) {
+  return useQuery({
+    queryKey: ["articles", projectId],
+    enabled: Boolean(projectId),
+    refetchInterval: (query) =>
+      isRunning(query.state.data?.task_status) ? 3000 : 20000,
+    queryFn: async () => {
+      const r = await api.GET("/api/projects/{project_id}/articles", {
+        params: { path: { project_id: projectId } },
+      });
+      return requireResponse(r.response, r.data, r.error);
+    },
+  });
+}
+
+/** 单个版本的正文结构与 Markdown（导出与人工编辑用）。 */
+export function useArticleDetail(projectId: string, articleId: string | null) {
+  return useQuery({
+    queryKey: ["article", projectId, articleId],
+    enabled: Boolean(projectId && articleId),
+    queryFn: async () => {
+      const r = await api.GET(
+        "/api/projects/{project_id}/articles/{article_id}",
+        {
+          params: {
+            path: { project_id: projectId, article_id: articleId ?? "" },
+          },
+        },
+      );
+      return requireResponse(r.response, r.data, r.error);
+    },
+  });
+}
+
+/** 受控 HTML 预览 + 引用证据：点引用标记时就地展开，不再发请求。 */
+export function useArticlePreview(projectId: string, articleId: string | null) {
+  return useQuery({
+    queryKey: ["article-preview", projectId, articleId],
+    enabled: Boolean(projectId && articleId),
+    queryFn: async () => {
+      const r = await api.GET(
+        "/api/projects/{project_id}/articles/{article_id}/preview",
+        {
+          params: {
+            path: { project_id: projectId, article_id: articleId ?? "" },
+          },
+        },
+      );
+      return requireResponse(r.response, r.data, r.error);
+    },
+  });
+}
+
+/** 发起全文生成；force=true 是用户主动重新生成（同一提纲也新起版本）。 */
+export function useGenerateArticle(projectId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (force: boolean) => {
+      const r = await api.POST("/api/projects/{project_id}/articles", {
+        params: {
+          path: { project_id: projectId },
+          query: force ? { force: true } : {},
+        },
+      });
+      return requireResponse(r.response, r.data, r.error);
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["articles", projectId] });
+      void queryClient.invalidateQueries({ queryKey: ["project", projectId] });
+    },
+  });
+}

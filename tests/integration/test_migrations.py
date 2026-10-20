@@ -30,7 +30,7 @@ def test_fresh_database_and_checksum(tmp_path: Path) -> None:
     shutil.copytree("migrations", migrations)
     database = SQLiteDatabase(tmp_path / "rss.db")
     runner = MigrationRunner(database, migrations)
-    assert len(runner.run()) == 29
+    assert len(runner.run()) == 30
     assert runner.run() == []
     path = migrations / "0001_initial.sql"
     path.write_text(path.read_text(encoding="utf-8") + "\n-- mutation\n", encoding="utf-8")
@@ -159,7 +159,7 @@ def test_two_processes_do_not_apply_migration_twice(tmp_path: Path) -> None:
         results = list(
             pool.map(lambda _: MigrationRunner(database, Path("migrations")).run(), range(2))
         )
-    assert sum(len(result) for result in results) == 29
+    assert sum(len(result) for result in results) == 30
 
 
 def test_upgrade_preserves_versions_and_translations(tmp_path: Path) -> None:
@@ -632,6 +632,98 @@ def test_outline_migration_upgrades_digest_library(tmp_path: Path) -> None:
         prompts = connection.execute(
             "SELECT version,status,user_template FROM llm_prompts"
             " WHERE task_kind='generate_outline'"
+        ).fetchall()
+        assert [(row["version"], row["status"]) for row in prompts] == [(1, "active")]
+        assert "sections" in prompts[0]["user_template"]
+        assert not connection.execute("PRAGMA foreign_key_check").fetchall()
+    finally:
+        connection.close()
+
+
+def test_article_migration_upgrades_outline_library(tmp_path: Path) -> None:
+    """0029 → 0030：全文版本表可用、任务类型接受 generate_article、提示词种子就位。
+
+    `tasks` 同样是重建表：CHECK 要同时接受旧类型（含 generate_outline）与
+    `generate_article`，两个领取索引也必须重建。
+    """
+
+    migrations = tmp_path / "migrations"
+    migrations.mkdir()
+    for path in sorted(Path("migrations").glob("*.sql")):
+        if path.name <= "0029_outlines.sql":
+            shutil.copy(path, migrations / path.name)
+    database = SQLiteDatabase(tmp_path / "rss.db")
+    runner = MigrationRunner(database, migrations)
+    runner.run()
+    with database.transaction() as connection:
+        category = connection.execute("SELECT id FROM categories LIMIT 1").fetchone()[0]
+        connection.execute(
+            "INSERT INTO rss_sources(id,name,url,language,category_id,created_at,updated_at)"
+            " VALUES('s','Example Tech','https://example.test/feed.xml','en',?,1,1)",
+            (category,),
+        )
+        connection.execute(
+            "INSERT INTO leads(id,title,note,created_at,updated_at,kind)"
+            " VALUES('lead-1','选题事件',NULL,10,10,'discovery')"
+        )
+        connection.execute(
+            "INSERT INTO writing_projects(id,lead_id,title,status,created_at,updated_at)"
+            " VALUES('project-1','lead-1','选题事件','outline_confirmed',10,10)"
+        )
+        connection.execute(
+            "INSERT INTO tasks(id,task_type,idempotency_key,status,created_at,updated_at)"
+            " VALUES('task-old','generate_outline','outline:project-1:abc','succeeded',10,10)"
+        )
+
+    shutil.copy(Path("migrations") / "0030_articles.sql", migrations / "0030_articles.sql")
+    assert runner.run() == ["0030_articles.sql"]
+    connection = database.connect()
+    try:
+        columns = {row["name"] for row in connection.execute("PRAGMA table_info(article_versions)")}
+        assert {
+            "id",
+            "project_id",
+            "outline_version_id",
+            "version_number",
+            "kind",
+            "status",
+            "title",
+            "lead",
+            "body_json",
+            "body_markdown",
+            "source_list_json",
+            "counters_json",
+            "material_snapshot_hash",
+            "digest_run_id",
+            "prompt_version",
+            "model",
+            "task_id",
+            "base_article_version_id",
+            "recheck_fact_ids_json",
+            "created_at",
+            "saved_at",
+        } <= columns
+        indexes = {row["name"] for row in connection.execute("PRAGMA index_list(article_versions)")}
+        assert {"idx_article_versions_project", "idx_article_versions_outline"} <= indexes
+        task_indexes = {row["name"] for row in connection.execute("PRAGMA index_list(tasks)")}
+        assert {"idx_tasks_claim", "idx_tasks_available"} <= task_indexes
+        # 重建表不能丢掉既有任务行。
+        assert (
+            connection.execute("SELECT COUNT(*) FROM tasks WHERE id='task-old'").fetchone()[0] == 1
+        )
+        connection.execute(
+            "INSERT INTO tasks(id,task_type,idempotency_key,status,created_at,updated_at)"
+            " VALUES('task-new','generate_article','article:project-1:abc','queued',11,11)"
+        )
+        # 没登记进 CHECK 的类型仍要被拒绝。
+        with pytest.raises(sqlite3.IntegrityError):
+            connection.execute(
+                "INSERT INTO tasks(id,task_type,idempotency_key,status,created_at,updated_at)"
+                " VALUES('task-bad','write_article','x','queued',12,12)"
+            )
+        prompts = connection.execute(
+            "SELECT version,status,user_template FROM llm_prompts"
+            " WHERE task_kind='generate_article'"
         ).fetchall()
         assert [(row["version"], row["status"]) for row in prompts] == [(1, "active")]
         assert "sections" in prompts[0]["user_template"]

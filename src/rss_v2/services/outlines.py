@@ -30,6 +30,7 @@ from rss_v2.domain import (
     OutlineSource,
     OutlineStatus,
     OutlineVersion,
+    OutlineView,
     ProjectStatus,
     Prompt,
     Task,
@@ -61,32 +62,6 @@ logger = logging.getLogger(__name__)
 
 #: 列表与详情最多返回几个版本（历史版本只用于回溯，不需要全量）。
 MAX_VERSIONS = 20
-
-
-@dataclass(frozen=True, slots=True)
-class OutlineView:
-    """提纲列表视图：版本 + 项目级的当前状态。"""
-
-    versions: tuple[OutlineVersion, ...]
-    latest_version_id: str | None
-    confirmed_version_id: str | None
-    blocking_count: int
-    task_status: str | None
-
-    @property
-    def has_blocking(self) -> bool:
-        """项目里是否还有未处理的阻塞缺口（只标记，不拦生成与确认）。"""
-
-        return self.blocking_count > 0
-
-    @property
-    def has_unconfirmed_changes(self) -> bool:
-        """已有确认版本，但最新版本不是它（确认后又改过或重新生成过）。"""
-
-        return (
-            self.confirmed_version_id is not None
-            and self.latest_version_id != self.confirmed_version_id
-        )
 
 
 @dataclass(slots=True)

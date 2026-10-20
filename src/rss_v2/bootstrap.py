@@ -10,6 +10,7 @@ from rss_v2.adapters.llm.anthropic_messages import AnthropicMessagesProvider
 from rss_v2.adapters.llm.openai_compatible import OpenAICompatibleProvider
 from rss_v2.adapters.llm.router import ProtocolRouter
 from rss_v2.adapters.rss.feedparser_client import HTTPXFeedClient
+from rss_v2.adapters.sqlite.articles import SQLiteArticleRepository
 from rss_v2.adapters.sqlite.collections import SQLiteCollectionRunRepository
 from rss_v2.adapters.sqlite.connection import SQLiteDatabase
 from rss_v2.adapters.sqlite.discovery import (
@@ -42,6 +43,7 @@ from rss_v2.adapters.sqlite.v1_import import SQLiteV1Importer
 from rss_v2.adapters.web.reader import HTTPXArticleReader
 from rss_v2.adapters.web.searxng import HTTPXSearchClient
 from rss_v2.domain import (
+    ArticleLimits,
     DigestLimits,
     DiscoveryLimits,
     LLMProtocol,
@@ -49,6 +51,8 @@ from rss_v2.domain import (
     OutlineLimits,
     Provider,
 )
+from rss_v2.services.article_runner import ArticleRunner
+from rss_v2.services.articles import ArticleService
 from rss_v2.services.collection import CollectionService
 from rss_v2.services.digest import DigestService
 from rss_v2.services.discovery import DiscoveryService
@@ -97,6 +101,7 @@ class Container:
     materials: SQLiteMaterialRepository
     facts: SQLiteFactRepository
     outlines: SQLiteOutlineRepository
+    articles: SQLiteArticleRepository
     llm_config: SQLiteLLMConfigRepository
     llm_calls: SQLiteLLMCallRepository
     prompts: SQLitePromptRepository
@@ -117,6 +122,7 @@ class Container:
     material_service: MaterialService
     digest_service: DigestService
     outline_service: OutlineService
+    article_service: ArticleService
     task_service: TaskService
     provider_service: ProviderService
 
@@ -160,6 +166,7 @@ def build_container(settings: Settings | None = None, migrate: bool = True) -> C
     materials = SQLiteMaterialRepository(database)
     facts = SQLiteFactRepository(database)
     outlines = SQLiteOutlineRepository(database)
+    articles = SQLiteArticleRepository(database)
     llm_config = SQLiteLLMConfigRepository(database)
     llm_calls = SQLiteLLMCallRepository(database)
     prompts = SQLitePromptRepository(database)
@@ -354,6 +361,30 @@ def build_container(settings: Settings | None = None, migrate: bool = True) -> C
         outline_runner,
         outline_limits,
     )
+    article_limits = ArticleLimits(
+        max_input_chars=actual_settings.article_max_input_chars,
+        max_output_tokens=actual_settings.article_max_output_tokens,
+    )
+    article_runner = ArticleRunner(
+        resolver,
+        llm_provider,
+        failover,
+        actual_settings.llm_retry_cooldown_seconds,
+        article_limits,
+    )
+    article_service = ArticleService(
+        articles,
+        outlines,
+        facts,
+        materials,
+        writing_projects,
+        leads,
+        tasks,
+        resolver,
+        failover,
+        article_runner,
+        article_limits,
+    )
     task_service = TaskService(tasks, messages, sources, discovery, writing_projects)
     provider_service = ProviderService(llm_config)
     return Container(
@@ -376,6 +407,7 @@ def build_container(settings: Settings | None = None, migrate: bool = True) -> C
         materials,
         facts,
         outlines,
+        articles,
         llm_config,
         llm_calls,
         prompts,
@@ -396,6 +428,7 @@ def build_container(settings: Settings | None = None, migrate: bool = True) -> C
         material_service,
         digest_service,
         outline_service,
+        article_service,
         task_service,
         provider_service,
     )

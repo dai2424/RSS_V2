@@ -948,6 +948,70 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/projects/{project_id}/articles": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * List Articles
+     * @description 全文版本列表（新到旧）与项目级当前状态。
+     */
+    get: operations["list_articles_api_projects__project_id__articles_get"];
+    put?: never;
+    /**
+     * Create Article
+     * @description 发起全文生成：使用项目当前已确认的提纲版本。
+     */
+    post: operations["create_article_api_projects__project_id__articles_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/projects/{project_id}/articles/{article_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Get Article
+     * @description 单个版本：正文结构 + Markdown。
+     */
+    get: operations["get_article_api_projects__project_id__articles__article_id__get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/projects/{project_id}/articles/{article_id}/preview": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Get Article Preview
+     * @description 受控 HTML 预览 + 引用证据 + 未处理的缺口/分歧。
+     */
+    get: operations["get_article_preview_api_projects__project_id__articles__article_id__preview_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/tasks/{task_id}": {
     parameters: {
       query?: never;
@@ -1363,6 +1427,251 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
   schemas: {
+    /**
+     * ArticleCitationResponse
+     * @description 一个引用标记对应的证据。
+     */
+    ArticleCitationResponse: {
+      /** Marker */
+      marker: string;
+      /** Fact Id */
+      fact_id: string;
+      /** Fact Kind */
+      fact_kind: string;
+      /** Fact Status */
+      fact_status: string;
+      /** Statement */
+      statement: string;
+      /** Quotes */
+      quotes: components["schemas"]["ArticleQuoteResponse"][];
+    };
+    /**
+     * ArticleCountersResponse
+     * @description 生成时被丢弃/降级的条目：全部回给界面，丢弃必须看得见。
+     */
+    ArticleCountersResponse: {
+      /** Out Of Range */
+      out_of_range: number;
+      /** Unsupported */
+      unsupported: number;
+      /** Unused Citations */
+      unused_citations: number;
+      /** Duplicate Markers */
+      duplicate_markers: number;
+      /** Invalid Markers */
+      invalid_markers: number;
+      /** Downgraded Speculation */
+      downgraded_speculation: number;
+      /** Unknown Kind */
+      unknown_kind: number;
+      /** Rejected Links */
+      rejected_links: number;
+      /** Dropped Paragraphs */
+      dropped_paragraphs: number;
+      /** Dropped Sections */
+      dropped_sections: number;
+      /** Invalid Sources */
+      invalid_sources: number;
+      /** Unused Sources */
+      unused_sources: number;
+      /** Added Sources */
+      added_sources: number;
+      /** Dropped Sources */
+      dropped_sources: number;
+    };
+    /**
+     * ArticleListResponse
+     * @description 版本列表与项目级当前状态（新到旧）。
+     */
+    ArticleListResponse: {
+      /** Items */
+      items: components["schemas"]["ArticleSummaryResponse"][];
+      /** Latest Version Id */
+      latest_version_id: string | null;
+      /** Saved Version Id */
+      saved_version_id: string | null;
+      /** Outline Version Id */
+      outline_version_id: string | null;
+      /** Has Unconfirmed Changes */
+      has_unconfirmed_changes: boolean;
+      /** Has Blocking */
+      has_blocking: boolean;
+      /** Blocking Count */
+      blocking_count: number;
+      /** Task Status */
+      task_status: string | null;
+    };
+    /**
+     * ArticleNoteResponse
+     * @description 一条未处理的缺口/分歧。
+     */
+    ArticleNoteResponse: {
+      /** Kind */
+      kind: string;
+      /** Text */
+      text: string;
+      /** Blocking */
+      blocking: boolean;
+    };
+    /**
+     * ArticleParagraphResponse
+     * @description 正文的一段：文本 + 类型。
+     */
+    ArticleParagraphResponse: {
+      /** Text */
+      text: string;
+      /** Kind */
+      kind: string;
+    };
+    /**
+     * ArticlePreviewResponse
+     * @description 预览：受控 HTML + 引用证据 + 待核对项。
+     */
+    ArticlePreviewResponse: {
+      version: components["schemas"]["ArticleSummaryResponse"];
+      /** Title */
+      title: string;
+      /** Lead */
+      lead: string;
+      /** Html */
+      html: string;
+      /** Citations */
+      citations: components["schemas"]["ArticleCitationResponse"][];
+      /** Pending Notes */
+      pending_notes: components["schemas"]["ArticleNoteResponse"][];
+      /** Source Count */
+      source_count: number;
+      /** Single Source */
+      single_source: boolean;
+      /** Has Blocking */
+      has_blocking: boolean;
+      /** Blocking Count */
+      blocking_count: number;
+      /** Task Status */
+      task_status: string | null;
+    };
+    /**
+     * ArticleQuoteResponse
+     * @description 一条引文：原文、来源资料与链接（预览里的证据 Sheet 用）。
+     */
+    ArticleQuoteResponse: {
+      /** Text */
+      text: string;
+      /** Locator */
+      locator: number;
+      /** Material Id */
+      material_id: string;
+      /** Material Title */
+      material_title: string;
+      /** Material Url */
+      material_url: string;
+    };
+    /**
+     * ArticleSectionResponse
+     * @description 正文的一节。
+     */
+    ArticleSectionResponse: {
+      /** Heading */
+      heading: string;
+      /** Paragraphs */
+      paragraphs: components["schemas"]["ArticleParagraphResponse"][];
+    };
+    /**
+     * ArticleSourceResponse
+     * @description 文末来源列表的一项；全部字段来自项目资料行。
+     */
+    ArticleSourceResponse: {
+      /** Material Id */
+      material_id: string;
+      /** Title */
+      title: string;
+      /** Publisher */
+      publisher: string;
+      /** Url */
+      url: string;
+    };
+    /**
+     * ArticleSummaryResponse
+     * @description 版本摘要：列表用，不含正文。
+     */
+    ArticleSummaryResponse: {
+      /** Id */
+      id: string;
+      /** Version Number */
+      version_number: number;
+      /** Kind */
+      kind: string;
+      /** Status */
+      status: string;
+      /** Title */
+      title: string;
+      /** Outline Version Id */
+      outline_version_id: string;
+      /** Prompt Version */
+      prompt_version: string | null;
+      /** Model */
+      model: string | null;
+      /** Task Id */
+      task_id: string | null;
+      /** Source Count */
+      source_count: number;
+      counters: components["schemas"]["ArticleCountersResponse"];
+      /** Created At */
+      created_at: number;
+      /** Saved At */
+      saved_at: number | null;
+      /** Base Article Version Id */
+      base_article_version_id: string | null;
+      /** Is Latest */
+      is_latest: boolean;
+    };
+    /**
+     * ArticleVersionResponse
+     * @description 单个版本：摘要字段 + 正文结构 + Markdown。
+     */
+    ArticleVersionResponse: {
+      /** Id */
+      id: string;
+      /** Version Number */
+      version_number: number;
+      /** Kind */
+      kind: string;
+      /** Status */
+      status: string;
+      /** Title */
+      title: string;
+      /** Outline Version Id */
+      outline_version_id: string;
+      /** Prompt Version */
+      prompt_version: string | null;
+      /** Model */
+      model: string | null;
+      /** Task Id */
+      task_id: string | null;
+      /** Source Count */
+      source_count: number;
+      counters: components["schemas"]["ArticleCountersResponse"];
+      /** Created At */
+      created_at: number;
+      /** Saved At */
+      saved_at: number | null;
+      /** Base Article Version Id */
+      base_article_version_id: string | null;
+      /** Is Latest */
+      is_latest: boolean;
+      /** Lead */
+      lead: string;
+      /** Sections */
+      sections: components["schemas"]["ArticleSectionResponse"][];
+      /** Source List */
+      source_list: components["schemas"]["ArticleSourceResponse"][];
+      /** Body Markdown */
+      body_markdown: string;
+      /** Material Snapshot Hash */
+      material_snapshot_hash: string;
+      /** Digest Run Id */
+      digest_run_id: string | null;
+    };
     /**
      * CategoryCreateRequest
      * @description 创建分类请求。
@@ -5530,6 +5839,135 @@ export interface operations {
       };
     };
   };
+  list_articles_api_projects__project_id__articles_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ArticleListResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  create_article_api_projects__project_id__articles_post: {
+    parameters: {
+      query?: {
+        /** @description 重新生成（同一提纲也新起版本） */
+        force?: boolean;
+      };
+      header?: never;
+      path: {
+        project_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["TaskResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  get_article_api_projects__project_id__articles__article_id__get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: string;
+        article_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ArticleVersionResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  get_article_preview_api_projects__project_id__articles__article_id__preview_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: string;
+        article_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ArticlePreviewResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
   get_task_api_tasks__task_id__get: {
     parameters: {
       query?: never;
@@ -5596,7 +6034,7 @@ export interface operations {
     parameters: {
       query?: {
         status?: string | null;
-        /** @description 任务类型：采集、翻译、内容加工、合并建议、选题发现、资料准备、资料整理或提纲生成 */
+        /** @description 任务类型：采集、翻译、内容加工、合并建议、选题发现、资料准备、资料整理、提纲生成或全文生成 */
         task_type?: string | null;
         /** @description 来源：采集任务看任务快照，消息任务看所属来源 */
         source_id?: string | null;

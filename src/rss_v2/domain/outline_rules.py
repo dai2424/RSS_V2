@@ -22,6 +22,7 @@ from rss_v2.domain.outlines import (
     MIN_SECTIONS,
     OutlineCounters,
     OutlineSection,
+    OutlineVersion,
 )
 
 #: 校验失败的错误码：模型输出走任务失败，人工保存直接 400。
@@ -175,6 +176,22 @@ def facts_text(facts: Sequence[Fact], *, limit: int, fact_chars: int) -> str:
         ]
         blocks.append("\n".join([head, *quotes]))
     return "\n\n".join(blocks)[:limit]
+
+
+def outline_text(outline: OutlineVersion, *, limit: int) -> str:
+    """把已确认的提纲渲染成提示词里的提纲块：标题、切入点、逐节要点与影响。
+
+    全文生成按它组织正文；要点里的判断就是用户确认过的结构，模型不该自己另起一套。
+    """
+
+    lines = [f"标题：{outline.title}"]
+    if outline.angle:
+        lines.append(f"切入点：{outline.angle}")
+    for index, section in enumerate(outline.sections, 1):
+        lines.append(f"第 {index} 节 {section.heading}")
+        lines.extend(f"- {point}" for point in section.talking_points)
+        lines.extend(f"- 影响：{note}" for note in section.impact_notes)
+    return "\n".join(lines)[:limit]
 
 
 def notes_text(notes: Sequence[Note], *, limit: int) -> str:

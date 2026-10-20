@@ -192,6 +192,12 @@ class SQLitePromptRepository:
                     "SELECT count(*) FROM outline_versions WHERE prompt_version=?",
                     (version_string,),
                 )
+                # 全文版本：同样只统计模型生成的产物（P6a 的人工稿留空）。
+                + _count(
+                    connection,
+                    "SELECT count(*) FROM article_versions WHERE prompt_version=?",
+                    (version_string,),
+                )
             )
             # 提示词入库之前的任务快照没有 prompt_id，只有版本串；那种引用同样
             # 说明这条记录被用过，既影响能否删除，也影响升级后能否继续执行。

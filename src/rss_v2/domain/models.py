@@ -39,6 +39,7 @@ class TaskType(StrEnum):
     PREPARE_MATERIALS = "prepare_materials"  # 资料准备：一个写作项目一个任务
     DIGEST_MATERIALS = "digest_materials"  # 资料整理：事实/分歧/缺口，一个项目一个任务
     GENERATE_OUTLINE = "generate_outline"  # 提纲生成：分节提纲，一个项目一个任务
+    GENERATE_ARTICLE = "generate_article"  # 全文生成：按已确认提纲写正文，一个项目一个任务
 
 
 class LLMProtocol(StrEnum):
@@ -62,6 +63,7 @@ LLM_TASK_TYPES = frozenset(
         TaskType.PREPARE_MATERIALS,
         TaskType.DIGEST_MATERIALS,
         TaskType.GENERATE_OUTLINE,
+        TaskType.GENERATE_ARTICLE,
     }
 )
 

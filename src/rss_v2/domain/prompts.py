@@ -107,6 +107,16 @@ TASK_SPECS: dict[TaskType, TaskSpec] = {
         # 输入是某个选题与它的资料包，按来源分配没有意义：直接用当前生效版本。
         assignable=False,
     ),
+    TaskType.GENERATE_ARTICLE: TaskSpec(
+        kind=TaskType.GENERATE_ARTICLE,
+        label="全文生成",
+        variables=("title", "summary", "outline", "facts", "notes"),
+        required_variables=("title", "outline"),
+        # 引用表与来源表都要模型显式给出：把依据混在正文里就没法逐条核对。
+        output_fields=("sections", "citations", "source_list"),
+        # 输入是某个项目已确认的提纲与资料包，按来源分配没有意义。
+        assignable=False,
+    ),
 }
 
 #: 编译预览使用的样例取值；没有真实消息时也能看到渲染结果。
@@ -136,6 +146,11 @@ SAMPLE_VALUES: dict[str, str] = {
         "引文：测试当天路面干燥，气温 18 摄氏度。"
     ),
     "notes": "阻塞缺口：缺少官方公布的测试标准与场地条件",
+    # 全文生成的编译预览：真实取值由服务层按已确认的提纲版本渲染。
+    "outline": (
+        "第 1 节 发生了什么\n- 第三方独立测试给出了不同结论\n"
+        "第 2 节 行业影响\n- 检测标准可能被推动更新"
+    ),
 }
 
 

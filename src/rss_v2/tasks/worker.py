@@ -98,6 +98,9 @@ class Worker:
         elif task.task_type == TaskType.GENERATE_OUTLINE:
             # 提纲版本落进 outline_versions，任务由服务自行结束（见 OutlineService.run）。
             self.container.outline_service.run(task)
+        elif task.task_type == TaskType.GENERATE_ARTICLE:
+            # 全文版本落进 article_versions，任务由服务自行结束（见 ArticleService.run）。
+            self.container.article_service.run(task)
         else:
             raise DomainError("task_type_unsupported", "不支持的任务类型")
 

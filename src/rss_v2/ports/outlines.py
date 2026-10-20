@@ -31,6 +31,10 @@ class OutlineRepository(Protocol):
         """项目内序号最大的版本；一个版本都没有时返回 None。"""
         ...
 
+    def confirmed(self, project_id: str) -> OutlineVersion | None:
+        """项目当前已确认的版本；没有确认过时返回 None（全文生成的前置）。"""
+        ...
+
     def latest_number(self, project_id: str) -> int:
         """项目内最大的版本序号；没有版本时为 0（用于判定"是不是最新"）。"""
         ...

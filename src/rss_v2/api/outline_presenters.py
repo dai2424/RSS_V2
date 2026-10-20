@@ -10,8 +10,13 @@ from rss_v2.api.schemas import (
     OutlineSectionResponse,
     OutlineVersionResponse,
 )
-from rss_v2.domain import OutlineDraft, OutlineSection, OutlineSectionSchema, OutlineVersion
-from rss_v2.services.outlines import OutlineView
+from rss_v2.domain import (
+    OutlineDraft,
+    OutlineSection,
+    OutlineSectionSchema,
+    OutlineVersion,
+    OutlineView,
+)
 
 
 def outline_section_response(section: OutlineSection) -> OutlineSectionResponse:

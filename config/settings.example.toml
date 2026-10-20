@@ -71,6 +71,14 @@ outline_max_input_chars = 80000
 # 实测（43 份资料 / 50 条事实的选题）：一次提纲输出 13.9k token（含模型思考），8192 会被
 # max_tokens 截断，因此默认给到 32768。
 outline_max_output_tokens = 32768
+
+# 全文生成（阶段 4 P5）：按已确认提纲与事实清单生成整篇正文。
+# 与提纲一样一次调用、不分批；输出被截断会直接失败，需要调大上限或改提示词。
+article_max_input_chars = 80000
+# 全文比提纲更长（P4 实测一次提纲输出 13.9k token，含模型思考），默认按 32768 给；
+# 上限 65536，真实跑过一篇后再按实测调整。
+article_max_output_tokens = 32768
+
 # 允许读取本机/内网地址：仅本机夹具（tests/preview.py）或内网资料源使用；
 # 默认 false，生产环境必须保持 false，避免检索结果把应用当成内网代理。
 article_allow_private_hosts = false

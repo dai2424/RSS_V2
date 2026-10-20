@@ -11,7 +11,26 @@ schema 只做**结构**约束：字段缺失、类型错误会让整批失败（
 
 from __future__ import annotations
 
-from pydantic import BaseModel
+from typing import Annotated
+
+from pydantic import BaseModel, BeforeValidator
+
+
+def _as_text(value: object) -> str | None:
+    """把模型给的可选文本归一成字符串：标量转字符串，null 与容器按"没给"处理。
+
+    真实环境实测：模型会把"我不知道"写成 `null`，也会把 id 写成数字或对象。这类
+    脏数据应该被服务端丢弃并计数，而不是让整份输出校验失败（`article_rules` 会按
+    "不是有效 id"丢掉它们）。
+    """
+
+    if value is None or isinstance(value, (dict, list)):
+        return None
+    return str(value)
+
+
+#: 宽松的可选文本：模型输出里的各个字符串字段都用它，容错在结构层完成。
+TextValue = Annotated[str | None, BeforeValidator(_as_text)]
 
 
 class DiscoveryReasonSchema(BaseModel):
@@ -117,3 +136,61 @@ class OutlineDraft(BaseModel):
     title: str = ""
     angle: str = ""
     sections: list[OutlineSectionSchema]
+
+
+class ArticleParagraphSchema(BaseModel):
+    """全文的一段：文本 + 类型。
+
+    `kind` 是段落级的：仅凭 section 无法表达"这一节里哪段是事实、哪段是推测"，
+    而"事实段必须带引用、推测段必须带不确定表述"都是按段落判定的（P5 校验原则 3）。
+
+    可选字段允许 `None`：真实模型会把"我不知道"写成 `null`，一个 null 不该让整篇
+    生成失败——服务端把它当作"没给"处理（见 article_rules）。
+    """
+
+    text: TextValue = ""
+    kind: TextValue = "fact"  # fact / analysis / speculation；服务层归一化
+
+
+class ArticleSectionSchema(BaseModel):
+    """全文的一节。"""
+
+    heading: TextValue = ""
+    paragraphs: list[ArticleParagraphSchema] = []
+
+
+class ArticleCitationSchema(BaseModel):
+    """正文一个引用标记对应的事实与引文。
+
+    `marker` 与正文里的 `[^n]` 对应；模型只能给 ID，服务端负责核对归属并快照。
+    """
+
+    marker: TextValue = ""  # 形如 "1"；正文里写 [^1]
+    fact_id: TextValue = ""
+    evidence_ids: list[TextValue] = []
+
+
+class ArticleSourceSchema(BaseModel):
+    """模型给出的来源候选。
+
+    只采信 `material_id`：`title`/`publisher`/`url` 一律由服务端从资料行填充，
+    模型自造的地址在结构上不可能进入成稿。
+    """
+
+    material_id: TextValue = None
+    title: TextValue = None
+    publisher: TextValue = None
+    url: TextValue = None
+
+
+class ArticleDraft(BaseModel):
+    """一次全文生成的完整输出。
+
+    `sections` 必填：缺失说明模型没有按约定作答，整次生成失败，而不是"写不出来"。
+    """
+
+    title: TextValue = ""
+    lead: TextValue = ""
+    sections: list[ArticleSectionSchema]
+    citations: list[ArticleCitationSchema] = []
+    source_list: list[ArticleSourceSchema] = []

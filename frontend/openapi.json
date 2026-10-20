@@ -3154,6 +3154,206 @@
         }
       }
     },
+    "/api/projects/{project_id}/articles": {
+      "post": {
+        "tags": [
+          "articles"
+        ],
+        "summary": "Create Article",
+        "description": "发起全文生成：使用项目当前已确认的提纲版本。",
+        "operationId": "create_article_api_projects__project_id__articles_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "force",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "重新生成（同一提纲也新起版本）",
+              "default": false,
+              "title": "Force"
+            },
+            "description": "重新生成（同一提纲也新起版本）"
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "articles"
+        ],
+        "summary": "List Articles",
+        "description": "全文版本列表（新到旧）与项目级当前状态。",
+        "operationId": "list_articles_api_projects__project_id__articles_get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArticleListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{project_id}/articles/{article_id}": {
+      "get": {
+        "tags": [
+          "articles"
+        ],
+        "summary": "Get Article",
+        "description": "单个版本：正文结构 + Markdown。",
+        "operationId": "get_article_api_projects__project_id__articles__article_id__get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "article_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Article Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArticleVersionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{project_id}/articles/{article_id}/preview": {
+      "get": {
+        "tags": [
+          "articles"
+        ],
+        "summary": "Get Article Preview",
+        "description": "受控 HTML 预览 + 引用证据 + 未处理的缺口/分歧。",
+        "operationId": "get_article_preview_api_projects__project_id__articles__article_id__preview_get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "article_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Article Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArticlePreviewResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/tasks/{task_id}": {
       "get": {
         "tags": [
@@ -3271,16 +3471,16 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "pattern": "^(collect_source|translate_message|enrich_message|keyword_merge_suggest|discover_events|prepare_materials|digest_materials|generate_outline)$"
+                  "pattern": "^(collect_source|translate_message|enrich_message|keyword_merge_suggest|discover_events|prepare_materials|digest_materials|generate_outline|generate_article)$"
                 },
                 {
                   "type": "null"
                 }
               ],
-              "description": "任务类型：采集、翻译、内容加工、合并建议、选题发现、资料准备、资料整理或提纲生成",
+              "description": "任务类型：采集、翻译、内容加工、合并建议、选题发现、资料准备、资料整理、提纲生成或全文生成",
               "title": "Task Type"
             },
-            "description": "任务类型：采集、翻译、内容加工、合并建议、选题发现、资料准备、资料整理或提纲生成"
+            "description": "任务类型：采集、翻译、内容加工、合并建议、选题发现、资料准备、资料整理、提纲生成或全文生成"
           },
           {
             "name": "source_id",
@@ -4499,6 +4699,690 @@
   },
   "components": {
     "schemas": {
+      "ArticleCitationResponse": {
+        "properties": {
+          "marker": {
+            "type": "string",
+            "title": "Marker"
+          },
+          "fact_id": {
+            "type": "string",
+            "title": "Fact Id"
+          },
+          "fact_kind": {
+            "type": "string",
+            "title": "Fact Kind"
+          },
+          "fact_status": {
+            "type": "string",
+            "title": "Fact Status"
+          },
+          "statement": {
+            "type": "string",
+            "title": "Statement"
+          },
+          "quotes": {
+            "items": {
+              "$ref": "#/components/schemas/ArticleQuoteResponse"
+            },
+            "type": "array",
+            "title": "Quotes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "marker",
+          "fact_id",
+          "fact_kind",
+          "fact_status",
+          "statement",
+          "quotes"
+        ],
+        "title": "ArticleCitationResponse",
+        "description": "一个引用标记对应的证据。"
+      },
+      "ArticleCountersResponse": {
+        "properties": {
+          "out_of_range": {
+            "type": "integer",
+            "title": "Out Of Range"
+          },
+          "unsupported": {
+            "type": "integer",
+            "title": "Unsupported"
+          },
+          "unused_citations": {
+            "type": "integer",
+            "title": "Unused Citations"
+          },
+          "duplicate_markers": {
+            "type": "integer",
+            "title": "Duplicate Markers"
+          },
+          "invalid_markers": {
+            "type": "integer",
+            "title": "Invalid Markers"
+          },
+          "downgraded_speculation": {
+            "type": "integer",
+            "title": "Downgraded Speculation"
+          },
+          "unknown_kind": {
+            "type": "integer",
+            "title": "Unknown Kind"
+          },
+          "rejected_links": {
+            "type": "integer",
+            "title": "Rejected Links"
+          },
+          "dropped_paragraphs": {
+            "type": "integer",
+            "title": "Dropped Paragraphs"
+          },
+          "dropped_sections": {
+            "type": "integer",
+            "title": "Dropped Sections"
+          },
+          "invalid_sources": {
+            "type": "integer",
+            "title": "Invalid Sources"
+          },
+          "unused_sources": {
+            "type": "integer",
+            "title": "Unused Sources"
+          },
+          "added_sources": {
+            "type": "integer",
+            "title": "Added Sources"
+          },
+          "dropped_sources": {
+            "type": "integer",
+            "title": "Dropped Sources"
+          }
+        },
+        "type": "object",
+        "required": [
+          "out_of_range",
+          "unsupported",
+          "unused_citations",
+          "duplicate_markers",
+          "invalid_markers",
+          "downgraded_speculation",
+          "unknown_kind",
+          "rejected_links",
+          "dropped_paragraphs",
+          "dropped_sections",
+          "invalid_sources",
+          "unused_sources",
+          "added_sources",
+          "dropped_sources"
+        ],
+        "title": "ArticleCountersResponse",
+        "description": "生成时被丢弃/降级的条目：全部回给界面，丢弃必须看得见。"
+      },
+      "ArticleListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ArticleSummaryResponse"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "latest_version_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest Version Id"
+          },
+          "saved_version_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Saved Version Id"
+          },
+          "outline_version_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outline Version Id"
+          },
+          "has_unconfirmed_changes": {
+            "type": "boolean",
+            "title": "Has Unconfirmed Changes"
+          },
+          "has_blocking": {
+            "type": "boolean",
+            "title": "Has Blocking"
+          },
+          "blocking_count": {
+            "type": "integer",
+            "title": "Blocking Count"
+          },
+          "task_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Task Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "latest_version_id",
+          "saved_version_id",
+          "outline_version_id",
+          "has_unconfirmed_changes",
+          "has_blocking",
+          "blocking_count",
+          "task_status"
+        ],
+        "title": "ArticleListResponse",
+        "description": "版本列表与项目级当前状态（新到旧）。"
+      },
+      "ArticleNoteResponse": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "blocking": {
+            "type": "boolean",
+            "title": "Blocking"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "text",
+          "blocking"
+        ],
+        "title": "ArticleNoteResponse",
+        "description": "一条未处理的缺口/分歧。"
+      },
+      "ArticleParagraphResponse": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          }
+        },
+        "type": "object",
+        "required": [
+          "text",
+          "kind"
+        ],
+        "title": "ArticleParagraphResponse",
+        "description": "正文的一段：文本 + 类型。"
+      },
+      "ArticlePreviewResponse": {
+        "properties": {
+          "version": {
+            "$ref": "#/components/schemas/ArticleSummaryResponse"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "lead": {
+            "type": "string",
+            "title": "Lead"
+          },
+          "html": {
+            "type": "string",
+            "title": "Html"
+          },
+          "citations": {
+            "items": {
+              "$ref": "#/components/schemas/ArticleCitationResponse"
+            },
+            "type": "array",
+            "title": "Citations"
+          },
+          "pending_notes": {
+            "items": {
+              "$ref": "#/components/schemas/ArticleNoteResponse"
+            },
+            "type": "array",
+            "title": "Pending Notes"
+          },
+          "source_count": {
+            "type": "integer",
+            "title": "Source Count"
+          },
+          "single_source": {
+            "type": "boolean",
+            "title": "Single Source"
+          },
+          "has_blocking": {
+            "type": "boolean",
+            "title": "Has Blocking"
+          },
+          "blocking_count": {
+            "type": "integer",
+            "title": "Blocking Count"
+          },
+          "task_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Task Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "version",
+          "title",
+          "lead",
+          "html",
+          "citations",
+          "pending_notes",
+          "source_count",
+          "single_source",
+          "has_blocking",
+          "blocking_count",
+          "task_status"
+        ],
+        "title": "ArticlePreviewResponse",
+        "description": "预览：受控 HTML + 引用证据 + 待核对项。"
+      },
+      "ArticleQuoteResponse": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "locator": {
+            "type": "integer",
+            "title": "Locator"
+          },
+          "material_id": {
+            "type": "string",
+            "title": "Material Id"
+          },
+          "material_title": {
+            "type": "string",
+            "title": "Material Title"
+          },
+          "material_url": {
+            "type": "string",
+            "title": "Material Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "text",
+          "locator",
+          "material_id",
+          "material_title",
+          "material_url"
+        ],
+        "title": "ArticleQuoteResponse",
+        "description": "一条引文：原文、来源资料与链接（预览里的证据 Sheet 用）。"
+      },
+      "ArticleSectionResponse": {
+        "properties": {
+          "heading": {
+            "type": "string",
+            "title": "Heading"
+          },
+          "paragraphs": {
+            "items": {
+              "$ref": "#/components/schemas/ArticleParagraphResponse"
+            },
+            "type": "array",
+            "title": "Paragraphs"
+          }
+        },
+        "type": "object",
+        "required": [
+          "heading",
+          "paragraphs"
+        ],
+        "title": "ArticleSectionResponse",
+        "description": "正文的一节。"
+      },
+      "ArticleSourceResponse": {
+        "properties": {
+          "material_id": {
+            "type": "string",
+            "title": "Material Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "publisher": {
+            "type": "string",
+            "title": "Publisher"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "material_id",
+          "title",
+          "publisher",
+          "url"
+        ],
+        "title": "ArticleSourceResponse",
+        "description": "文末来源列表的一项；全部字段来自项目资料行。"
+      },
+      "ArticleSummaryResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "version_number": {
+            "type": "integer",
+            "title": "Version Number"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "outline_version_id": {
+            "type": "string",
+            "title": "Outline Version Id"
+          },
+          "prompt_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prompt Version"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "task_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Task Id"
+          },
+          "source_count": {
+            "type": "integer",
+            "title": "Source Count"
+          },
+          "counters": {
+            "$ref": "#/components/schemas/ArticleCountersResponse"
+          },
+          "created_at": {
+            "type": "integer",
+            "title": "Created At"
+          },
+          "saved_at": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Saved At"
+          },
+          "base_article_version_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Article Version Id"
+          },
+          "is_latest": {
+            "type": "boolean",
+            "title": "Is Latest"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "version_number",
+          "kind",
+          "status",
+          "title",
+          "outline_version_id",
+          "prompt_version",
+          "model",
+          "task_id",
+          "source_count",
+          "counters",
+          "created_at",
+          "saved_at",
+          "base_article_version_id",
+          "is_latest"
+        ],
+        "title": "ArticleSummaryResponse",
+        "description": "版本摘要：列表用，不含正文。"
+      },
+      "ArticleVersionResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "version_number": {
+            "type": "integer",
+            "title": "Version Number"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "outline_version_id": {
+            "type": "string",
+            "title": "Outline Version Id"
+          },
+          "prompt_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prompt Version"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "task_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Task Id"
+          },
+          "source_count": {
+            "type": "integer",
+            "title": "Source Count"
+          },
+          "counters": {
+            "$ref": "#/components/schemas/ArticleCountersResponse"
+          },
+          "created_at": {
+            "type": "integer",
+            "title": "Created At"
+          },
+          "saved_at": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Saved At"
+          },
+          "base_article_version_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Article Version Id"
+          },
+          "is_latest": {
+            "type": "boolean",
+            "title": "Is Latest"
+          },
+          "lead": {
+            "type": "string",
+            "title": "Lead"
+          },
+          "sections": {
+            "items": {
+              "$ref": "#/components/schemas/ArticleSectionResponse"
+            },
+            "type": "array",
+            "title": "Sections"
+          },
+          "source_list": {
+            "items": {
+              "$ref": "#/components/schemas/ArticleSourceResponse"
+            },
+            "type": "array",
+            "title": "Source List"
+          },
+          "body_markdown": {
+            "type": "string",
+            "title": "Body Markdown"
+          },
+          "material_snapshot_hash": {
+            "type": "string",
+            "title": "Material Snapshot Hash"
+          },
+          "digest_run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Digest Run Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "version_number",
+          "kind",
+          "status",
+          "title",
+          "outline_version_id",
+          "prompt_version",
+          "model",
+          "task_id",
+          "source_count",
+          "counters",
+          "created_at",
+          "saved_at",
+          "base_article_version_id",
+          "is_latest",
+          "lead",
+          "sections",
+          "source_list",
+          "body_markdown",
+          "material_snapshot_hash",
+          "digest_run_id"
+        ],
+        "title": "ArticleVersionResponse",
+        "description": "单个版本：摘要字段 + 正文结构 + Markdown。"
+      },
       "CategoryCreateRequest": {
         "properties": {
           "name": {

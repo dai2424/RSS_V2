@@ -1050,6 +1050,35 @@ tbody tr:hover {
 .prose p {
   margin: 6px 0 12px;
 }
+/* 全文阅读：正文沿用 .prose 的 48rem 行宽；引用标记是行内小按钮（可聚焦、可键盘触发）。 */
+.article-view .lead {
+  color: hsl(var(--muted-foreground));
+  font-size: 15px;
+}
+.citation-marker {
+  background: none;
+  border: 0;
+  color: hsl(var(--primary));
+  cursor: pointer;
+  font-size: 0.72em;
+  font-weight: 600;
+  line-height: 1;
+  padding: 0 2px;
+  vertical-align: super;
+}
+.citation-marker:hover {
+  text-decoration: underline;
+}
+.citation-marker:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 1px;
+}
+.citation-quote {
+  border-left: 3px solid hsl(var(--border));
+  color: hsl(var(--foreground));
+  margin: 0 0 6px;
+  padding-left: 10px;
+}
 .card h2 {
   font-size: 16px;
   font-weight: 600;

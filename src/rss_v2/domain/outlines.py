@@ -122,3 +122,29 @@ class OutlineLimits:
     max_sections: int = 12  # 分节条数上限；超出的部分丢弃并计数
     max_points: int = 8  # 每节要点条数上限
     max_output_tokens: int = 32768  # 单次调用的输出上限；截断即失败（实测见 settings.py）
+
+
+@dataclass(frozen=True, slots=True)
+class OutlineView:
+    """提纲列表视图：版本 + 项目级的当前状态。"""
+
+    versions: tuple[OutlineVersion, ...]
+    latest_version_id: str | None
+    confirmed_version_id: str | None
+    blocking_count: int
+    task_status: str | None
+
+    @property
+    def has_blocking(self) -> bool:
+        """项目里是否还有未处理的阻塞缺口（只标记，不拦生成与确认）。"""
+
+        return self.blocking_count > 0
+
+    @property
+    def has_unconfirmed_changes(self) -> bool:
+        """已有确认版本，但最新版本不是它（确认后又改过或重新生成过）。"""
+
+        return (
+            self.confirmed_version_id is not None
+            and self.latest_version_id != self.confirmed_version_id
+        )

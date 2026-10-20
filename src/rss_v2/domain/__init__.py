@@ -1,5 +1,23 @@
 """RSS v2 领域层。"""
 
+from .articles import (
+    MAX_LEAD_CHARS,
+    MAX_SECTIONS,
+    MAX_SOURCES,
+    ArticleBody,
+    ArticleCitation,
+    ArticleCounters,
+    ArticleKind,
+    ArticleLimits,
+    ArticleParagraph,
+    ArticleSection,
+    ArticleSource,
+    ArticleStatus,
+    ArticleVersion,
+    ArticleView,
+    ParagraphKind,
+    QuoteSnapshot,
+)
 from .deletions import MessageDeletion, TaskDeletion
 from .discovery import (
     CandidateDraft,
@@ -35,6 +53,11 @@ from .facts import (
     QuoteSupport,
 )
 from .generation import (
+    ArticleCitationSchema,
+    ArticleDraft,
+    ArticleParagraphSchema,
+    ArticleSectionSchema,
+    ArticleSourceSchema,
     ConflictSchema,
     DiscoveryCandidateSchema,
     DiscoveryDigest,
@@ -161,10 +184,32 @@ from .outlines import (
     OutlineSource,
     OutlineStatus,
     OutlineVersion,
+    OutlineView,
 )
 
 __all__ = [
     "KEYWORD_LIMIT",
+    "MAX_LEAD_CHARS",
+    "MAX_SECTIONS",
+    "MAX_SOURCES",
+    "ArticleBody",
+    "ArticleCitation",
+    "ArticleCitationSchema",
+    "ArticleCounters",
+    "ArticleDraft",
+    "ArticleKind",
+    "ArticleLimits",
+    "ArticleParagraph",
+    "ArticleParagraphSchema",
+    "ArticleSection",
+    "ArticleSectionSchema",
+    "ArticleSource",
+    "ArticleSourceSchema",
+    "ArticleStatus",
+    "ArticleVersion",
+    "ArticleView",
+    "ParagraphKind",
+    "QuoteSnapshot",
     "ConflictSchema",
     "DigestCounts",
     "DigestLimits",
@@ -193,6 +238,7 @@ __all__ = [
     "OutlineSource",
     "OutlineStatus",
     "OutlineVersion",
+    "OutlineView",
     "MAX_QUOTE_CHARS",
     "MIN_QUOTE_CHARS",
     "Note",

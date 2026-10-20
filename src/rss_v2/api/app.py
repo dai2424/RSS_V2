@@ -14,6 +14,7 @@ from fastapi.responses import JSONResponse
 from starlette.responses import Response
 
 from rss_v2.api.routes import (
+    articles_router,
     categories_router,
     collection_router,
     discovery_router,
@@ -66,6 +67,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(materials_router)
     app.include_router(facts_router)
     app.include_router(outlines_router)
+    app.include_router(articles_router)
     app.include_router(tasks_router)
     app.include_router(providers_router)
     app.include_router(prompts_router)

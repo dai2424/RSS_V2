@@ -91,6 +91,12 @@ class Settings(BaseSettings):
     # 8192 会被 max_tokens 截断（llm_output_truncated）；该模型的思考 token 也计入输出，
     # 因此默认按实测值给到 32768。
     outline_max_output_tokens: int = Field(default=32768, ge=1024, le=65536)
+    # 全文生成（阶段 4 P5）：输入是已确认提纲与事实清单，一次调用生成整篇，
+    # 与提纲一样不分批——输出被截断直接失败。
+    article_max_input_chars: int = Field(default=80000, ge=10000, le=400000)
+    # P4 实测一次提纲输出就有 13.9k token（含模型思考），全文更长，默认按 32768 给；
+    # 上限放宽到 65536，真实跑一篇之后再按实测调整。
+    article_max_output_tokens: int = Field(default=32768, ge=1024, le=65536)
     # 允许读取私网/本机地址：仅本机夹具（preview）或内网资料源使用；默认关闭，
     # 生产环境必须保持拒绝，避免检索结果把应用当成内网代理。
     article_allow_private_hosts: bool = False

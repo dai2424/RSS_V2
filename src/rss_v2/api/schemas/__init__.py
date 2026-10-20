@@ -1,5 +1,18 @@
 """API 请求和响应模型；按领域分模块，这里统一导出。"""
 
+from .articles import (
+    ArticleCitationResponse,
+    ArticleCountersResponse,
+    ArticleListResponse,
+    ArticleNoteResponse,
+    ArticleParagraphResponse,
+    ArticlePreviewResponse,
+    ArticleQuoteResponse,
+    ArticleSectionResponse,
+    ArticleSourceResponse,
+    ArticleSummaryResponse,
+    ArticleVersionResponse,
+)
 from .catalog import (
     CategoryCreateRequest,
     CategoryResponse,
@@ -217,6 +230,17 @@ __all__ = [
     "MessageVersionResponse",
     "Page",
     "PatchRequest",
+    "ArticleCitationResponse",
+    "ArticleCountersResponse",
+    "ArticleListResponse",
+    "ArticleNoteResponse",
+    "ArticleParagraphResponse",
+    "ArticlePreviewResponse",
+    "ArticleQuoteResponse",
+    "ArticleSectionResponse",
+    "ArticleSourceResponse",
+    "ArticleSummaryResponse",
+    "ArticleVersionResponse",
     "OutlineCountersResponse",
     "OutlineListResponse",
     "OutlineResponse",

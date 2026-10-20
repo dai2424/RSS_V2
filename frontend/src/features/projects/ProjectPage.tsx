@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { Badge, Card, PageHeader } from "../../components/ui";
 import { UnsavedDialog } from "../../components/UnsavedChanges";
 import { formatTime } from "../../lib/display";
+import { ArticlesPanel } from "./ArticlesPanel";
 import { FactsPanel } from "./FactsPanel";
 import { useProjectDetail } from "./hooks";
 import { MaterialsPanel } from "./MaterialsPanel";
@@ -18,12 +19,13 @@ const STATUS_LABELS: Record<string, string> = {
   saved: "已有人工保存稿",
 };
 
-type Section = "materials" | "facts" | "outline";
+type Section = "materials" | "facts" | "outline" | "article";
 
 const SECTIONS: { key: Section; label: string }[] = [
   { key: "materials", label: "资料" },
   { key: "facts", label: "事实与核对" },
   { key: "outline", label: "提纲" },
+  { key: "article", label: "文章" },
 ];
 
 /**
@@ -124,6 +126,7 @@ export function ProjectPage() {
       {section === "outline" && (
         <OutlinesPanel projectId={projectId} onDirtyChange={setOutlineDirty} />
       )}
+      {section === "article" && <ArticlesPanel projectId={projectId} />}
       <UnsavedDialog
         open={pendingSection !== null}
         onKeep={() => setPendingSection(null)}

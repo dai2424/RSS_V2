@@ -33,9 +33,11 @@ def list_tasks(
         default=None,
         pattern="^("
         "collect_source|translate_message|enrich_message|keyword_merge_suggest|"
-        "discover_events|prepare_materials|digest_materials|generate_outline)$",
+        "discover_events|prepare_materials|digest_materials|generate_outline|"
+        "generate_article)$",
         description=(
-            "任务类型：采集、翻译、内容加工、合并建议、选题发现、资料准备、资料整理或提纲生成"
+            "任务类型：采集、翻译、内容加工、合并建议、选题发现、资料准备、资料整理、"
+            "提纲生成或全文生成"
         ),
     ),
     source_id: str | None = Query(

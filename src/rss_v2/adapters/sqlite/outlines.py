@@ -209,6 +209,18 @@ class SQLiteOutlineRepository:
         finally:
             connection.close()
 
+    def confirmed(self, project_id: str) -> OutlineVersion | None:
+        connection = self.database.connect()
+        try:
+            row = connection.execute(
+                "SELECT * FROM outline_versions WHERE project_id=? AND status='confirmed'"
+                " ORDER BY version_number DESC, rowid DESC LIMIT 1",
+                (project_id,),
+            ).fetchone()
+            return _version(row) if row else None
+        finally:
+            connection.close()
+
     def latest_number(self, project_id: str) -> int:
         connection = self.database.connect()
         try:
